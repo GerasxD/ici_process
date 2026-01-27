@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "29197350664",
+    "project_id": "ici-process",
+    "storage_bucket": "ici-process.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:29197350664:android:9bbc19bff7a2941f735ebd",
+        "android_client_info": {
+          "package_name": "com.example.ici_process"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3gCmTzS9u6VKQQK1vX_1ZuZqEclx1uWA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

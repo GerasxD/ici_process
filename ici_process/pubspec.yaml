@@ -1,0 +1,35 @@
+name: ici_process
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Iconos modernos (los que usamos en el diseño)
+  lucide_icons: ^0.257.0
+
+  # Firebase Core (Obligatorio para cualquier uso de Firebase)
+  firebase_core: ^3.10.1
+
+  # Firebase Auth (Para el sistema de login)
+  firebase_auth: ^5.4.1
+
+  # Cloud Firestore (Para guardar datos de usuarios/inspecciones)
+  cloud_firestore: ^5.6.1
+
+  intl: ^0.19.0
+  google_generative_ai: ^0.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Actualizado para seguir las mejores reglas de estilo de código
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
