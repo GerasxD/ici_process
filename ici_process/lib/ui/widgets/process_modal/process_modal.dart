@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ici_process/ui/widgets/process_modal/quote_form_modal.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'general_info_section.dart';
@@ -22,7 +23,10 @@ class _ProcessModalState extends State<ProcessModal> {
   final _clientController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _commentController = TextEditingController();
-  final _regressionController = TextEditingController(); // Motivo retroceso
+  final _regressionController = TextEditingController();
+  
+  final _amountController = TextEditingController();
+  final _costController = TextEditingController(); // Motivo retroceso
 
   String _priority = 'Media';
   String? _requestedBy;
@@ -41,7 +45,21 @@ class _ProcessModalState extends State<ProcessModal> {
       _requestedBy = widget.process!.requestedBy;
       _requestDate = widget.process!.requestDate;
       _comments = List.from(widget.process!.comments);
+      _amountController.text = widget.process!.amount.toString();
+      _costController.text = widget.process!.estimatedCost.toString();
     }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _clientController.dispose();
+    _descriptionController.dispose();
+    _commentController.dispose();
+    _regressionController.dispose();
+    _amountController.dispose();
+    _costController.dispose();
+    super.dispose();
   }
 
   // --- LÓGICA DE ELIMINACIÓN ---
@@ -246,6 +264,8 @@ class _ProcessModalState extends State<ProcessModal> {
   }
 
   ProcessModel _buildModelFromState(ProcessStage stage, HistoryEntry newEntry) {
+    double finalAmount = double.tryParse(_amountController.text) ?? 0.0;
+    double finalCost = double.tryParse(_costController.text) ?? 0.0;
     return ProcessModel(
       id: widget.process?.id ?? "PROC-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}",
       title: _titleController.text,
@@ -258,6 +278,8 @@ class _ProcessModalState extends State<ProcessModal> {
       comments: _comments,
       history: [newEntry, ...widget.process?.history ?? []],
       updatedAt: DateTime.now(),
+      amount: finalAmount,
+      estimatedCost: finalCost,
     );
   }
 
@@ -307,6 +329,14 @@ class _ProcessModalState extends State<ProcessModal> {
     }
   }
 
+  void _openQuoteModal() {
+    if (widget.process == null) return;
+    showDialog(
+      context: context, 
+      builder: (_) => QuoteFormModal(process: widget.process!)
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -328,14 +358,16 @@ class _ProcessModalState extends State<ProcessModal> {
                       titleController: _titleController,
                       clientController: _clientController,
                       descriptionController: _descriptionController,
+                      amountController: _amountController,
+                      costController: _costController,
                       selectedPriority: _priority,
                       selectedRequester: _requestedBy,
                       requestDate: _requestDate,
                       currentStage: widget.process?.stage,
                       onPriorityChanged: (val) => setState(() => _priority = val!),
                       onRequesterChanged: (val) => setState(() => _requestedBy = val),
-                      onDateChanged: (val) => setState(() => _requestDate = val), onAdvance: () {  },
-                      // ❌ YA NO PASAMOS onAdvance aquí, lo manejamos en el footer
+                      onDateChanged: (val) => setState(() => _requestDate = val),
+                      onOpenQuote: _openQuoteModal,
                     ),
                     const SizedBox(height: 24),
                     _buildCommentsSection(),

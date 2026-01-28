@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:ici_process/ui/screens/admin_panel_screen.dart';
+import 'package:ici_process/ui/screens/client_managment_screen.dart';
+import 'package:ici_process/ui/screens/material_catalog_screen.dart';
+import 'package:ici_process/ui/screens/provider_management_screen.dart';
+import 'package:ici_process/ui/screens/service_catalog_screen.dart';
+import 'package:ici_process/ui/screens/vehicle_management_screen.dart';
 import 'package:ici_process/ui/widgets/process_modal/process_modal.dart';
-import 'package:ici_process/ui/widgets/kanban_view.dart'; // Importante para ver las tarjetas
+import 'package:ici_process/ui/widgets/kanban_view.dart'; 
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/user_model.dart';
 
@@ -18,11 +24,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   // Definimos las vistas aquí para que se carguen dinámicamente
   List<Widget> get _views => [
-    KanbanView(currentUser: widget.user), // Carga real de Firebase
-    const Center(child: Text("Calendario (Próximamente)")),
-    const Center(child: Text("Reportes (Próximamente)")),
-    const Center(child: Text("Base de Datos (Próximamente)")),
-    const Center(child: Text("Configuración (Próximamente)")),
+    KanbanView(currentUser: widget.user), // Índice 0
+    const Center(child: Text("Calendario (Próximamente)")), // Índice 1
+    const Center(child: Text("Reportes (Próximamente)")), // Índice 2
+    ClientManagementScreen(currentUser: widget.user), // Índice 3
+    ProviderManagementScreen(currentUser: widget.user), // Índice 4
+    MaterialCatalogScreen(currentUser: widget.user), // Índice 5
+    ServiceCatalogScreen(currentUser:  widget.user), // Índice 6
+    VehicleManagementScreen(currentUser: widget.user),// Índice 7
+    AdminPanelScreen(currentUser:widget.user), // Índice 8
   ];
 
   @override
@@ -118,6 +128,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               _buildNavItem(0, "Tablero", LucideIcons.squareKanban, isMobile),
               _buildNavItem(1, "Calendario", LucideIcons.calendar, isMobile),
               _buildNavItem(2, "Reportes", LucideIcons.barChart2, isMobile),
+              
               const SizedBox(height: 20),
               if (showText)
                 const Padding(
@@ -125,8 +136,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: Text("BASE DE DATOS", 
                     style: TextStyle(color: Colors.white30, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
-              _buildNavItem(3, "Inventario/DB", LucideIcons.database, isMobile),
-              _buildNavItem(4, "Sistema", LucideIcons.settings, isMobile),
+              _buildNavItem(3, "Clientes", LucideIcons.users, isMobile),
+              _buildNavItem(4, "Proveedores", LucideIcons.boxes, isMobile),
+              _buildNavItem(5, "Materiales", LucideIcons.box, isMobile),
+              _buildNavItem(6, "Servicios / Rentas", LucideIcons.calendarClock, isMobile),
+              _buildNavItem(7, "Vehiculos", LucideIcons.truck, isMobile),
+              _buildNavItem(8, "Administración", LucideIcons.settings, isMobile),
             ],
           ),
         ),
@@ -175,6 +190,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+  // ✅ AQUÍ SE REALIZÓ EL CAMBIO
   Widget _buildTopHeader() {
     return Container(
       height: 70,
@@ -191,8 +207,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
           const Spacer(),
           _buildNotificationBadge(),
-          const SizedBox(width: 24),
-          _buildQuickActionButton(),
+          
+          // Solo mostramos el botón si estamos en el índice 0 (Tablero)
+          if (_selectedIndex == 0) ...[
+             const SizedBox(width: 24),
+             _buildQuickActionButton(),
+          ],
         ],
       ),
     );

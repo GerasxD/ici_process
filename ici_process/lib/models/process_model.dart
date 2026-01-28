@@ -19,6 +19,7 @@ class ProcessModel {
   final List<HistoryEntry> history;
   final List<CommentModel> comments; // Nuevo
   final DateTime updatedAt;
+  final Map<String, dynamic>? quotationData;
 
   ProcessModel({
     required this.id,
@@ -38,6 +39,7 @@ class ProcessModel {
     required this.history,
     required this.comments,
     required this.updatedAt,
+    this.quotationData,
   });
 
   factory ProcessModel.fromMap(Map<String, dynamic> data, String docId) {
@@ -66,6 +68,9 @@ class ProcessModel {
           .map((e) => CommentModel.fromMap(e))
           .toList(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      quotationData: data['quotationData'] != null 
+          ? Map<String, dynamic>.from(data['quotationData']) 
+          : null,
     );
   }
 
@@ -87,6 +92,7 @@ class ProcessModel {
       'history': history.map((e) => e.toMap()).toList(),
       'comments': comments.map((e) => e.toMap()).toList(),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'quotationData': quotationData,
     };
   }
 }
