@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../core/constants/app_constants.dart';
 import '../../models/user_model.dart';
 import '../../models/provider_model.dart';
 import '../../services/provider_service.dart';
@@ -37,9 +37,7 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
   // Color distintivo para Proveedores (Indigo suave para diferenciar de Clientes azules)
   final Color _accentColor = const Color(0xFF6366F1); 
 
-  bool get isAdmin =>
-      widget.currentUser.role == UserRole.admin ||
-      widget.currentUser.role == UserRole.superAdmin;
+  bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_providers');
 
   @override
   void dispose() {
@@ -51,6 +49,7 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
   }
 
   Future<void> _handleAdd() async {
+    if (!canEdit) return;
     if (_nameCtrl.text.isEmpty || _contactCtrl.text.isEmpty) {
       _showSnack("Nombre y Contacto son obligatorios", isSuccess: false);
       return;
@@ -115,13 +114,15 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
                       children: [
                         Expanded(flex: 7, child: _buildList(providers)),
                         const SizedBox(width: 40),
-                        if (isAdmin) Expanded(flex: 4, child: _buildForm()),
+                        // 3. OCULTAR FORMULARIO EN DESKTOP
+                        if (canEdit) 
+                          Expanded(flex: 4, child: _buildForm()),
                       ],
                     );
                   } else {
                     return Column(
                       children: [
-                        if (isAdmin) ...[_buildForm(), const SizedBox(height: 40)],
+                        if (canEdit) ...[_buildForm(), const SizedBox(height: 40)],
                         _buildList(providers),
                       ],
                     );
@@ -258,7 +259,7 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
           ),
 
           // Botones de acción mejorados
-          if (isAdmin)
+          if (canEdit)
             Row(
               children: [
                 _buildIconBtn(

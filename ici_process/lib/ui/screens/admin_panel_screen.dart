@@ -167,7 +167,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
 }
 
 // -----------------------------------------------------------------------------
-// 1. PESTAÑA DE USUARIOS (FUNCIONAL: AGREGAR Y ELIMINAR)
+// 1. PESTAÑA DE USUARIOS (AGREGAR, EDITAR, ELIMINAR, AUTH)
 // -----------------------------------------------------------------------------
 class _UsersTab extends StatefulWidget {
   final UserService userService;
@@ -184,18 +184,13 @@ class _UsersTabState extends State<_UsersTab> {
 
   // --- LÓGICA: ELIMINAR USUARIO ---
   Future<void> _handleDeleteUser(UserModel user) async {
-    if (user.id == widget.currentUser.id) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No puedes eliminar tu propia cuenta."), backgroundColor: Colors.red),
-      );
-      return;
-    }
+    if (user.id == widget.currentUser.id) return;
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("¿Eliminar Usuario?"),
-        content: Text("Estás a punto de eliminar a ${user.name}. Esta acción es irreversible."),
+        content: Text("Se eliminará el acceso de ${user.name} al sistema."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar")),
           ElevatedButton(
@@ -210,38 +205,62 @@ class _UsersTabState extends State<_UsersTab> {
     if (confirm == true) {
       try {
         await widget.userService.deleteUser(user.id);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Usuario eliminado correctamente"), backgroundColor: Colors.green),
-          );
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Usuario eliminado"), backgroundColor: Colors.green));
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
       }
     }
   }
 
-  // --- LÓGICA: CREAR USUARIO ---
-  void _showCreateUserDialog() {
+  // --- LÓGICA: RESTABLECER CONTRASEÑA ---
+  Future<void> _handleResetPassword(String email) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("¿Restablecer Contraseña?"),
+        content: Text("Se enviará un correo a $email para que el usuario genere una nueva contraseña."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Enviar Correo"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await widget.userService.sendPasswordResetEmail(email);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Correo de recuperación enviado"), backgroundColor: Colors.green));
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  // --- LÓGICA: CREAR O EDITAR USUARIO ---
+  void _showUserDialog({UserModel? userToEdit}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _UserFormDialog(
-        onSave: (newUser) async {
+        userToEdit: userToEdit,
+        onSave: (user, password) async {
           try {
             setState(() => _isProcessing = true);
-            await widget.userService.createUserFirestore(newUser);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Usuario registrado exitosamente"), backgroundColor: Colors.green),
-              );
+            
+            if (userToEdit == null) {
+              // CREAR: Usamos el método completo (Auth + DB)
+              await widget.userService.createUserComplete(user, password!);
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Usuario creado y vinculado"), backgroundColor: Colors.green));
+            } else {
+              // EDITAR: Solo actualizamos DB
+              await widget.userService.updateUser(user);
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Datos actualizados"), backgroundColor: Colors.green));
             }
           } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error al guardar: $e"), backgroundColor: Colors.red));
-            }
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
           } finally {
             if (mounted) setState(() => _isProcessing = false);
           }
@@ -250,7 +269,6 @@ class _UsersTabState extends State<_UsersTab> {
     );
   }
 
-  // Helper para estilos de badges (Roles)
   Map<String, dynamic> _getRoleStyle(String role) {
     switch (role.toLowerCase()) {
       case 'superadmin': return {'text': 'Super Admin', 'bg': const Color(0xFF312E81), 'fg': Colors.white};
@@ -275,7 +293,7 @@ class _UsersTabState extends State<_UsersTab> {
             children: [
               Text("Directorio de Usuarios", style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF334155))),
               ElevatedButton.icon(
-                onPressed: _isProcessing ? null : _showCreateUserDialog,
+                onPressed: _isProcessing ? null : () => _showUserDialog(),
                 icon: const Icon(LucideIcons.userPlus, size: 18),
                 label: const Text("Nuevo Usuario"),
                 style: ElevatedButton.styleFrom(
@@ -297,18 +315,7 @@ class _UsersTabState extends State<_UsersTab> {
                 
                 final users = snapshot.data ?? [];
 
-                if (users.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(LucideIcons.users, size: 48, color: Colors.grey.shade300),
-                        const SizedBox(height: 16),
-                        Text("No hay usuarios registrados", style: TextStyle(color: Colors.grey.shade500)),
-                      ],
-                    ),
-                  );
-                }
+                if (users.isEmpty) return const Center(child: Text("No hay usuarios registrados"));
 
                 return ListView.separated(
                   itemCount: users.length,
@@ -317,6 +324,7 @@ class _UsersTabState extends State<_UsersTab> {
                     final user = users[index];
                     final roleStyle = _getRoleStyle(user.role.toString().split('.').last);
                     final isMe = user.id == widget.currentUser.id;
+                    final isSuper = widget.currentUser.role == UserRole.superAdmin;
 
                     return Container(
                       padding: const EdgeInsets.all(20),
@@ -352,28 +360,34 @@ class _UsersTabState extends State<_UsersTab> {
                               ],
                             ),
                           ),
-                          // Badge de Rol
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: roleStyle['bg'].withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: roleStyle['bg'].withOpacity(0.2)),
-                            ),
-                            child: Text(
-                              roleStyle['text'],
-                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: roleStyle['bg']),
-                            ),
+                            decoration: BoxDecoration(color: roleStyle['bg'].withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: roleStyle['bg'].withOpacity(0.2))),
+                            child: Text(roleStyle['text'], style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: roleStyle['bg'])),
                           ),
                           const SizedBox(width: 24),
                           
-                          // Botones de acción (Solo SuperAdmin o Admin puede borrar, y no a sí mismo)
-                          if (!isMe && (widget.currentUser.role == UserRole.superAdmin))
+                          // --- BOTONES DE ACCIÓN ---
+                          if (isSuper || isMe) // Admin puede editar a todos, Usuario solo a sí mismo (limitado)
                             IconButton(
-                              icon: const Icon(LucideIcons.trash2, size: 20, color: Color(0xFFEF4444)), // Rojo borrar
-                              tooltip: "Eliminar Usuario",
-                              onPressed: () => _handleDeleteUser(user),
-                            )
+                              icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue),
+                              tooltip: "Editar Datos",
+                              onPressed: () => _showUserDialog(userToEdit: user),
+                            ),
+                          
+                          if (isSuper) ...[ // Solo SuperAdmin tiene estas opciones avanzadas
+                            IconButton(
+                              icon: const Icon(LucideIcons.key, size: 20, color: Colors.orange),
+                              tooltip: "Enviar Reset Password",
+                              onPressed: () => _handleResetPassword(user.email),
+                            ),
+                            if (!isMe)
+                              IconButton(
+                                icon: const Icon(LucideIcons.trash2, size: 20, color: Color(0xFFEF4444)),
+                                tooltip: "Eliminar Usuario",
+                                onPressed: () => _handleDeleteUser(user),
+                              )
+                          ]
                         ],
                       ),
                     );
@@ -389,12 +403,13 @@ class _UsersTabState extends State<_UsersTab> {
 }
 
 // -----------------------------------------------------------------------------
-// WIDGET AUXILIAR: DIÁLOGO DE FORMULARIO DE USUARIO
+// FORMULARIO INTELIGENTE (CREAR Y EDITAR)
 // -----------------------------------------------------------------------------
 class _UserFormDialog extends StatefulWidget {
-  final Function(UserModel) onSave;
+  final UserModel? userToEdit;
+  final Function(UserModel, String?) onSave;
 
-  const _UserFormDialog({required this.onSave});
+  const _UserFormDialog({this.userToEdit, required this.onSave});
 
   @override
   State<_UserFormDialog> createState() => _UserFormDialogState();
@@ -404,22 +419,31 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController(); // Solo visual en este caso
+  final _passwordCtrl = TextEditingController();
   UserRole _selectedRole = UserRole.technician;
+
+  bool get isEditing => widget.userToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (isEditing) {
+      _nameCtrl.text = widget.userToEdit!.name;
+      _emailCtrl.text = widget.userToEdit!.email;
+      _selectedRole = widget.userToEdit!.role;
+    }
+  }
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      // Generamos un ID temporal (En producción esto vendría de FirebaseAuth)
-      final tempId = DateTime.now().millisecondsSinceEpoch.toString();
-      
-      final newUser = UserModel(
-        id: tempId,
+      final user = UserModel(
+        id: isEditing ? widget.userToEdit!.id : '', // ID vacío si es nuevo (se asigna en Service)
         name: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         role: _selectedRole,
       );
       
-      widget.onSave(newUser);
+      widget.onSave(user, isEditing ? null : _passwordCtrl.text.trim());
       Navigator.pop(context);
     }
   }
@@ -430,9 +454,9 @@ class _UserFormDialogState extends State<_UserFormDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
-          const Icon(LucideIcons.userPlus, color: Color(0xFF2563EB)),
+          Icon(isEditing ? LucideIcons.edit3 : LucideIcons.userPlus, color: const Color(0xFF2563EB)),
           const SizedBox(width: 12),
-          Text("Registrar Nuevo Usuario", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          Text(isEditing ? "Editar Usuario" : "Registrar Nuevo Usuario", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
         ],
       ),
       content: SizedBox(
@@ -444,10 +468,21 @@ class _UserFormDialogState extends State<_UserFormDialog> {
             children: [
               _buildInput("Nombre Completo", _nameCtrl, LucideIcons.user),
               const SizedBox(height: 16),
-              _buildInput("Correo Electrónico", _emailCtrl, LucideIcons.mail, isEmail: true),
+              
+              // Email (Deshabilitado en edición para evitar conflictos con Auth)
+              _buildInput(
+                "Correo Electrónico", 
+                _emailCtrl, 
+                LucideIcons.mail, 
+                isEmail: true, 
+                isEnabled: !isEditing // No permitir cambiar email al editar
+              ),
               const SizedBox(height: 16),
-              _buildInput("Contraseña Inicial", _passwordCtrl, LucideIcons.lock, isPassword: true),
-              const SizedBox(height: 16),
+              
+              if (!isEditing) ...[
+                _buildInput("Contraseña Inicial", _passwordCtrl, LucideIcons.lock, isPassword: true),
+                const SizedBox(height: 16),
+              ],
               
               // Selector de Rol
               Column(
@@ -464,7 +499,6 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                     ),
                     items: UserRole.values.map((role) {
                       String label = role.toString().split('.').last.toUpperCase();
-                      // Traducción simple
                       if (role == UserRole.technician) label = "TÉCNICO";
                       if (role == UserRole.purchasing) label = "COMPRAS";
                       return DropdownMenuItem(value: role, child: Text(label, style: const TextStyle(fontSize: 13)));
@@ -473,18 +507,15 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.info, size: 16, color: Colors.blue.shade700),
+              if (isEditing) 
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(children: [
+                    Icon(LucideIcons.info, size: 14, color: Colors.amber.shade800),
                     const SizedBox(width: 8),
-                    const Expanded(child: Text("Este usuario se guardará en la base de datos para asignar tareas y permisos.", style: TextStyle(fontSize: 11, color: Color(0xFF1E40AF)))),
-                  ],
-                ),
-              )
+                    const Expanded(child: Text("El correo no se puede cambiar aquí. Para cambiar la contraseña, usa el botón de 'Reset Password'.", style: TextStyle(fontSize: 11, color: Colors.grey))),
+                  ]),
+                )
             ],
           ),
         ),
@@ -494,13 +525,13 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         ElevatedButton(
           onPressed: _submit,
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
-          child: const Text("Crear Usuario"),
+          child: Text(isEditing ? "Guardar Cambios" : "Crear Usuario"),
         ),
       ],
     );
   }
 
-  Widget _buildInput(String label, TextEditingController ctrl, IconData icon, {bool isEmail = false, bool isPassword = false}) {
+  Widget _buildInput(String label, TextEditingController ctrl, IconData icon, {bool isEmail = false, bool isPassword = false, bool isEnabled = true}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -508,10 +539,12 @@ class _UserFormDialogState extends State<_UserFormDialog> {
         const SizedBox(height: 8),
         TextFormField(
           controller: ctrl,
+          enabled: isEnabled,
           obscureText: isPassword,
           validator: (val) {
             if (val == null || val.isEmpty) return "Campo obligatorio";
             if (isEmail && !val.contains("@")) return "Correo inválido";
+            if (isPassword && val.length < 6) return "Mínimo 6 caracteres";
             return null;
           },
           decoration: InputDecoration(
@@ -519,6 +552,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
             prefixIcon: Icon(icon, size: 18, color: Colors.grey),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            filled: !isEnabled,
+            fillColor: !isEnabled ? Colors.grey.shade100 : null,
           ),
         ),
       ],
@@ -529,6 +564,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
 // -----------------------------------------------------------------------------
 // 2. PESTAÑA DE ROLES (Diseño Sidebar + Switches)
 // -----------------------------------------------------------------------------
+// EN: lib/ui/screens/admin_panel_screen.dart
+
 class _RolesTab extends StatelessWidget {
   final AdminService adminService;
   final String selectedRole;
@@ -558,6 +595,17 @@ class _RolesTab extends StatelessWidget {
     }
   }
 
+  // Helper para actualizar permisos de forma segura
+  void _togglePermission(List<String> currentPerms, String code, bool active) {
+    final newPerms = List<String>.from(currentPerms);
+    if (active) {
+      if (!newPerms.contains(code)) newPerms.add(code);
+    } else {
+      newPerms.remove(code);
+    }
+    adminService.updateRolePermissions(selectedRole, newPerms);
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, List<String>>>(
@@ -569,7 +617,7 @@ class _RolesTab extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // SIDEBAR
+            // --- SIDEBAR DE ROLES (IGUAL QUE ANTES) ---
             Container(
               width: 280,
               decoration: const BoxDecoration(
@@ -618,13 +666,14 @@ class _RolesTab extends StatelessWidget {
               ),
             ),
 
-            // CONTENT
+            // --- CONTENIDO PRINCIPAL ---
             Expanded(
               child: Container(
                 color: const Color(0xFFF8FAFC),
                 child: ListView(
                   padding: const EdgeInsets.all(40),
                   children: [
+                    // TÍTULO
                     Row(
                       children: [
                         const Icon(LucideIcons.shieldCheck, size: 28, color: Color(0xFF0F172A)),
@@ -640,7 +689,7 @@ class _RolesTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
                     
-                    // GRUPOS DE PERMISOS
+                    // 1. GRUPOS DE PERMISOS GENERALES (SWITCHES)
                     ...permissionGroups.entries.map((entry) {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 24),
@@ -668,15 +717,7 @@ class _RolesTab extends StatelessWidget {
                                 value: isChecked,
                                 activeColor: const Color(0xFF2563EB),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                                onChanged: (val) {
-                                  final newPerms = List<String>.from(currentRolePerms);
-                                  if (val) {
-                                    newPerms.add(perm);
-                                  } else {
-                                    newPerms.remove(perm);
-                                  }
-                                  adminService.updateRolePermissions(selectedRole, newPerms);
-                                },
+                                onChanged: (val) => _togglePermission(currentRolePerms, perm, val),
                               );
                             }).toList(),
                             const SizedBox(height: 8),
@@ -684,6 +725,117 @@ class _RolesTab extends StatelessWidget {
                         ),
                       );
                     }).toList(),
+
+                    // 2. NUEVA SECCIÓN: TABLA DE ETAPAS KANBAN (Diseño de la imagen)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            child: Row(
+                              children: [
+                                const Icon(LucideIcons.folderKanban, size: 18, color: Color(0xFF334155)),
+                                const SizedBox(width: 10),
+                                Text(
+                                  "ACCESO POR ETAPAS (FLUJO DE TRABAJO)", 
+                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF334155))
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                          
+                          // CABECERA DE LA TABLA
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 3, child: Text("ETAPA", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8)))),
+                                Expanded(child: Center(child: Text("VISIBLE", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8))))),
+                                Expanded(child: Center(child: Text("EDITABLE", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8))))),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+                          // FILAS DE ETAPAS
+                          ...ProcessStage.values.map((stage) {
+                            final stageName = stage.toString().split('.').last;
+                            
+                            // Códigos de permiso: 'stage_view_E1', 'stage_edit_E1'
+                            final viewCode = 'stage_view_$stageName';
+                            final editCode = 'stage_edit_$stageName';
+
+                            final canView = currentRolePerms.contains(viewCode);
+                            final canEdit = currentRolePerms.contains(editCode);
+
+                            // Obtener info bonita de app_constants (titulo y color)
+                            final config = stageConfigs[stage]; 
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              decoration: const BoxDecoration(
+                                border: Border(bottom: BorderSide(color: Color(0xFFF8FAFC))),
+                              ),
+                              child: Row(
+                                children: [
+                                  // Nombre de la Etapa con colorcito
+                                  Expanded(
+                                    flex: 3, 
+                                    child: Row(
+                                      children: [
+                                        Container(width: 8, height: 8, decoration: BoxDecoration(color: config?.textColor ?? Colors.grey, shape: BoxShape.circle)),
+                                        const SizedBox(width: 12),
+                                        Text(config?.title ?? stageName, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B))),
+                                      ],
+                                    )
+                                  ),
+                                  
+                                  // Checkbox Visible
+                                  Expanded(
+                                    child: Center(
+                                      child: Checkbox(
+                                        value: canView, 
+                                        activeColor: const Color(0xFF2563EB),
+                                        onChanged: (val) => _togglePermission(currentRolePerms, viewCode, val ?? false),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Checkbox Editable
+                                  Expanded(
+                                    child: Center(
+                                      child: Checkbox(
+                                        value: canEdit, 
+                                        activeColor: const Color(0xFF16A34A), // Verde para editar
+                                        onChanged: (val) {
+                                          // Si activas editar, automáticamente activa ver
+                                          if (val == true && !canView) {
+                                            final tempPerms = List<String>.from(currentRolePerms)..add(viewCode);
+                                            _togglePermission(tempPerms, editCode, true);
+                                          } else {
+                                            _togglePermission(currentRolePerms, editCode, val ?? false);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -837,7 +989,12 @@ class _LaborCard extends StatefulWidget {
   final Function(String, dynamic) onUpdate;
   final VoidCallback onDelete;
 
-  const _LaborCard({super.key, required this.item, required this.onUpdate, required this.onDelete});
+  const _LaborCard({
+    super.key, 
+    required this.item, 
+    required this.onUpdate, 
+    required this.onDelete
+  });
 
   @override
   State<_LaborCard> createState() => _LaborCardState();
@@ -846,12 +1003,45 @@ class _LaborCard extends StatefulWidget {
 class _LaborCardState extends State<_LaborCard> {
   late TextEditingController _nameCtrl;
   late TextEditingController _salaryCtrl;
+  
+  // 1. Agregamos FocusNodes para detectar cuando el usuario sale del campo
+  final FocusNode _nameFocus = FocusNode();
+  final FocusNode _salaryFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.item.name);
     _salaryCtrl = TextEditingController(text: widget.item.baseDailySalary.toString());
+
+    // 2. Escuchar cambios de foco
+    _nameFocus.addListener(() {
+      if (!_nameFocus.hasFocus) {
+        // Al perder el foco, guardamos si hubo cambios
+        if (_nameCtrl.text != widget.item.name) {
+          widget.onUpdate('name', _nameCtrl.text);
+        }
+      }
+    });
+
+    _salaryFocus.addListener(() {
+      if (!_salaryFocus.hasFocus) {
+        // Al perder el foco, guardamos el salario
+        final val = double.tryParse(_salaryCtrl.text) ?? 0.0;
+        if (val != widget.item.baseDailySalary) {
+          widget.onUpdate('salary', val);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _salaryCtrl.dispose();
+    _nameFocus.dispose();
+    _salaryFocus.dispose();
+    super.dispose();
   }
 
   @override
@@ -862,14 +1052,23 @@ class _LaborCardState extends State<_LaborCard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2)
+          )
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(10)
+            ),
             child: const Icon(LucideIcons.users, color: Color(0xFF16A34A), size: 20),
           ),
           const SizedBox(width: 16),
@@ -879,6 +1078,7 @@ class _LaborCardState extends State<_LaborCard> {
               children: [
                 TextField(
                   controller: _nameCtrl,
+                  focusNode: _nameFocus, // 3. Asignar FocusNode
                   onSubmitted: (val) => widget.onUpdate('name', val),
                   decoration: InputDecoration(
                     labelText: "Nombre del Puesto", 
@@ -887,13 +1087,18 @@ class _LaborCardState extends State<_LaborCard> {
                     border: InputBorder.none, 
                     contentPadding: EdgeInsets.zero
                   ),
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: const Color(0xFF0F172A)),
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: const Color(0xFF0F172A)
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(height: 1, color: const Color(0xFFF1F5F9)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _salaryCtrl,
+                  focusNode: _salaryFocus, // 3. Asignar FocusNode
                   onSubmitted: (val) => widget.onUpdate('salary', val),
                   decoration: InputDecoration(
                     labelText: "Salario Diario Base", 
@@ -901,11 +1106,14 @@ class _LaborCardState extends State<_LaborCard> {
                     isDense: true, 
                     border: InputBorder.none, 
                     prefixText: "\$ ",
-                    prefixStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.bold),
+                    prefixStyle: GoogleFonts.inter(
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.bold
+                    ),
                     contentPadding: EdgeInsets.zero
                   ),
                   style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF334155)),
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ],
             ),

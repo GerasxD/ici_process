@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Necesario para filtrar input numérico
+import 'package:flutter/services.dart'; 
 import 'package:ici_process/core/constants/app_constants.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -12,7 +12,6 @@ class GeneralInfoSection extends StatefulWidget {
   final TextEditingController clientController;
   final TextEditingController descriptionController;
   
-  // Controladores nuevos para los montos (Se los pasaremos desde el padre)
   final TextEditingController amountController; 
   final TextEditingController costController;
 
@@ -24,6 +23,8 @@ class GeneralInfoSection extends StatefulWidget {
   final Function(String?) onPriorityChanged;
   final Function(String?) onRequesterChanged;
   final Function(DateTime) onDateChanged;
+  
+  // CAMBIO: Ahora aceptamos una función que puede devolver algo o ser async
   final VoidCallback onOpenQuote;
 
   const GeneralInfoSection({
@@ -31,8 +32,8 @@ class GeneralInfoSection extends StatefulWidget {
     required this.titleController,
     required this.clientController,
     required this.descriptionController,
-    required this.amountController, // Nuevo
-    required this.costController,   // Nuevo
+    required this.amountController,
+    required this.costController,
     required this.selectedPriority,
     required this.selectedRequester,
     required this.requestDate,
@@ -53,6 +54,8 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   Client? _selectedClientObj;
   String? _selectedBranch;
   bool _initialDataRestored = false;
+  
+  final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
   @override
   void initState() {
@@ -88,9 +91,16 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Calculamos valores en tiempo real basados en lo que escribe el usuario para mostrar totales
-    double currentAmount = double.tryParse(widget.amountController.text) ?? 0.0;
-    double currentCost = double.tryParse(widget.costController.text) ?? 0.0;
+    // 1. EL DATO DEL COTIZADOR ES EL SUBTOTAL (SIN IVA)
+    // Asumimos que widget.amountController.text trae los 7,064.00
+    double precioVentaSubtotal = double.tryParse(widget.amountController.text) ?? 0.0;
+    
+    // El costo directo también es un subtotal (4,350.00)
+    double costoDirectoSubtotal = double.tryParse(widget.costController.text) ?? 0.0;
+
+    // 2. CALCULAMOS LOS TOTALES CON IVA (Solo para mostrar en pantalla)
+    double precioVentaTotalConIVA = precioVentaSubtotal * 1.16;
+    double costoTotalConIVA = costoDirectoSubtotal * 1.16;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,7 +199,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
         
         const SizedBox(height: 16),
 
-        // --- SECCIÓN EDITABLE: COTIZACIÓN (Solo visible en E2+) ---
+        // --- SECCIÓN EDITABLE: COTIZACIÓN ---
         if (_showQuoteSection) ...[
           Container(
             width: double.infinity,
@@ -209,37 +219,18 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
             ),
           ),
 
+          // ✅ AQUÍ ESTÁ EL RESUMEN FINANCIERO CORREGIDO
           _buildCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    _buildSectionTitle("Resumen Financiero (Editable)", LucideIcons.dollarSign),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: currentAmount > 0 ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: currentAmount > 0 ? const Color(0xFFA7F3D0) : const Color(0xFFE2E8F0)),
-                      ),
-                      child: Text(
-                        currentAmount > 0 ? "Cotizado" : "Pendiente",
-                        style: TextStyle(
-                          fontSize: 11, 
-                          fontWeight: FontWeight.bold,
-                          color: currentAmount > 0 ? const Color(0xFF059669) : const Color(0xFF64748B)
-                        ),
-                      ),
-                    )
-                  ],
-                ),
+                _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
                 const SizedBox(height: 20),
+                
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Columna Precio de Venta
+                    // --- COLUMNA 1: PRECIO DE VENTA ---
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,20 +239,20 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              // INPUT EDITABLE: PRECIO DE VENTA
+                              // EDITABLE: Aquí es donde caen los 7,064 del cotizador
                               Expanded(
                                 child: _buildEditableMoneyInput(
-                                  "TOTAL (CON IVA)", 
-                                  widget.amountController,
-                                  onChanged: () => setState((){}) // Para actualizar los cálculos
+                                  "SUBTOTAL (SIN IVA)", 
+                                  widget.amountController, // Conectado directo al dato del cotizador
+                                  onChanged: () => setState((){}) 
                                 )
                               ),
                               const SizedBox(width: 12),
-                              // Calculado: Subtotal (Sin IVA)
+                              // SOLO LECTURA: Aquí muestra el cálculo automático con IVA
                               Expanded(
                                 child: _buildReadOnlyDisplay(
-                                  "SUBTOTAL (SIN IVA)", 
-                                  currentAmount / 1.16
+                                  "TOTAL (CON IVA)", 
+                                  precioVentaTotalConIVA // Muestra el Subtotal * 1.16
                                 )
                               ),
                             ],
@@ -270,7 +261,8 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                       ),
                     ),
                     const SizedBox(width: 32),
-                    // Columna Costo Estimado
+                    
+                    // --- COLUMNA 2: COSTO ESTIMADO ---
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,21 +271,21 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              // INPUT EDITABLE: COSTO DIRECTO
+                              // SUBTOTAL: El costo directo (4,350)
                               Expanded(
                                 child: _buildEditableMoneyInput(
-                                  "COSTO DIRECTO", 
+                                  "SUBTOTAL (SIN IVA)", 
                                   widget.costController,
                                   isCost: true,
                                   onChanged: () => setState((){})
                                 )
                               ),
                               const SizedBox(width: 12),
-                              // Calculado: Margen
+                              // TOTAL: Costo con IVA
                               Expanded(
                                 child: _buildReadOnlyDisplay(
-                                  "MARGEN", 
-                                  currentAmount - currentCost,
+                                  "TOTAL (CON IVA)", 
+                                  costoTotalConIVA,
                                   isCost: true
                                 )
                               ),
@@ -310,7 +302,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
           const SizedBox(height: 16),
         ],
 
-        // --- CARD 2 & 3: Seguimiento y Descripción (Sin cambios) ---
+        // --- CARD 2 & 3: Seguimiento y Descripción ---
         _buildCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,20 +353,20 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
           controller: ctrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Solo números y punto decimal
+            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
           ],
           onChanged: (_) {
             if (onChanged != null) onChanged();
           },
           style: TextStyle(
-            fontSize: 16, 
+            fontSize: 15, 
             fontWeight: FontWeight.w700, 
             color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)
           ),
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.attach_money, size: 18, color: Colors.grey),
+            prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey),
             filled: true,
-            fillColor: Colors.white, // Fondo blanco para indicar editable
+            fillColor: Colors.white, 
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
@@ -385,13 +377,12 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
     );
   }
 
-  // --- WIDGET SOLO LECTURA (Para cálculos automáticos) ---
+  // --- WIDGET SOLO LECTURA ---
   Widget _buildReadOnlyDisplay(String label, double amount, {bool isCost = false}) {
-    final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9), // Fondo gris para indicar NO editable
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -399,11 +390,11 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)),
-          const SizedBox(height: 8), // Un poco más de espacio para alinear con el input
+          const SizedBox(height: 8), 
           Text(
             currencyFormat.format(amount),
             style: TextStyle(
-              fontSize: 16, 
+              fontSize: 15, 
               fontWeight: FontWeight.w600, 
               color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)
             ),
@@ -413,7 +404,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
     );
   }
 
-  // RESTO DE FUNCIONES (Sin cambios)
+  // ... (RESTO DE FUNCIONES IGUAL QUE ANTES: _restoreSelection, _inputDecoration, _buildCard, etc.) ...
   void _restoreSelection(List<Client> clients) {
     if (_initialDataRestored) return;
     final fullText = widget.clientController.text;
@@ -434,78 +425,15 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
     }
   }
 
-  InputDecoration _inputDecoration(IconData icon) {
-    return InputDecoration(
-      prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))),
-      filled: true, fillColor: const Color(0xFFF8FAFC),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2)),
-    );
-  }
-
-  Widget _buildCard({required Widget child}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [BoxShadow(color: const Color(0xFF1E293B).withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
-      ),
-      padding: const EdgeInsets.all(24),
-      child: child,
-    );
-  }
-
-  Widget _buildSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 18, color: const Color(0xFF3B82F6))),
-        const SizedBox(width: 12),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B), letterSpacing: -0.2)),
-      ],
-    );
-  }
-
-  Widget _buildInputField({required String label, required TextEditingController controller, required IconData icon, String? hint, bool isLarge = false}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), TextField(controller: controller, style: TextStyle(fontSize: isLarge ? 16 : 14, fontWeight: isLarge ? FontWeight.w600 : FontWeight.w500, color: const Color(0xFF1E293B)), decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: const Color(0xFF94A3B8), fontSize: isLarge ? 15 : 13, fontWeight: FontWeight.w400), prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isLarge ? 18 : 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]);
-  }
-
-  Widget _buildDropdownField({required String label, required String? value, required IconData icon, required List<String> items, required Function(String?) onChanged}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), DropdownButtonFormField<String>(value: items.contains(value) ? value : null, isExpanded: true, icon: const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFF64748B)), style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), fontWeight: FontWeight.w500), items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged, decoration: InputDecoration(hintText: "Seleccionar...", hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w400), prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]);
-  }
-
-  Widget _buildDatePicker() {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("FECHA DE SOLICITUD", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), InkWell(onTap: () async { DateTime? picked = await showDatePicker(context: context, initialDate: widget.requestDate, firstDate: DateTime(2020), lastDate: DateTime(2100), builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: Color(0xFF3B82F6))), child: child!)); if (picked != null) widget.onDateChanged(picked); }, borderRadius: BorderRadius.circular(12), child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))), child: Row(children: [Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.1), borderRadius: BorderRadius.circular(6)), child: const Icon(LucideIcons.calendar, size: 16, color: Color(0xFF3B82F6))), const SizedBox(width: 12), Expanded(child: Text(DateFormat('dd MMM, yyyy').format(widget.requestDate), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))))])))]);
-  }
-
-  Widget _buildDaysCounter() {
-    final isUrgent = daysElapsed > 5;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TIEMPO TRANSCURRIDO", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: isUrgent ? const Color(0xFFFEF3C7).withOpacity(0.5) : const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(12), border: Border.all(color: isUrgent ? const Color(0xFFF59E0B).withOpacity(0.3) : const Color(0xFF10B981).withOpacity(0.3))), child: Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: isUrgent ? const Color(0xFFF59E0B) : const Color(0xFF10B981), borderRadius: BorderRadius.circular(8)), child: Text("$daysElapsed días", style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 13, letterSpacing: 0.3))), const SizedBox(width: 12), Expanded(child: Text(isUrgent ? "Atención requerida" : "En proceso", style: TextStyle(fontSize: 12, color: isUrgent ? const Color(0xFFD97706) : const Color(0xFF059669), fontWeight: FontWeight.w600))), Icon(isUrgent ? LucideIcons.alertCircle : LucideIcons.checkCircle2, size: 16, color: isUrgent ? const Color(0xFFD97706) : const Color(0xFF059669))]))]);
-  }
-
-  Widget _buildPrioritySelector() {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("PRIORIDAD", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), DropdownButtonFormField<String>(value: widget.selectedPriority, isExpanded: true, icon: const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFF64748B)), style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), fontWeight: FontWeight.w600), items: ["Baja", "Media", "Alta", "Urgente"].map((e) { Color color; switch (e) { case "Urgente": color = const Color(0xFFDC2626); break; case "Alta": color = const Color(0xFFEA580C); break; case "Media": color = const Color(0xFFF59E0B); break; case "Baja": color = const Color(0xFF10B981); break; default: color = const Color(0xFF64748B); } return DropdownMenuItem(value: e, child: Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 10), Text(e)])); }).toList(), onChanged: widget.onPriorityChanged, decoration: InputDecoration(prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Container(width: 10, height: 10, decoration: BoxDecoration(color: priorityColor, shape: BoxShape.circle))), filled: true, fillColor: priorityColor.withOpacity(0.05), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: priorityColor.withOpacity(0.3))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: priorityColor.withOpacity(0.3))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: priorityColor, width: 2))))]);
-  }
-
-  Widget _buildDescriptionField() {
-    return TextField(controller: widget.descriptionController, maxLines: 6, style: const TextStyle(fontSize: 14, height: 1.6, color: Color(0xFF1E293B)), decoration: InputDecoration(hintText: "Describe el alcance, requerimientos técnicos, entregables esperados...", hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.6), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.all(16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))));
-  }
-
-  Widget _buildAIButton() {
-    return MouseRegion(cursor: SystemMouseCursors.click, child: AnimatedContainer(duration: const Duration(milliseconds: 200), decoration: BoxDecoration(gradient: LinearGradient(colors: _isGenerating ? [const Color(0xFF94A3B8), const Color(0xFF64748B)] : [const Color(0xFF7C3AED), const Color(0xFF2563EB)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: (_isGenerating ? const Color(0xFF64748B) : const Color(0xFF7C3AED)).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]), child: Material(color: Colors.transparent, child: InkWell(onTap: _isGenerating ? null : _handleAI, borderRadius: BorderRadius.circular(10), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [if (_isGenerating) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) else const Icon(LucideIcons.sparkles, size: 16, color: Colors.white), const SizedBox(width: 8), Text(_isGenerating ? "Generando..." : "Mejorar con IA", style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.2))]))))));
-  }
-
-  Future<void> _handleAI() async {
-    if (widget.titleController.text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Row(children: [Icon(LucideIcons.alertCircle, color: Colors.white, size: 20), SizedBox(width: 12), Text("Por favor, ingresa un título para ayudar a la IA")]), backgroundColor: const Color(0xFFEA580C), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))); return; }
-    setState(() => _isGenerating = true);
-    try {
-      String res = await AIService.generateDescription(title: widget.titleController.text, client: widget.clientController.text);
-      setState(() => widget.descriptionController.text = res);
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Row(children: [Icon(LucideIcons.checkCircle2, color: Colors.white, size: 20), SizedBox(width: 12), Text("Descripción generada exitosamente")]), backgroundColor: const Color(0xFF10B981), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))); }
-    } catch (e) {
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Row(children: [const Icon(LucideIcons.xCircle, color: Colors.white, size: 20), const SizedBox(width: 12), Text("Error: ${e.toString()}")]), backgroundColor: const Color(0xFFDC2626), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))); }
-    } finally { if (mounted) setState(() => _isGenerating = false); }
-  }
+  InputDecoration _inputDecoration(IconData icon) { return InputDecoration(prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))); }
+  Widget _buildCard({required Widget child}) { return Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0)), boxShadow: [BoxShadow(color: const Color(0xFF1E293B).withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))]), padding: const EdgeInsets.all(24), child: child); }
+  Widget _buildSectionTitle(String title, IconData icon) { return Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 18, color: const Color(0xFF3B82F6))), const SizedBox(width: 12), Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B), letterSpacing: -0.2))]); }
+  Widget _buildInputField({required String label, required TextEditingController controller, required IconData icon, String? hint, bool isLarge = false}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), TextField(controller: controller, style: TextStyle(fontSize: isLarge ? 16 : 14, fontWeight: isLarge ? FontWeight.w600 : FontWeight.w500, color: const Color(0xFF1E293B)), decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: const Color(0xFF94A3B8), fontSize: isLarge ? 15 : 13, fontWeight: FontWeight.w400), prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isLarge ? 18 : 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); }
+  Widget _buildDropdownField({required String label, required String? value, required IconData icon, required List<String> items, required Function(String?) onChanged}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), DropdownButtonFormField<String>(value: items.contains(value) ? value : null, isExpanded: true, icon: const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFF64748B)), style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), fontWeight: FontWeight.w500), items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged, decoration: InputDecoration(hintText: "Seleccionar...", hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w400), prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); }
+  Widget _buildDatePicker() { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("FECHA DE SOLICITUD", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), InkWell(onTap: () async { DateTime? picked = await showDatePicker(context: context, initialDate: widget.requestDate, firstDate: DateTime(2020), lastDate: DateTime(2100), builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: Color(0xFF3B82F6))), child: child!)); if (picked != null) widget.onDateChanged(picked); }, borderRadius: BorderRadius.circular(12), child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))), child: Row(children: [Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.1), borderRadius: BorderRadius.circular(6)), child: const Icon(LucideIcons.calendar, size: 16, color: Color(0xFF3B82F6))), const SizedBox(width: 12), Expanded(child: Text(DateFormat('dd MMM, yyyy').format(widget.requestDate), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))))])))]); }
+  Widget _buildDaysCounter() { final isUrgent = daysElapsed > 5; return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TIEMPO TRANSCURRIDO", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: isUrgent ? const Color(0xFFFEF3C7).withOpacity(0.5) : const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(12), border: Border.all(color: isUrgent ? const Color(0xFFF59E0B).withOpacity(0.3) : const Color(0xFF10B981).withOpacity(0.3))), child: Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: isUrgent ? const Color(0xFFF59E0B) : const Color(0xFF10B981), borderRadius: BorderRadius.circular(8)), child: Text("$daysElapsed días", style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 13, letterSpacing: 0.3))), const SizedBox(width: 12), Expanded(child: Text(isUrgent ? "Atención requerida" : "En proceso", style: TextStyle(fontSize: 12, color: isUrgent ? const Color(0xFFD97706) : const Color(0xFF059669), fontWeight: FontWeight.w600))), Icon(isUrgent ? LucideIcons.alertCircle : LucideIcons.checkCircle2, size: 16, color: isUrgent ? const Color(0xFFD97706) : const Color(0xFF059669))]))]); }
+  Widget _buildPrioritySelector() { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("PRIORIDAD", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)), const SizedBox(height: 10), DropdownButtonFormField<String>(value: widget.selectedPriority, isExpanded: true, icon: const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFF64748B)), style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), fontWeight: FontWeight.w600), items: ["Baja", "Media", "Alta", "Urgente"].map((e) { Color color; switch (e) { case "Urgente": color = const Color(0xFFDC2626); break; case "Alta": color = const Color(0xFFEA580C); break; case "Media": color = const Color(0xFFF59E0B); break; case "Baja": color = const Color(0xFF10B981); break; default: color = const Color(0xFF64748B); } return DropdownMenuItem(value: e, child: Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 10), Text(e)])); }).toList(), onChanged: widget.onPriorityChanged, decoration: InputDecoration(prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Container(width: 10, height: 10, decoration: BoxDecoration(color: priorityColor, shape: BoxShape.circle))), filled: true, fillColor: priorityColor.withOpacity(0.05), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: priorityColor.withOpacity(0.3))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: priorityColor.withOpacity(0.3))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: priorityColor, width: 2))))]); }
+  Widget _buildDescriptionField() { return TextField(controller: widget.descriptionController, maxLines: 6, style: const TextStyle(fontSize: 14, height: 1.6, color: Color(0xFF1E293B)), decoration: InputDecoration(hintText: "Describe el alcance, requerimientos técnicos, entregables esperados...", hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13, height: 1.6), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.all(16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2)))); }
+  Widget _buildAIButton() { return MouseRegion(cursor: SystemMouseCursors.click, child: AnimatedContainer(duration: const Duration(milliseconds: 200), decoration: BoxDecoration(gradient: LinearGradient(colors: _isGenerating ? [const Color(0xFF94A3B8), const Color(0xFF64748B)] : [const Color(0xFF7C3AED), const Color(0xFF2563EB)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: (_isGenerating ? const Color(0xFF64748B) : const Color(0xFF7C3AED)).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]), child: Material(color: Colors.transparent, child: InkWell(onTap: _isGenerating ? null : _handleAI, borderRadius: BorderRadius.circular(10), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [if (_isGenerating) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) else const Icon(LucideIcons.sparkles, size: 16, color: Colors.white), const SizedBox(width: 8), Text(_isGenerating ? "Generando..." : "Mejorar con IA", style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.2))])))))); }
+  Future<void> _handleAI() async { if (widget.titleController.text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Row(children: [Icon(LucideIcons.alertCircle, color: Colors.white, size: 20), SizedBox(width: 12), Text("Por favor, ingresa un título para ayudar a la IA")]), backgroundColor: const Color(0xFFEA580C), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))); return; } setState(() => _isGenerating = true); try { String res = await AIService.generateDescription(title: widget.titleController.text, client: widget.clientController.text); setState(() => widget.descriptionController.text = res); if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Row(children: [Icon(LucideIcons.checkCircle2, color: Colors.white, size: 20), SizedBox(width: 12), Text("Descripción generada exitosamente")]), backgroundColor: const Color(0xFF10B981), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))); } } catch (e) { if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Row(children: [const Icon(LucideIcons.xCircle, color: Colors.white, size: 20), const SizedBox(width: 12), Text("Error: ${e.toString()}")]), backgroundColor: const Color(0xFFDC2626), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))); } } finally { if (mounted) setState(() => _isGenerating = false); } }
 }

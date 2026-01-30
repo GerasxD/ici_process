@@ -1,4 +1,3 @@
-
 // --- Modelo para Categorías de Salarios (Labor) ---
 class LaborCategory {
   final String id;

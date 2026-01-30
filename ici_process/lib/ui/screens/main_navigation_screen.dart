@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ici_process/ui/screens/admin_panel_screen.dart';
 import 'package:ici_process/ui/screens/client_managment_screen.dart';
@@ -9,6 +10,8 @@ import 'package:ici_process/ui/widgets/process_modal/process_modal.dart';
 import 'package:ici_process/ui/widgets/kanban_view.dart'; 
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/user_model.dart';
+// 1. IMPORTAMOS EL GESTOR DE PERMISOS
+import '../../core/utils/permission_manager.dart'; 
 
 class MainNavigationScreen extends StatefulWidget {
   final UserModel user;
@@ -22,26 +25,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
   bool _isSidebarOpen = true;
 
-  // Definimos las vistas aquí para que se carguen dinámicamente
+  // NOTA: El orden de esta lista debe coincidir con los índices que usamos abajo.
   List<Widget> get _views => [
-    KanbanView(currentUser: widget.user), // Índice 0
-    const Center(child: Text("Calendario (Próximamente)")), // Índice 1
-    const Center(child: Text("Reportes (Próximamente)")), // Índice 2
-    ClientManagementScreen(currentUser: widget.user), // Índice 3
-    ProviderManagementScreen(currentUser: widget.user), // Índice 4
-    MaterialCatalogScreen(currentUser: widget.user), // Índice 5
-    ServiceCatalogScreen(currentUser:  widget.user), // Índice 6
-    VehicleManagementScreen(currentUser: widget.user),// Índice 7
-    AdminPanelScreen(currentUser:widget.user), // Índice 8
+    KanbanView(currentUser: widget.user), // 0
+    const Center(child: Text("Calendario (Próximamente)")), // 1
+    const Center(child: Text("Reportes (Próximamente)")), // 2
+    ClientManagementScreen(currentUser: widget.user), // 3
+    ProviderManagementScreen(currentUser: widget.user), // 4
+    MaterialCatalogScreen(currentUser: widget.user), // 5
+    ServiceCatalogScreen(currentUser:  widget.user), // 6
+    VehicleManagementScreen(currentUser: widget.user),// 7
+    AdminPanelScreen(currentUser:widget.user), // 8
   ];
 
   @override
   Widget build(BuildContext context) {
+    // ... (El build del Scaffold se queda igual, no cambia nada aquí) ...
     final bool isDesktop = MediaQuery.of(context).size.width > 900;
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      // AppBar exclusivo para móviles
       appBar: !isDesktop 
         ? AppBar(
             backgroundColor: Colors.white,
@@ -78,7 +80,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ],
       ),
-      // Menú lateral para móviles
       drawer: !isDesktop 
         ? Drawer(
             width: 280,
@@ -91,6 +92,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+  // ... (El método _buildDesktopSidebar se queda igual) ...
   Widget _buildDesktopSidebar() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -100,8 +102,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // 2. AQUÍ APLICAMOS LA LÓGICA EN EL SIDEBAR
+  // ---------------------------------------------------------------------------
   Widget _buildSidebarContent({required bool isMobile}) {
     bool showText = isMobile ? true : _isSidebarOpen;
+    // Instancia corta para escribir menos
+    final pm = PermissionManager(); 
 
     return Column(
       children: [
@@ -125,9 +132,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
             children: [
-              _buildNavItem(0, "Tablero", LucideIcons.squareKanban, isMobile),
-              _buildNavItem(1, "Calendario", LucideIcons.calendar, isMobile),
-              _buildNavItem(2, "Reportes", LucideIcons.barChart2, isMobile),
+              // General (Suele ser visible para todos, o usa 'view_dashboard')
+              if (pm.can(widget.user, 'view_dashboard'))
+                 _buildNavItem(0, "Tablero", LucideIcons.squareKanban, isMobile),
+              
+              if (pm.can(widget.user, 'view_dashboard')) // Asumiendo que todos ven calendario
+                 _buildNavItem(1, "Calendario", LucideIcons.calendar, isMobile),
+              
+              if (pm.can(widget.user, 'view_budget')) // Ejemplo: Solo quien ve presupuesto ve reportes
+                 _buildNavItem(2, "Reportes", LucideIcons.barChart2, isMobile),
               
               const SizedBox(height: 20),
               if (showText)
@@ -136,12 +149,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: Text("BASE DE DATOS", 
                     style: TextStyle(color: Colors.white30, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
-              _buildNavItem(3, "Clientes", LucideIcons.users, isMobile),
-              _buildNavItem(4, "Proveedores", LucideIcons.boxes, isMobile),
-              _buildNavItem(5, "Materiales", LucideIcons.box, isMobile),
-              _buildNavItem(6, "Servicios / Rentas", LucideIcons.calendarClock, isMobile),
-              _buildNavItem(7, "Vehiculos", LucideIcons.truck, isMobile),
-              _buildNavItem(8, "Administración", LucideIcons.settings, isMobile),
+
+              // --- APLICANDO PERMISOS ESPECÍFICOS ---
+              
+              // Clientes
+              if (pm.can(widget.user, 'view_clients'))
+                _buildNavItem(3, "Clientes", LucideIcons.users, isMobile),
+
+              // Proveedores
+              if (pm.can(widget.user, 'view_providers'))
+                _buildNavItem(4, "Proveedores", LucideIcons.boxes, isMobile),
+
+              // Materiales
+              if (pm.can(widget.user, 'view_materials'))
+                _buildNavItem(5, "Materiales", LucideIcons.box, isMobile),
+
+              // Servicios (Si no tienes un permiso 'view_services' usa uno similar o crea uno nuevo)
+              if (pm.can(widget.user, 'view_materials')) // Reusando material o agrega 'view_services' en DB
+                _buildNavItem(6, "Servicios / Rentas", LucideIcons.calendarClock, isMobile),
+
+              // Vehículos
+              if (pm.can(widget.user, 'view_vehicles'))
+                _buildNavItem(7, "Vehiculos", LucideIcons.truck, isMobile),
+
+              // Admin Panel (Usamos manage_users como llave maestra para ver el panel)
+              if (pm.can(widget.user, 'manage_users'))
+                _buildNavItem(8, "Administración", LucideIcons.settings, isMobile),
             ],
           ),
         ),
@@ -150,7 +183,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+  // ... (El método _buildNavItem se queda igual) ...
   Widget _buildNavItem(int index, String label, IconData icon, bool isMobile) {
+    // ... tu código original ...
     bool isSelected = _selectedIndex == index;
     bool showText = isMobile ? true : _isSidebarOpen;
 
@@ -158,7 +193,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       onTap: () {
         setState(() => _selectedIndex = index);
         if (isMobile) {
-          Navigator.pop(context); // Cierra el Drawer automáticamente
+          Navigator.pop(context); 
         }
       },
       borderRadius: BorderRadius.circular(12),
@@ -190,7 +225,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  // ✅ AQUÍ SE REALIZÓ EL CAMBIO
+  // ... (El método _buildTopHeader se modifica ligeramente) ...
   Widget _buildTopHeader() {
     return Container(
       height: 70,
@@ -208,16 +243,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           const Spacer(),
           _buildNotificationBadge(),
           
-          // Solo mostramos el botón si estamos en el índice 0 (Tablero)
           if (_selectedIndex == 0) ...[
              const SizedBox(width: 24),
-             _buildQuickActionButton(),
+             // 3. PROTEGEMOS EL BOTÓN DE "NUEVO"
+             // Solo mostramos el botón si tiene permiso de editar/mover en el tablero
+             if (PermissionManager().can(widget.user, 'move_stage')) 
+                _buildQuickActionButton(),
           ],
         ],
       ),
     );
   }
-
+  
+  // ... (Resto de los widgets auxiliares: _buildNotificationBadge, _buildQuickActionButton, etc. siguen igual) ...
   Widget _buildNotificationBadge() {
     return Stack(
       children: [
@@ -250,7 +288,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  Widget _buildUserProfileFooter(bool showText) {
+ Widget _buildUserProfileFooter(bool showText) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
@@ -262,8 +300,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           CircleAvatar(
             backgroundColor: const Color(0xFF3B82F6),
             radius: 18,
-            child: Text(widget.user.name[0], 
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(
+              widget.user.name.isNotEmpty ? widget.user.name[0] : 'U', // Pequeña protección por si el nombre viene vacío
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+            ),
           ),
           if (showText) ...[
             const SizedBox(width: 12),
@@ -280,10 +320,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ],
               ),
             ),
+            // --- AQUÍ ESTÁ LA CORRECCIÓN ---
             IconButton(
               icon: const Icon(LucideIcons.logOut, color: Colors.white30, size: 18),
-              onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+              tooltip: "Cerrar Sesión",
+              onPressed: () async {
+                try {
+                  // 1. Cerrar sesión en Firebase
+                  await FirebaseAuth.instance.signOut();
+                  
+                  // 2. Verificar que el widget siga montado antes de usar el context
+                  if (context.mounted) {
+                    // 3. Ir al Login y BORRAR todo el historial de pantallas anterior
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                  }
+                } catch (e) {
+                  print("Error al cerrar sesión: $e");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Error al cerrar sesión"))
+                  );
+                }
+              },
             ),
+            // -------------------------------
           ],
         ],
       ),

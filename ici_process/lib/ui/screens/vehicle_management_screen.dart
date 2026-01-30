@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/services.dart'; // Para el filtrado de input numérico
-import '../../core/constants/app_constants.dart';
 import '../../models/user_model.dart';
 import '../../models/vehicle_model.dart';
 import '../../services/vehicle_service.dart';
@@ -35,9 +35,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   final Color _primaryBlue = const Color(0xFF2563EB);
   final Color _inputFill = const Color(0xFFF1F5F9);
 
-  bool get isAdmin =>
-      widget.currentUser.role == UserRole.admin ||
-      widget.currentUser.role == UserRole.superAdmin;
+  bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_vehicles');
 
   @override
   void dispose() {
@@ -49,6 +47,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   }
 
   Future<void> _handleSave({String? docId}) async {
+    if (!canEdit) return;
     if (_modelCtrl.text.isEmpty) {
       _showSnack("El modelo es obligatorio", isSuccess: false);
       return;
@@ -131,13 +130,15 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                       children: [
                         Expanded(flex: 7, child: _buildList(vehicles)),
                         const SizedBox(width: 40),
-                        if (isAdmin) Expanded(flex: 4, child: _buildForm()),
+                        // 3. OCULTAR FORMULARIO (DESKTOP)
+                        if (canEdit) 
+                          Expanded(flex: 4, child: _buildForm()),
                       ],
                     );
                   } else {
                     return Column(
                       children: [
-                        if (isAdmin) ...[_buildForm(), const SizedBox(height: 40)],
+                        if (canEdit) ...[_buildForm(), const SizedBox(height: 40)],
                         _buildList(vehicles),
                       ],
                     );
@@ -242,7 +243,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           ),
 
           // Botones de Acción
-          if (isAdmin)
+          if (canEdit)
             Column(
               children: [
                 IconButton(

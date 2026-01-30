@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:ici_process/ui/screens/login_screen.dart';
 import 'package:ici_process/ui/screens/main_navigation_screen.dart'; // Tu nueva pantalla
 import 'package:ici_process/services/auth_service.dart';
@@ -12,6 +13,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  PermissionManager().init();
   runApp(const MyApp());
 }
 

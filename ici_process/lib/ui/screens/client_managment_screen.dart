@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:ici_process/core/constants/app_constants.dart';
+import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:ici_process/models/client_model.dart';
 import 'package:ici_process/models/user_model.dart';
 import 'package:ici_process/services/client_service.dart';
@@ -35,9 +35,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   final Color _primaryBlue = const Color(0xFF2563EB); // Blue 600
   final Color _inputFill = const Color(0xFFF1F5F9); // Slate 100
 
-    bool get isAdmin =>
-        widget.currentUser.role == UserRole.admin ||
-        widget.currentUser.role == UserRole.superAdmin;
+  bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_clients');
 
   void _addBranchField() {
     setState(() => _branchControllers.add(TextEditingController()));
@@ -53,6 +51,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   }
 
   Future<void> _handleAdd() async {
+    if (!canEdit) return;
     final name = _nameController.text.trim();
     final billing = _billingController.text.trim();
     final branches = _branchControllers
@@ -136,14 +135,15 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                           children: [
                             Expanded(flex: 7, child: _buildClientList(clients)),
                             const SizedBox(width: 32),
-                            if (isAdmin) 
+                            // 3. SOLO MOSTRAMOS EL FORMULARIO SI TIENE PERMISO 'edit_clients'
+                            if (canEdit) 
                               Expanded(flex: 4, child: _buildAddForm()),
                           ],
                         );
                       } else {
                         return Column(
                           children: [
-                            if (isAdmin) ...[_buildAddForm(), const SizedBox(height: 32)],
+                            if (canEdit) ...[_buildAddForm(), const SizedBox(height: 32)],
                             _buildClientList(clients),
                           ],
                         );
@@ -273,7 +273,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
             mainAxisSize: MainAxisSize.min, // Importante para que no ocupe todo el ancho
             children: [
               // BOTÓN EDITAR (Visible para todos o solo admins, como prefieras)
-              if (isAdmin) 
+              if (canEdit) 
                 IconButton(
                   icon: Icon(Icons.edit_rounded, size: 20, color: Colors.blue[300]),
                   tooltip: "Editar Cliente",
@@ -291,12 +291,12 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                 ),
               
               // BOTÓN BORRAR
-              if (isAdmin) 
+              if (canEdit) 
                 IconButton(
                   icon: Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red[300]),
                   onPressed: () => _confirmDelete(client),
                   tooltip: "Eliminar Cliente",
-                ) 
+                )
               else 
                 const Icon(Icons.expand_more_rounded),
             ],

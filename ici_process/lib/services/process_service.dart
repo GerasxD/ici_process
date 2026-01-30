@@ -68,4 +68,22 @@ class ProcessService {
   Future<void> deleteProcess(String id) async {
     await _db.collection(_collection).doc(id).delete();
   }
+
+  // --- AGREGA ESTO EN TU ProcessService ---
+
+  // Obtener un solo proceso por ID (Para recargar datos frescos)
+  Future<ProcessModel?> getProcessById(String id) async {
+    try {
+      final doc = await _db.collection('processes').doc(id).get();
+      if (doc.exists && doc.data() != null) {
+        // Asegúrate de que tu ProcessModel tenga el factory .fromMap
+        return ProcessModel.fromMap(doc.data()!, doc.id);
+      }
+      return null;
+    } catch (e) {
+      print("Error obteniendo proceso por ID: $e");
+      return null;
+    }
+  }
+  
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../core/constants/app_constants.dart';
 import '../../models/user_model.dart';
 import '../../models/service_model.dart'; // Importa el modelo nuevo
 import '../../models/provider_model.dart';
@@ -39,9 +39,7 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
   // Color distintivo: Morado/Violeta para servicios intangibles
   final Color _accentColor = const Color(0xFF8B5CF6); 
 
-  bool get isAdmin =>
-      widget.currentUser.role == UserRole.admin ||
-      widget.currentUser.role == UserRole.superAdmin;
+  bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_materials');
 
   @override
   void dispose() {
@@ -51,6 +49,7 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
   }
 
   Future<void> _handleSave({String? docId}) async {
+    if (!canEdit) return;
     if (_nameCtrl.text.isEmpty || _unitCtrl.text.isEmpty) {
       _showSnack("Nombre y Unidad son obligatorios", isSuccess: false);
       return;
@@ -131,13 +130,15 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                           children: [
                             Expanded(flex: 7, child: _buildList(services, providers)),
                             const SizedBox(width: 40),
-                            if (isAdmin) Expanded(flex: 4, child: _buildForm(providers)),
+                            // 3. OCULTAR FORMULARIO (DESKTOP)
+                            if (canEdit) 
+                              Expanded(flex: 4, child: _buildForm(providers)),
                           ],
                         );
                       } else {
                         return Column(
                           children: [
-                            if (isAdmin) ...[_buildForm(providers), const SizedBox(height: 40)],
+                            if (canEdit) ...[_buildForm(providers), const SizedBox(height: 40)],
                             _buildList(services, providers),
                           ],
                         );
@@ -228,7 +229,7 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                   ],
                 ),
               ),
-              if (isAdmin)
+              if (canEdit)
                 Row(
                   children: [
                     IconButton(

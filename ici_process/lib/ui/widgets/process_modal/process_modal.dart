@@ -7,6 +7,8 @@ import '../../../models/process_model.dart';
 import '../../../models/user_model.dart';
 import '../../../services/process_service.dart';
 import '../../../core/constants/app_constants.dart';
+// 1. IMPORTAR GESTOR DE PERMISOS
+import '../../../core/utils/permission_manager.dart';
 
 class ProcessModal extends StatefulWidget {
   final ProcessModel? process;
@@ -26,7 +28,7 @@ class _ProcessModalState extends State<ProcessModal> {
   final _regressionController = TextEditingController();
   
   final _amountController = TextEditingController();
-  final _costController = TextEditingController(); // Motivo retroceso
+  final _costController = TextEditingController(); 
 
   String _priority = 'Media';
   String? _requestedBy;
@@ -34,9 +36,18 @@ class _ProcessModalState extends State<ProcessModal> {
   List<CommentModel> _comments = [];
   final ProcessService _processService = ProcessService();
 
+  // 2. VARIABLES DE PERMISOS
+  bool canEditData = false; // Puede editar textos (título, descripción)
+  bool canMoveStage = false; // Puede avanzar/retroceder etapas
+
   @override
   void initState() {
     super.initState();
+    _initializeData();
+    _checkPermissions(); // Verificamos permisos al iniciar
+  }
+
+  void _initializeData() {
     if (widget.process != null) {
       _titleController.text = widget.process!.title;
       _clientController.text = widget.process!.client;
@@ -48,6 +59,25 @@ class _ProcessModalState extends State<ProcessModal> {
       _amountController.text = widget.process!.amount.toString();
       _costController.text = widget.process!.estimatedCost.toString();
     }
+  }
+
+  // 3. LÓGICA DE PERMISOS CORREGIDA
+  void _checkPermissions() {
+    final pm = PermissionManager();
+    final currentStage = widget.process?.stage ?? ProcessStage.E1;
+    final stageCode = currentStage.toString().split('.').last;
+    
+    // A. Permiso para EDITAR DATOS (Títulos, montos, etc.)
+    // Depende de si tiene permiso de edición específico en esta etapa
+    canEditData = pm.can(widget.user, 'stage_edit_$stageCode');
+
+    // B. Permiso para MOVER ETAPAS (Botones Avanzar/Regresar)
+    // Requiere DOS cosas:
+    // 1. Tener activado el switch global "Mover Etapas (Kanban)" ('move_stage')
+    // 2. Tener permiso de edición en la etapa actual ('stage_edit_XX')
+    bool globalMovePermission = pm.can(widget.user, 'move_stage');
+    
+    canMoveStage = globalMovePermission && canEditData;
   }
 
   @override
@@ -64,6 +94,9 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // --- LÓGICA DE ELIMINACIÓN ---
   Future<void> _handleDelete() async {
+    // Solo si puede editar datos
+    if (!canEditData) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -88,13 +121,17 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // --- LÓGICA DE AVANCE DE ETAPA ---
   Future<void> _handleAdvanceStage() async {
-    // 1. Validaciones iniciales
+    // Validación de seguridad estricta
+    if (!canMoveStage) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No tienes permiso para mover etapas.")));
+        return;
+    }
+
     if (widget.process == null) return;
 
     final stages = ProcessStage.values;
     final currentIndex = stages.indexOf(widget.process!.stage);
 
-    // Evitar avanzar si ya es la última etapa
     if (currentIndex >= stages.length - 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Este proceso ya se encuentra en la etapa final.")),
@@ -104,34 +141,24 @@ class _ProcessModalState extends State<ProcessModal> {
 
     final nextStage = stages[currentIndex + 1];
 
-    // 2. Diálogo de confirmación
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("¿Avanzar Etapa?"),
         content: Text("El proceso pasará a la siguiente fase: ${nextStage.name}. ¿Deseas continuar?"),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false), 
-            child: const Text("Cancelar")
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
             child: const Text("Avanzar"),
           ),
         ],
       ),
     );
 
-    // 3. Ejecutar cambio si confirmó
     if (confirm == true) {
       final fechaActual = DateTime.now();
-
-      // Crear entrada de historial
       final historyEntry = HistoryEntry(
         action: "Avance de Etapa",
         userName: widget.user.name,
@@ -139,7 +166,6 @@ class _ProcessModalState extends State<ProcessModal> {
         details: "Avance exitoso a etapa ${nextStage.name}",
       );
 
-      // Opcional: Agregar un comentario automático de sistema
       setState(() {
          _comments.insert(0, CommentModel(
            id: fechaActual.millisecondsSinceEpoch.toString(),
@@ -149,17 +175,16 @@ class _ProcessModalState extends State<ProcessModal> {
          ));
       });
 
-      // Construir y guardar
       final updated = _buildModelFromState(nextStage, historyEntry);
-      
       await _processService.updateProcess(updated);
-      
-      if (mounted) Navigator.pop(context); // Cerrar modal al finalizar
+      if (mounted) Navigator.pop(context);
     }
   }
 
   // --- LÓGICA DE RETROCESO ---
   void _handleRegressStage() {
+    if (!canMoveStage) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -220,7 +245,6 @@ class _ProcessModalState extends State<ProcessModal> {
       final motivo = _regressionController.text.trim();
       final fechaActual = DateTime.now();
 
-      // 1. Creamos la entrada del historial
       final historyEntry = HistoryEntry(
         action: "Retroceso de Etapa",
         userName: widget.user.name,
@@ -228,28 +252,23 @@ class _ProcessModalState extends State<ProcessModal> {
         details: "Motivo: $motivo",
       );
 
-      // 2. AGREGAMOS EL MOTIVO A LA LISTA DE COMENTARIOS AUTOMÁTICAMENTE
       setState(() {
         _comments.insert(0, CommentModel(
           id: fechaActual.millisecondsSinceEpoch.toString(),
-          text: "🔄 RETROCESO DE ETAPA: $motivo", // Texto distintivo
+          text: "🔄 RETROCESO DE ETAPA: $motivo", 
           userName: widget.user.name,
           date: fechaActual,
         ));
       });
 
-      // 3. Construimos el modelo con la nueva etapa y la lista de comentarios actualizada
       final updated = _buildModelFromState(prevStage, historyEntry);
-      
       await _processService.updateProcess(updated);
-      
-      _regressionController.clear(); // Limpiamos el controlador
+      _regressionController.clear(); 
       if (mounted) Navigator.pop(context);
     }
   }
 
   // --- MÉTODOS DE APOYO ---
-
   void _addComment() {
     if (_commentController.text.trim().isEmpty) return;
     setState(() {
@@ -284,7 +303,9 @@ class _ProcessModalState extends State<ProcessModal> {
   }
 
   Future<void> _save() async {
-    // 1. Validación de campos obligatorios
+    // Si no puede editar datos, no puede guardar
+    if (!canEditData) return;
+
     if (_titleController.text.isEmpty || _clientController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Título y Cliente son obligatorios")),
@@ -293,34 +314,26 @@ class _ProcessModalState extends State<ProcessModal> {
     }
 
     try {
-      // 2. Determinar si es un proceso nuevo
       final bool isNew = widget.process == null;
-
-      // 3. Crear la entrada de historial adecuada
       final entry = HistoryEntry(
         action: isNew ? "Solicitud Creada" : "Edición Manual",
         userName: widget.user.name,
         date: DateTime.now(),
       );
 
-      // 4. Construir el modelo con los datos actuales
       final processModel = _buildModelFromState(
         widget.process?.stage ?? ProcessStage.E1, 
         entry
       );
 
-      // 5. Lógica de persistencia diferenciada
       if (isNew) {
-        // Crear: usa .set() para que el ID temporal se registre
         await _processService.createProcess(processModel);
       } else {
-        // Actualizar: usa .update() para modificar el existente
         await _processService.updateProcess(processModel);
       }
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      debugPrint("❌ Error detallado al guardar: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error al guardar: ${e.toString()}")),
@@ -329,14 +342,29 @@ class _ProcessModalState extends State<ProcessModal> {
     }
   }
 
-  void _openQuoteModal() {
+  // En ProcessModal, modifica el método _openQuoteModal para que sea async y recargue datos
+
+  Future<void> _openQuoteModal() async {
     if (widget.process == null) return;
-    showDialog(
+    
+    // 1. Abrimos el modal y esperamos a que se cierre (await)
+    await showDialog(
       context: context, 
       builder: (_) => QuoteFormModal(process: widget.process!)
     );
-  }
 
+    // 2. Al volver, recargamos el proceso desde la base de datos
+    // Esto asegura que GeneralInfoSection reciba los montos nuevos
+    final updatedProcess = await _processService.getProcessById(widget.process!.id);
+    
+    if (updatedProcess != null && mounted) {
+      setState(() {
+        // Actualizamos los controladores locales con los nuevos valores
+        _amountController.text = updatedProcess.amount.toString();
+        _costController.text = updatedProcess.estimatedCost.toString();
+      });
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -354,20 +382,27 @@ class _ProcessModalState extends State<ProcessModal> {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    GeneralInfoSection(
-                      titleController: _titleController,
-                      clientController: _clientController,
-                      descriptionController: _descriptionController,
-                      amountController: _amountController,
-                      costController: _costController,
-                      selectedPriority: _priority,
-                      selectedRequester: _requestedBy,
-                      requestDate: _requestDate,
-                      currentStage: widget.process?.stage,
-                      onPriorityChanged: (val) => setState(() => _priority = val!),
-                      onRequesterChanged: (val) => setState(() => _requestedBy = val),
-                      onDateChanged: (val) => setState(() => _requestDate = val),
-                      onOpenQuote: _openQuoteModal,
+                    // 4. Bloqueo de inputs basado en canEditData
+                    AbsorbPointer(
+                      absorbing: !canEditData, 
+                      child: Opacity(
+                        opacity: canEditData ? 1.0 : 0.7, 
+                        child: GeneralInfoSection(
+                          titleController: _titleController,
+                          clientController: _clientController,
+                          descriptionController: _descriptionController,
+                          amountController: _amountController,
+                          costController: _costController,
+                          selectedPriority: _priority,
+                          selectedRequester: _requestedBy,
+                          requestDate: _requestDate,
+                          currentStage: widget.process?.stage,
+                          onPriorityChanged: (val) => setState(() => _priority = val!),
+                          onRequesterChanged: (val) => setState(() => _requestedBy = val),
+                          onDateChanged: (val) => setState(() => _requestDate = val),
+                          onOpenQuote: _openQuoteModal,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
                     _buildCommentsSection(),
@@ -389,15 +424,27 @@ class _ProcessModalState extends State<ProcessModal> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(widget.process == null ? "NUEVO PROCESO" : "EDITAR PROCESO", 
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+          Row(
+            children: [
+              Text(widget.process == null ? "NUEVO PROCESO" : "EDITAR PROCESO", 
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+              if (!canEditData) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                  child: const Row(children: [Icon(LucideIcons.lock, size: 12, color: Colors.grey), SizedBox(width: 4), Text("Solo Lectura", style: TextStyle(fontSize: 12, color: Colors.grey))]),
+                )
+              ]
+            ],
+          ),
           IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(LucideIcons.x))
         ],
       ),
     );
   }
 
-  // ✅ AQUÍ ES DONDE AGREGAMOS EL BOTÓN
+  // ✅ FOOTER: Aquí está la magia de los botones
   Widget _buildModalFooter() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -405,52 +452,58 @@ class _ProcessModalState extends State<ProcessModal> {
       child: Row(
         children: [
           if (widget.process != null) ...[
-            // BOTÓN ELIMINAR
-            IconButton(
-              onPressed: _handleDelete, 
-              icon: const Icon(LucideIcons.trash2, color: Colors.redAccent),
-              tooltip: "Eliminar Proceso",
-            ),
+            // ELIMINAR: Depende de canEditData (editar/borrar datos)
+            if (canEditData)
+              IconButton(
+                onPressed: _handleDelete, 
+                icon: const Icon(LucideIcons.trash2, color: Colors.redAccent),
+                tooltip: "Eliminar Proceso",
+              ),
+            
             const SizedBox(width: 8),
             
-            // BOTÓN REGRESAR (Naranja)
-            TextButton.icon(
-              onPressed: _handleRegressStage,
-              icon: const Icon(LucideIcons.arrowLeftCircle, size: 18, color: Color(0xFFEA580C)),
-              label: const Text("Regresar", style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.bold)),
-            ),
+            // MOVER ETAPAS: Depende de canMoveStage (Switch global + permiso específico)
+            if (canMoveStage) ...[
+              TextButton.icon(
+                onPressed: _handleRegressStage,
+                icon: const Icon(LucideIcons.arrowLeftCircle, size: 18, color: Color(0xFFEA580C)),
+                label: const Text("Regresar", style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.bold)),
+              ),
 
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
 
-            // ✅ NUEVO BOTÓN AVANZAR (Verde) - SOLO SI NO ESTAMOS EDITANDO UN NUEVO PROCESO
-            TextButton.icon(
-              onPressed: _handleAdvanceStage,
-              icon: const Icon(LucideIcons.arrowRightCircle, size: 18, color: Color(0xFF10B981)), // Verde
-              label: const Text("Avanzar Etapa", style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
-            ),
+              TextButton.icon(
+                onPressed: _handleAdvanceStage,
+                icon: const Icon(LucideIcons.arrowRightCircle, size: 18, color: Color(0xFF10B981)), 
+                label: const Text("Avanzar Etapa", style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+              ),
+            ],
           ],
           
-          const Spacer(), // Empuja los botones de Guardar a la derecha
+          const Spacer(),
           
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: _save,
-            icon: const Icon(LucideIcons.save, size: 16),
-            label: const Text("Guardar Cambios"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A), 
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cerrar")),
+          
+          // GUARDAR: Depende de canEditData
+          if (canEditData) ...[
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: _save,
+              icon: const Icon(LucideIcons.save, size: 16),
+              label: const Text("Guardar Cambios"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A), 
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+              ),
             ),
-          ),
+          ]
         ],
       ),
     );
   }
 
-  // --- Sección de Comentarios ---
   Widget _buildCommentsSection() {
     return Container(
       decoration: BoxDecoration(
@@ -462,120 +515,67 @@ class _ProcessModalState extends State<ProcessModal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Encabezado
           const Row(
             children: [
               Icon(LucideIcons.messageSquare, size: 18, color: Color(0xFF3B82F6)),
               SizedBox(width: 12),
-              Text(
-                "NOTAS Y COMENTARIOS",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
-              ),
+              Text("NOTAS Y COMENTARIOS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
             ],
           ),
           const SizedBox(height: 20),
-
-          // Campo de texto para nuevo comentario
           TextField(
             controller: _commentController,
             onSubmitted: (_) => _addComment(), 
             decoration: InputDecoration(
               hintText: "Escribe una actualización...",
               hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-              suffixIcon: IconButton(
-                onPressed: _addComment,
-                icon: const Icon(LucideIcons.send, color: Color(0xFF2563EB), size: 20),
-              ),
+              suffixIcon: IconButton(onPressed: _addComment, icon: const Icon(LucideIcons.send, color: Color(0xFF2563EB), size: 20)),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
           const SizedBox(height: 24),
-
-          // Lista de comentarios
           if (_comments.isEmpty)
-            const Center(
-              child: Text(
-                "No hay comentarios aún.",
-                style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
-              ),
-            )
+            const Center(child: Text("No hay comentarios aún.", style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)))
           else
-            Column(
-              children: _comments.map((c) => _buildCommentItem(c)).toList(),
-            ),
+            Column(children: _comments.map((c) => _buildCommentItem(c)).toList()),
         ],
       ),
     );
   }
 
-  // Helper para renderizar cada burbuja de comentario
   Widget _buildCommentItem(CommentModel c) {
-    // Detectar si es un mensaje de sistema por retroceso o avance
     bool isRegression = c.text.contains("🔄 RETROCESO");
-    bool isAdvance = c.text.contains("🚀 AVANCE"); // Nuevo: estilo para avance
-
-    Color bgColor;
-    Color borderColor;
-    Color textColor;
+    bool isAdvance = c.text.contains("🚀 AVANCE"); 
+    Color bgColor; Color borderColor; Color textColor;
 
     if (isRegression) {
-      bgColor = const Color(0xFFFFF7ED); // Naranja claro
-      borderColor = Colors.orange.shade200;
-      textColor = const Color(0xFF9A3412);
+      bgColor = const Color(0xFFFFF7ED); borderColor = Colors.orange.shade200; textColor = const Color(0xFF9A3412);
     } else if (isAdvance) {
-      bgColor = const Color(0xFFECFDF5); // Verde claro
-      borderColor = Colors.green.shade200;
-      textColor = const Color(0xFF065F46);
+      bgColor = const Color(0xFFECFDF5); borderColor = Colors.green.shade200; textColor = const Color(0xFF065F46);
     } else {
-      bgColor = const Color(0xFFF1F5F9); // Gris default
-      borderColor = Colors.transparent;
-      textColor = const Color(0xFF334155);
+      bgColor = const Color(0xFFF1F5F9); borderColor = Colors.transparent; textColor = const Color(0xFF334155);
     }
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: (isRegression || isAdvance) ? Border.all(color: borderColor) : null,
-      ),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12), border: (isRegression || isAdvance) ? Border.all(color: borderColor) : null),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                c.userName,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: isRegression ? Colors.orange.shade700 : (isAdvance ? Colors.green.shade700 : const Color(0xFF2563EB)),
-                ),
-              ),
-              Text(
-                DateFormat('dd/MM HH:mm').format(c.date),
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
-              ),
+              Text(c.userName, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isRegression ? Colors.orange.shade700 : (isAdvance ? Colors.green.shade700 : const Color(0xFF2563EB)))),
+              Text(DateFormat('dd/MM HH:mm').format(c.date), style: const TextStyle(fontSize: 10, color: Colors.grey)),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            c.text,
-            style: TextStyle(
-              fontSize: 13,
-              color: textColor,
-              fontWeight: (isRegression || isAdvance) ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
+          Text(c.text, style: TextStyle(fontSize: 13, color: textColor, fontWeight: (isRegression || isAdvance) ? FontWeight.w600 : FontWeight.normal)),
         ],
       ),
     );
