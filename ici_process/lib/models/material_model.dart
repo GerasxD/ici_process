@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- CLASE AUXILIAR PARA EL PRECIO ---
+// --- CLASE AUXILIAR PARA EL PRECIO (Sin cambios) ---
 class PriceEntry {
   final String providerId;
   final String providerName;
@@ -32,7 +32,7 @@ class PriceEntry {
       'providerId': providerId,
       'providerName': providerName,
       'price': price,
-      'updatedAt': Timestamp.fromDate(updatedAt), // Importante convertir fecha
+      'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
 }
@@ -42,12 +42,14 @@ class MaterialItem {
   final String id;
   final String name;
   final String unit;
+  final double stock; // <--- 1. NUEVO CAMPO: STOCK
   final List<PriceEntry> prices;
 
   MaterialItem({
     required this.id,
     required this.name,
     required this.unit,
+    this.stock = 0.0, // <--- 2. INICIALIZAR EN EL CONSTRUCTOR (Por defecto 0.0)
     required this.prices,
   });
 
@@ -58,19 +60,26 @@ class MaterialItem {
       id: doc.id,
       name: data['name'] ?? '',
       unit: data['unit'] ?? '',
-      // Mapeo seguro de la lista
+      
+      // <--- 3. LEER STOCK DE FORMA SEGURA ---
+      // Si viene como int lo convierte a double, si es null pone 0.0
+      stock: (data['stock'] is int) 
+          ? (data['stock'] as int).toDouble() 
+          : (data['stock'] as double? ?? 0.0),
+      // --------------------------------------
+
       prices: (data['prices'] as List<dynamic>?)
           ?.map((e) => PriceEntry.fromMap(e as Map<String, dynamic>))
           .toList() ?? [],
     );
   }
 
-  // Guardar en Firebase (AQUÍ ESTABA EL ERROR)
+  // Guardar en Firebase
   Map<String, dynamic> toMap() {
     return {
       'name': name,
       'unit': unit,
-      // ⚠️ CRÍTICO: Debes convertir CADA precio a mapa explícitamente
+      'stock': stock, // <--- 4. GUARDAR STOCK
       'prices': prices.map((price) => price.toMap()).toList(), 
     };
   }

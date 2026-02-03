@@ -23,6 +23,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
 
   final _nameCtrl = TextEditingController();
   final _unitCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController(); // <--- 1. NUEVO CONTROLADOR DE STOCK
   
   // Lista temporal para guardar los precios antes de subir a Firebase
   List<PriceEntry> _tempPrices = [];
@@ -44,6 +45,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _unitCtrl.dispose();
+    _stockCtrl.dispose(); // <--- NO OLVIDAR EL DISPOSE
     super.dispose();
   }
 
@@ -56,27 +58,27 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
       return;
     }
 
-    // 2. Validación de Precios (Opcional, pero recomendada)
+    // 2. Validación de Stock
+    double stockValue = double.tryParse(_stockCtrl.text) ?? 0.0; // <--- LEER STOCK
+
     if (_tempPrices.isEmpty) {
-      // Puedes quitar esto si permites materiales sin precio
       _showSnack("Advertencia: No has agregado ningún precio/proveedor", isSuccess: false);
     }
 
     setState(() => _isUploading = true);
     
     try {
-      // 3. Crear el objeto
+      // 3. Crear el objeto con el STOCK
       final material = MaterialItem(
         id: docId ?? '',
         name: _nameCtrl.text.trim(),
         unit: _unitCtrl.text.trim(),
-        prices: _tempPrices, // Aquí va la lista llena
+        stock: stockValue, // <--- 2. GUARDAR STOCK EN EL MODELO
+        prices: _tempPrices, 
       );
 
-      // DEBUG: Ver en consola qué se está enviando
-      print("📦 Guardando Material: ${material.name}");
-      print("💰 Cantidad de precios a guardar: ${material.prices.length}");
-      material.prices.forEach((p) => print(" - Proveedor: ${p.providerName}, Precio: ${p.price}"));
+      // DEBUG
+      print("📦 Guardando Material: ${material.name} | Stock: ${material.stock}");
 
       if (docId == null) {
         await _materialService.addMaterial(material);
@@ -98,6 +100,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   void _resetForm() {
     _nameCtrl.clear();
     _unitCtrl.clear();
+    _stockCtrl.clear(); // <--- LIMPIAR STOCK
     setState(() => _tempPrices = []);
     FocusScope.of(context).unfocus();
   }
@@ -144,7 +147,6 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                           children: [
                             Expanded(flex: 7, child: _buildList(materials, providers)),
                             const SizedBox(width: 40),
-                            // 3. OCULTAMOS EL FORMULARIO DE CREACIÓN SI NO TIENE PERMISO
                             if (canEdit) 
                                Expanded(flex: 4, child: _buildForm(providers)),
                           ],
@@ -186,7 +188,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Catálogo de Materiales", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
-            Text("Gestiona precios unitarios y proveedores.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
+            Text("Gestiona precios, inventario y proveedores.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
           ],
         ),
       ],
@@ -212,6 +214,9 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
     String priceDisplay = item.prices.isEmpty 
         ? "Sin cotizar" 
         : (minPrice == maxPrice ? "\$${minPrice.toStringAsFixed(2)}" : "\$${minPrice.toStringAsFixed(2)} - \$${maxPrice.toStringAsFixed(2)}");
+
+    // Lógica visual para Stock (Si es 0 sale en rojo, si no, en azul/verde)
+    bool lowStock = item.stock <= 0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -240,6 +245,33 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                     Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary)),
                     const SizedBox(height: 4),
                     Text("Unidad: ${item.unit}  •  $priceDisplay", style: GoogleFonts.inter(fontSize: 13, color: _textSecondary)),
+                    
+                    // --- 3. MOSTRAR STOCK EN LA TARJETA ---
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: lowStock ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: lowStock ? Colors.red.withOpacity(0.3) : Colors.blue.withOpacity(0.3))
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.layers, size: 12, color: lowStock ? Colors.red : Colors.blue),
+                          const SizedBox(width: 6),
+                          Text(
+                            "Stock: ${item.stock.toStringAsFixed(2)} ${item.unit}", // Muestra decimales si es necesario
+                            style: GoogleFonts.inter(
+                              fontSize: 12, 
+                              fontWeight: FontWeight.w600, 
+                              color: lowStock ? Colors.red : Colors.blue
+                            )
+                          ),
+                        ],
+                      ),
+                    )
+                    // --------------------------------------
                   ],
                 ),
               ),
@@ -308,22 +340,29 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
           const SizedBox(height: 24),
           _input(_nameCtrl, "Nombre del Material", LucideIcons.package),
           const SizedBox(height: 12),
-          _input(_unitCtrl, "Unidad", LucideIcons.packageCheck),
+          
+          // --- 4. CAMPO DE STOCK EN FILA CON UNIDAD ---
+          Row(
+            children: [
+              Expanded(child: _input(_unitCtrl, "Unidad (ej: m, pza)", LucideIcons.ruler)),
+              const SizedBox(width: 12),
+              Expanded(child: _input(_stockCtrl, "Stock Actual", LucideIcons.layers, isNumber: true)),
+            ],
+          ),
+          // --------------------------------------------
+          
           const SizedBox(height: 24),
           
           Text("LISTA DE PRECIOS", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
           const SizedBox(height: 12),
           
-          // ✅ AQUÍ ESTÁ LA LÓGICA CORREGIDA
           _PriceManager(
             providers: providers,
             initialPrices: _tempPrices,
             onChanged: (updatedList) {
-              // Esto actualiza la variable global _tempPrices
               setState(() {
                 _tempPrices = updatedList;
               });
-              print("Lista de precios actualizada: ${_tempPrices.length} elementos");
             },
           ),
 
@@ -352,6 +391,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   void _showEditDialog(MaterialItem item, List<Provider> providers) {
     _nameCtrl.text = item.name;
     _unitCtrl.text = item.unit;
+    _stockCtrl.text = item.stock.toString(); // <--- 5. CARGAR STOCK AL EDITAR
     _tempPrices = List.from(item.prices); 
 
     showDialog(
@@ -370,13 +410,20 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                   children: [
                     _input(_nameCtrl, "Nombre", LucideIcons.package),
                     const SizedBox(height: 12),
-                    _input(_unitCtrl, "Unidad", LucideIcons.ruler),
+                    Row(
+                      children: [
+                        Expanded(child: _input(_unitCtrl, "Unidad", LucideIcons.ruler)),
+                        const SizedBox(width: 12),
+                        // --- INPUT DE STOCK EN MODAL ---
+                        Expanded(child: _input(_stockCtrl, "Stock", LucideIcons.layers, isNumber: true)),
+                      ],
+                    ),
                     const SizedBox(height: 24),
                     _PriceManager(
                       providers: providers,
                       initialPrices: _tempPrices,
                       onChanged: (updated) {
-                        setModalState(() => _tempPrices = updated); // Actualiza dentro del modal
+                        setModalState(() => _tempPrices = updated);
                       },
                     ),
                   ],
@@ -415,9 +462,11 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
     ));
   }
 
-  Widget _input(TextEditingController ctrl, String hint, IconData icon) {
+  // ACTUALICÉ EL HELPER INPUT PARA ACEPTAR TECLADO NUMÉRICO
+  Widget _input(TextEditingController ctrl, String hint, IconData icon, {bool isNumber = false}) {
     return TextField(
       controller: ctrl,
+      keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
       decoration: InputDecoration(
         prefixIcon: Icon(icon, size: 18, color: Colors.grey),
         hintText: hint,
@@ -428,9 +477,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   }
 }
 
-// --------------------------------------------------------
-// ✅ WIDGET CORREGIDO PARA GESTIONAR PRECIOS
-// --------------------------------------------------------
+// ... (El resto de _PriceManager se queda igual que antes)
 class _PriceManager extends StatefulWidget {
   final List<Provider> providers;
   final List<PriceEntry> initialPrices;

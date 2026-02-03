@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ici_process/ui/screens/admin_panel_screen.dart';
@@ -5,9 +6,11 @@ import 'package:ici_process/ui/screens/client_managment_screen.dart';
 import 'package:ici_process/ui/screens/material_catalog_screen.dart';
 import 'package:ici_process/ui/screens/provider_management_screen.dart';
 import 'package:ici_process/ui/screens/service_catalog_screen.dart';
+import 'package:ici_process/ui/screens/tool_catalog_screen.dart';
 import 'package:ici_process/ui/screens/vehicle_management_screen.dart';
 import 'package:ici_process/ui/widgets/process_modal/process_modal.dart';
-import 'package:ici_process/ui/widgets/kanban_view.dart'; 
+import 'package:ici_process/ui/widgets/kanban_view.dart';
+import 'package:intl/intl.dart'; 
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/user_model.dart';
 // 1. IMPORTAMOS EL GESTOR DE PERMISOS
@@ -34,8 +37,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ProviderManagementScreen(currentUser: widget.user), // 4
     MaterialCatalogScreen(currentUser: widget.user), // 5
     ServiceCatalogScreen(currentUser:  widget.user), // 6
-    VehicleManagementScreen(currentUser: widget.user),// 7
-    AdminPanelScreen(currentUser:widget.user), // 8
+    ToolCatalogScreen(currentUser: widget.user), // 7
+    VehicleManagementScreen(currentUser: widget.user),// 8
+    AdminPanelScreen(currentUser:widget.user), // 9
   ];
 
   @override
@@ -168,13 +172,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               if (pm.can(widget.user, 'view_materials')) // Reusando material o agrega 'view_services' en DB
                 _buildNavItem(6, "Servicios / Rentas", LucideIcons.calendarClock, isMobile),
 
+              if (pm.can(widget.user, 'view_tools'))
+                _buildNavItem(7, "Herramientas", LucideIcons.wrench, isMobile),
+
               // Vehículos
               if (pm.can(widget.user, 'view_vehicles'))
-                _buildNavItem(7, "Vehiculos", LucideIcons.truck, isMobile),
-
+                _buildNavItem(8, "Vehiculos", LucideIcons.truck, isMobile),
               // Admin Panel (Usamos manage_users como llave maestra para ver el panel)
               if (pm.can(widget.user, 'manage_users'))
-                _buildNavItem(8, "Administración", LucideIcons.settings, isMobile),
+                _buildNavItem(9, "Administración", LucideIcons.settings, isMobile),
             ],
           ),
         ),
@@ -255,19 +261,207 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
   
-  // ... (Resto de los widgets auxiliares: _buildNotificationBadge, _buildQuickActionButton, etc. siguen igual) ...
+  // ---------------------------------------------------------------------------
+  // MÉTODO ACTUALIZADO: BADGE DE NOTIFICACIONES REAL
+  // ---------------------------------------------------------------------------
   Widget _buildNotificationBadge() {
-    return Stack(
-      children: [
-        const Icon(LucideIcons.bell, color: Color(0xFF94A3B8)),
-        Positioned(
-          right: 0, top: 0,
-          child: Container(
-            width: 8, height: 8,
-            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+    // Escuchamos en tiempo real la colección 'notifications' para este usuario
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('notifications')
+          .where('targetUserId', isEqualTo: widget.user.id) // Solo las de este usuario
+          .where('read', isEqualTo: false) // Solo las no leídas
+          .snapshots(),
+      builder: (context, snapshot) {
+        // Si no hay datos o hay error, mostramos la campana sin badge
+        if (!snapshot.hasData || snapshot.hasError) {
+          return IconButton(
+            icon: const Icon(LucideIcons.bell, color: Color(0xFF94A3B8)),
+            onPressed: () => _showNotificationsModal(),
+          );
+        }
+
+        final unreadCount = snapshot.data!.docs.length;
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(LucideIcons.bell, color: Color(0xFF94A3B8)),
+              onPressed: () => _showNotificationsModal(),
+            ),
+            // Solo mostramos el globito rojo si hay notificaciones sin leer
+            if (unreadCount > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    unreadCount > 9 ? '9+' : '$unreadCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // MÉTODO ACTUALIZADO: CON MANEJO DE ERRORES
+  // ---------------------------------------------------------------------------
+  void _showNotificationsModal() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 400,
+          height: 500,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(LucideIcons.bellRing, color: Color(0xFF3B82F6)),
+                  SizedBox(width: 12),
+                  Text("Notificaciones", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const Divider(height: 30),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('notifications')
+                      .where('targetUserId', isEqualTo: widget.user.id)
+                      .orderBy('createdAt', descending: true) // <--- ESTA LÍNEA REQUIERE ÍNDICE
+                      .limit(20)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    // 1. Manejo de Errores (AQUÍ ESTÁ LA CLAVE)
+                    if (snapshot.hasError) {
+                      print("Error en notificaciones: ${snapshot.error}");
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(LucideIcons.alertTriangle, color: Colors.orange, size: 40),
+                              const SizedBox(height: 10),
+                              const Text(
+                                "Error cargando notificaciones.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                "Revisa la consola para ver el enlace del Índice de Firebase.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                              // Opcional: Mostrar el error técnico en pantalla para debug
+                              Text(snapshot.error.toString(), style: const TextStyle(fontSize: 10, color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(LucideIcons.inbox, size: 48, color: Colors.grey.shade300),
+                          const SizedBox(height: 16),
+                          const Text("No tienes notificaciones", style: TextStyle(color: Colors.grey)),
+                        ],
+                      );
+                    }
+
+                    final docs = snapshot.data!.docs;
+
+                    return ListView.separated(
+                      itemCount: docs.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final docId = docs[index].id;
+                        final isRead = data['read'] ?? false;
+                        final title = data['title'] ?? 'Notificación';
+                        final body = data['body'] ?? '';
+                        // Manejo seguro de la fecha por si viene nula al crearse
+                        final date = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          tileColor: isRead ? null : Colors.blue.withOpacity(0.05),
+                          leading: CircleAvatar(
+                            backgroundColor: isRead ? Colors.grey.shade200 : const Color(0xFFEFF6FF),
+                            child: Icon(
+                              LucideIcons.info, 
+                              size: 18, 
+                              color: isRead ? Colors.grey : const Color(0xFF3B82F6)
+                            ),
+                          ),
+                          title: Text(title, style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: 14)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(body, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                              const SizedBox(height: 4),
+                              Text(DateFormat('dd/MM HH:mm').format(date), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                            ],
+                          ),
+                          onTap: () async {
+                            if (!isRead) {
+                              await FirebaseFirestore.instance
+                                  .collection('notifications')
+                                  .doc(docId)
+                                  .update({'read': true});
+                            }
+                          },
+                          trailing: !isRead 
+                            ? Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle))
+                            : null,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cerrar"),
+                ),
+              )
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -280,7 +474,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         );
       },
       icon: const Icon(LucideIcons.plus, size: 18, color: Colors.white),
-      label: const Text("Nuevo", style: TextStyle(color: Colors.white)),
+      label: const Text("Nuevo Proceso", style: TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF2563EB),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

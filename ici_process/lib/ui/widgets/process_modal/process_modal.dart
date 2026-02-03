@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:ici_process/services/user_service.dart';
 import 'package:ici_process/ui/widgets/process_modal/quote_form_modal.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -29,6 +31,7 @@ class _ProcessModalState extends State<ProcessModal> {
   
   final _amountController = TextEditingController();
   final _costController = TextEditingController(); 
+  Map<String, dynamic>? _currentQuotationData;
 
   String _priority = 'Media';
   String? _requestedBy;
@@ -39,6 +42,10 @@ class _ProcessModalState extends State<ProcessModal> {
   // 2. VARIABLES DE PERMISOS
   bool canEditData = false; // Puede editar textos (título, descripción)
   bool canMoveStage = false; // Puede avanzar/retroceder etapas
+
+  final _ocNumberController = TextEditingController();
+  bool _isNoOc = false;
+  DateTime? _ocReceptionDate; 
 
   @override
   void initState() {
@@ -58,6 +65,16 @@ class _ProcessModalState extends State<ProcessModal> {
       _comments = List.from(widget.process!.comments);
       _amountController.text = widget.process!.amount.toString();
       _costController.text = widget.process!.estimatedCost.toString();
+      _currentQuotationData = widget.process!.quotationData; // <--- INICIALIZAR
+      _ocNumberController.text = widget.process!.poNumber ?? '';
+      _isNoOc = widget.process!.skipClientPO;
+      if (widget.process!.poDate != null && widget.process!.poDate!.isNotEmpty) {
+        try {
+          _ocReceptionDate = DateTime.parse(widget.process!.poDate!);
+        } catch (e) {
+          _ocReceptionDate = null;
+        }
+      } 
     }
   }
 
@@ -67,17 +84,14 @@ class _ProcessModalState extends State<ProcessModal> {
     final currentStage = widget.process?.stage ?? ProcessStage.E1;
     final stageCode = currentStage.toString().split('.').last;
     
-    // A. Permiso para EDITAR DATOS (Títulos, montos, etc.)
-    // Depende de si tiene permiso de edición específico en esta etapa
+    // 1. PERMISO PARA EDITAR TEXTOS (Título, Montos, Descripción)
+    // Esto bloqueará o desbloqueará los inputs (AbsorbPointer)
     canEditData = pm.can(widget.user, 'stage_edit_$stageCode');
 
-    // B. Permiso para MOVER ETAPAS (Botones Avanzar/Regresar)
-    // Requiere DOS cosas:
-    // 1. Tener activado el switch global "Mover Etapas (Kanban)" ('move_stage')
-    // 2. Tener permiso de edición en la etapa actual ('stage_edit_XX')
-    bool globalMovePermission = pm.can(widget.user, 'move_stage');
-    
-    canMoveStage = globalMovePermission && canEditData;
+    // 2. PERMISO PARA MOVER ETAPAS (Botones de Abajo)
+    // AHORA ES INDEPENDIENTE: Solo revisa si tienes el permiso global 'move_stage'.
+    // Ya no importa si puedes editar el texto o no.
+    canMoveStage = pm.can(widget.user, 'move_stage');
   }
 
   @override
@@ -121,7 +135,6 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // --- LÓGICA DE AVANCE DE ETAPA ---
   Future<void> _handleAdvanceStage() async {
-    // Validación de seguridad estricta
     if (!canMoveStage) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No tienes permiso para mover etapas.")));
         return;
@@ -140,18 +153,32 @@ class _ProcessModalState extends State<ProcessModal> {
     }
 
     final nextStage = stages[currentIndex + 1];
+    
+    // 1. DETECTAR SI ES EL PASO DE AUTORIZACIÓN (Estando en E2)
+    bool isAuthorizing = widget.process!.stage == ProcessStage.E2;
+
+    // 2. TEXTOS DINÁMICOS PARA EL DIÁLOGO
+    String dialogTitle = isAuthorizing ? "¿Autorizar Cotización?" : "¿Avanzar Etapa?";
+    String dialogContent = isAuthorizing 
+        ? "La cotización será enviada a Autorización (E2A). ¿Confirmas que los montos son correctos?"
+        : "El proceso pasará a la siguiente fase: ${nextStage.name}. ¿Deseas continuar?";
+    String confirmBtnText = isAuthorizing ? "Autorizar y Enviar" : "Avanzar";
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("¿Avanzar Etapa?"),
-        content: Text("El proceso pasará a la siguiente fase: ${nextStage.name}. ¿Deseas continuar?"),
+        title: Text(dialogTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(dialogContent),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
-            child: const Text("Avanzar"),
+            style: ElevatedButton.styleFrom(
+              // Usamos el color índigo si es autorización, si no, el default (Slate)
+              backgroundColor: isAuthorizing ? const Color(0xFF4338CA) : const Color(0xFF0F172A), 
+              foregroundColor: Colors.white
+            ),
+            child: Text(confirmBtnText),
           ),
         ],
       ),
@@ -159,17 +186,33 @@ class _ProcessModalState extends State<ProcessModal> {
 
     if (confirm == true) {
       final fechaActual = DateTime.now();
+      
+      // Mensaje personalizado para el historial
+      String historyDetail = isAuthorizing 
+          ? "Cotización autorizada y enviada a revisión (E2A)" 
+          : "Avance exitoso a etapa ${nextStage.name}";
+
       final historyEntry = HistoryEntry(
-        action: "Avance de Etapa",
+        action: isAuthorizing ? "Autorización de Cotización" : "Avance de Etapa",
         userName: widget.user.name,
         date: fechaActual,
-        details: "Avance exitoso a etapa ${nextStage.name}",
+        details: historyDetail,
       );
 
+      bool isReceivingOC = widget.process!.stage == ProcessStage.E3;
+
       setState(() {
+        if (isReceivingOC && _ocReceptionDate == null) {
+            _ocReceptionDate = fechaActual; 
+         }
+         // Comentario automático también personalizado
+         String commentText = isAuthorizing
+             ? "✅ COTIZACIÓN COMPLETADA: Se ha enviado a espera de autorización."
+             : "🚀 AVANCE DE ETAPA: El proceso avanzó a ${nextStage.name}";
+
          _comments.insert(0, CommentModel(
            id: fechaActual.millisecondsSinceEpoch.toString(),
-           text: "🚀 AVANCE DE ETAPA: El proceso avanzó a ${nextStage.name}",
+           text: commentText,
            userName: widget.user.name,
            date: fechaActual,
          ));
@@ -299,6 +342,10 @@ class _ProcessModalState extends State<ProcessModal> {
       updatedAt: DateTime.now(),
       amount: finalAmount,
       estimatedCost: finalCost,
+      poNumber: _ocNumberController.text,       // Guardamos en poNumber
+      skipClientPO: _isNoOc,                    // Guardamos el booleano
+      poDate: _ocReceptionDate?.toIso8601String(),
+      quotationData: _currentQuotationData, 
     );
   }
 
@@ -362,9 +409,165 @@ class _ProcessModalState extends State<ProcessModal> {
         // Actualizamos los controladores locales con los nuevos valores
         _amountController.text = updatedProcess.amount.toString();
         _costController.text = updatedProcess.estimatedCost.toString();
+        _currentQuotationData = updatedProcess.quotationData;
       });
     }
   }
+
+  // Determina quién elaboró la cotización basándose en el historial
+  String _getQuoterName() {
+    // 1. Si el proceso tiene monto (ya fue cotizado) y tiene historial...
+    if (widget.process != null && 
+        widget.process!.amount > 0 && 
+        widget.process!.history.isNotEmpty) {
+      // ...tomamos el nombre del último usuario que modificó el proceso
+      return widget.process!.history.first.userName;
+    }
+    // 2. Si es un proceso nuevo o aún no tiene cotización, ponemos al usuario actual
+    return widget.user.name;
+  }
+
+  // Método para mostrar usuarios y notificar (CON GUARDADO EN FIREBASE)
+  Future<void> _handleNotifyUsers() async {
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        // Variables locales del diálogo
+        Set<String> selectedUserIds = {};
+        
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)),
+              SizedBox(width: 10),
+              Text("Notificar Usuarios"),
+            ],
+          ),
+          content: SizedBox(
+            width: 400,
+            height: 300,
+            child: StreamBuilder<List<UserModel>>(
+              stream: UserService().getUsersStream(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                final users = snapshot.data!;
+                
+                return StatefulBuilder(
+                  builder: (context, setStateDialog) {
+                    return ListView.builder(
+                      itemCount: users.length,
+                      itemBuilder: (context, index) {
+                        final u = users[index];
+                        // Filtramos para no auto-notificarnos (opcional)
+                        if (u.id == widget.user.id) return const SizedBox.shrink();
+
+                        final isSelected = selectedUserIds.contains(u.id);
+                        
+                        return CheckboxListTile(
+                          value: isSelected,
+                          activeColor: const Color(0xFF7C3AED),
+                          title: Text(u.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(u.email, style: const TextStyle(fontSize: 12)),
+                          secondary: CircleAvatar(
+                            backgroundColor: Colors.grey.shade200,
+                            child: Text(u.name.isNotEmpty ? u.name[0] : 'U'),
+                          ),
+                          onChanged: (val) {
+                            setStateDialog(() {
+                              if (val == true) {
+                                selectedUserIds.add(u.id);
+                              } else {
+                                selectedUserIds.remove(u.id);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    );
+                  }
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (selectedUserIds.isEmpty) {
+                  Navigator.pop(ctx);
+                  return;
+                }
+
+                // 1. Cerramos el diálogo primero para mejor UX
+                Navigator.pop(ctx);
+
+                try {
+                  // 2. Usamos un Batch para escribir todas las notificaciones de una sola vez
+                  final batch = FirebaseFirestore.instance.batch();
+                  final collectionRef = FirebaseFirestore.instance.collection('notifications');
+
+                  for (final targetId in selectedUserIds) {
+                    final docRef = collectionRef.doc(); // Genera ID automático
+                    
+                    batch.set(docRef, {
+                      'targetUserId': targetId,
+                      'title': '📌 O.C. Recibida',
+                      'body': 'Proyecto: ${_titleController.text}', // Usamos el título del proyecto
+                      'read': false,
+                      'createdAt': FieldValue.serverTimestamp(),
+                      'senderName': widget.user.name,
+                      'processId': widget.process?.id ?? '', // ID del proceso para referencia
+                    });
+                  }
+
+                  // 3. Ejecutamos el guardado en la BD
+                  await batch.commit();
+
+                  // 4. Feedback Visual
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Notificación enviada a ${selectedUserIds.length} usuarios"),
+                        backgroundColor: const Color(0xFF10B981),
+                      )
+                    );
+                  }
+
+                  // 5. Agregar comentario automático al historial del proceso
+                  setState(() {
+                    _comments.insert(0, CommentModel(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      text: "🔔 Se notificó sobre la O.C. a ${selectedUserIds.length} personas.",
+                      userName: widget.user.name,
+                      date: DateTime.now(),
+                    ));
+                  });
+                  
+                  // Opcional: Guardar el proceso para persistir el comentario inmediatamente
+                  // await _save(); 
+
+                } catch (e) {
+                  print("Error enviando notificaciones: $e");
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Error al enviar notificaciones"))
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED), foregroundColor: Colors.white),
+              icon: const Icon(LucideIcons.send, size: 16),
+              label: const Text("Enviar Notificación"),
+            ),
+          ],
+        );
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -400,7 +603,17 @@ class _ProcessModalState extends State<ProcessModal> {
                           onPriorityChanged: (val) => setState(() => _priority = val!),
                           onRequesterChanged: (val) => setState(() => _requestedBy = val),
                           onDateChanged: (val) => setState(() => _requestDate = val),
+                          quotedBy: _getQuoterName(), // <--- Pasar el nombre del cotizador
                           onOpenQuote: _openQuoteModal,
+                          onNotifyUsers: _handleNotifyUsers, // <--- CONECTAR AQUÍ
+                          ocNumberController: _ocNumberController,
+                          isNoOc: _isNoOc,
+                          ocReceptionDate: _ocReceptionDate,
+                          onNoOcChanged: (val) => setState(() {
+                            _isNoOc = val ?? false;
+                            if (_isNoOc) _ocNumberController.text = "S/N";
+                          }),
+                          onOcDateChanged: (val) => setState(() => _ocReceptionDate = val),
                         ),
                       ),
                     ),
@@ -446,13 +659,32 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // ✅ FOOTER: Aquí está la magia de los botones
   Widget _buildModalFooter() {
+    // Detectamos las etapas especiales
+    bool isAuthStage = widget.process?.stage == ProcessStage.E2A; // E2A = Espera de Autorización
+    bool isSentStage = widget.process?.stage == ProcessStage.E3;  // E3 = Enviada / Esperando OC
+
+    // Configuración Dinámica del Botón
+    String advanceLabel = "Avanzar Etapa";
+    IconData advanceIcon = LucideIcons.arrowRightCircle;
+    Color advanceColor = const Color(0xFF10B981); // Verde default
+
+    if (isAuthStage) {
+      advanceLabel = "AUTORIZAR COTIZACIÓN";
+      advanceIcon = LucideIcons.fileCheck2;
+      advanceColor = const Color(0xFF4338CA); // Azul Índigo
+    } else if (isSentStage) {
+      // ✅ NUEVA CONFIGURACIÓN PARA E3
+      advanceLabel = "ORDEN DE COMPRA RECIBIDA";
+      advanceIcon = LucideIcons.shoppingBag; // O LucideIcons.clipboardCheck
+      advanceColor = const Color(0xFF7C3AED); // Violeta / Morado para distinguir la venta
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE2E8F0)))),
       child: Row(
         children: [
           if (widget.process != null) ...[
-            // ELIMINAR: Depende de canEditData (editar/borrar datos)
             if (canEditData)
               IconButton(
                 onPressed: _handleDelete, 
@@ -462,7 +694,6 @@ class _ProcessModalState extends State<ProcessModal> {
             
             const SizedBox(width: 8),
             
-            // MOVER ETAPAS: Depende de canMoveStage (Switch global + permiso específico)
             if (canMoveStage) ...[
               TextButton.icon(
                 onPressed: _handleRegressStage,
@@ -472,10 +703,11 @@ class _ProcessModalState extends State<ProcessModal> {
 
               const SizedBox(width: 8),
 
+              // ✅ BOTÓN DINÁMICO
               TextButton.icon(
                 onPressed: _handleAdvanceStage,
-                icon: const Icon(LucideIcons.arrowRightCircle, size: 18, color: Color(0xFF10B981)), 
-                label: const Text("Avanzar Etapa", style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+                icon: Icon(advanceIcon, size: 18, color: advanceColor), 
+                label: Text(advanceLabel, style: TextStyle(color: advanceColor, fontWeight: FontWeight.bold)),
               ),
             ],
           ],
@@ -484,7 +716,6 @@ class _ProcessModalState extends State<ProcessModal> {
           
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cerrar")),
           
-          // GUARDAR: Depende de canEditData
           if (canEditData) ...[
             const SizedBox(width: 12),
             ElevatedButton.icon(

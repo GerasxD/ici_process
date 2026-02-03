@@ -38,18 +38,20 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'view_clients': 'Ver Clientes',
     'view_providers': 'Ver Proveedores',
     'view_materials': 'Ver Materiales',
+    'view_tools': 'Ver Herramientas',
     'view_vehicles': 'Ver Vehículos',
     'edit_clients': 'Editar/Crear Clientes',
     'edit_providers': 'Editar/Crear Proveedores',
     'edit_materials': 'Editar/Crear Materiales',
+    'edit_tools': 'Editar/Crear Herramientas',
     'edit_vehicles': 'Editar/Crear Vehículos',
   };
 
   // Estructura original de permisos
   final Map<String, List<String>> _permissionGroups = {
     'General': ['view_dashboard', 'manage_users', 'view_budget', 'move_stage'],
-    'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_vehicles'],
-    'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_vehicles'],
+    'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles'],
+    'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_tools', 'edit_vehicles'],
   };
 
   @override
@@ -1116,7 +1118,7 @@ class _LaborCardState extends State<_LaborCard> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ],
-            ),
+            ),    
           ),
           IconButton(
             onPressed: widget.onDelete,

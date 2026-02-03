@@ -93,6 +93,7 @@ class ProcessModel {
       'comments': comments.map((e) => e.toMap()).toList(),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'quotationData': quotationData,
+      
     };
   }
 }
