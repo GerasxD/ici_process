@@ -84,11 +84,25 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   String? _selectedBranch;
   bool _initialDataRestored = false;
   
-  final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 3);
 
   @override
   void initState() {
     super.initState();
+    // Agregamos estas dos líneas para limpiar los datos al cargar la pantalla
+    _limpiarDecimales(widget.amountController);
+    _limpiarDecimales(widget.costController);
+  }
+
+  void _limpiarDecimales(TextEditingController controller) {
+    if (controller.text.isNotEmpty) {
+      // Intentamos convertir el texto a número
+      double? value = double.tryParse(controller.text);
+      if (value != null) {
+        // Si es válido, lo convertimos a texto forzando 3 decimales
+        controller.text = value.toStringAsFixed(3);
+      }
+    }
   }
 
   void _updateClientController() {
@@ -125,7 +139,18 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   }
   // -------------------------------------------------
 
-  int get daysElapsed => DateTime.now().difference(widget.requestDate).inDays;
+  int get daysElapsed {
+    final now = DateTime.now();
+    
+    final today = DateTime(now.year, now.month, now.day);
+    final request = DateTime(
+      widget.requestDate.year,
+      widget.requestDate.month,
+      widget.requestDate.day,
+    );
+
+    return today.difference(request).inDays;
+  }
 
   Color get priorityColor {
     switch (widget.selectedPriority) {
@@ -504,7 +529,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   }
 
   // --- WIDGETS AUXILIARES ---
-  Widget _buildEditableMoneyInput(String label, TextEditingController ctrl, {bool isCost = false, VoidCallback? onChanged}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 6), TextField(controller: ctrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))], onChanged: (_) { if (onChanged != null) onChanged(); }, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)), decoration: InputDecoration(prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); }
+  Widget _buildEditableMoneyInput(String label, TextEditingController ctrl, {bool isCost = false, VoidCallback? onChanged}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 6), TextField(controller: ctrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,3}'))], onChanged: (_) { if (onChanged != null) onChanged(); }, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)), decoration: InputDecoration(prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); }
   Widget _buildReadOnlyDisplay(String label, double amount, {bool isCost = false}) { return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 8), Text(currencyFormat.format(amount), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)))],)); }
   void _restoreSelection(List<Client> clients) { if (_initialDataRestored) return; final fullText = widget.clientController.text; try { final matchedClient = clients.firstWhere((c) => fullText.startsWith(c.name)); String? matchedBranch; if (fullText.length > matchedClient.name.length + 3) { matchedBranch = fullText.substring(matchedClient.name.length + 3); if (!matchedClient.branchAddresses.contains(matchedBranch)) matchedBranch = null; } setState(() { _selectedClientObj = matchedClient; _selectedBranch = matchedBranch; _initialDataRestored = true; }); } catch (e) { setState(() => _initialDataRestored = true); } }
   InputDecoration _inputDecoration(IconData icon) { return InputDecoration(prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))); }

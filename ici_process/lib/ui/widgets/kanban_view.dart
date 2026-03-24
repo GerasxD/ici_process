@@ -1,86 +1,128 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import '../../services/process_service.dart';
 import '../../models/process_model.dart';
 import '../../models/user_model.dart';
 import '../../core/constants/app_constants.dart';
 import 'process_card.dart';
 import 'process_modal/process_modal.dart';
-// 1. IMPORTAMOS EL GESTOR DE PERMISOS
-import '../../core/utils/permission_manager.dart'; 
+import '../../core/utils/permission_manager.dart';
 
-class KanbanView extends StatelessWidget {
+class KanbanView extends StatefulWidget {
   final UserModel currentUser;
 
   const KanbanView({super.key, required this.currentUser});
 
   @override
+  State<KanbanView> createState() => _KanbanViewState();
+}
+
+class _KanbanViewState extends State<KanbanView> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isDragging = false;
+  double _dragStartX = 0;
+  double _scrollStartOffset = 0;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final ProcessService _service = ProcessService();
-    // 2. Instanciamos el Manager
-    final PermissionManager _pm = PermissionManager();
+    final ProcessService service = ProcessService();
+    final PermissionManager pm = PermissionManager();
 
-    return Container(
-      color: const Color(0xFFF8FAFC),
-      child: StreamBuilder<List<ProcessModel>>(
-        stream: _service.getProcessesStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          final allProcesses = snapshot.data ?? [];
+    return StreamBuilder<List<ProcessModel>>(
+      stream: service.getProcessesStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          // 3. FILTRO DINÁMICO:
-          // Recorremos todas las etapas definidas en el Enum y filtramos solo las permitidas.
-          final visibleStages = ProcessStage.values.where((stage) {
-            // Obtenemos el código de la etapa, ej: "E1", "E2A", "X"
-            final stageCode = stage.toString().split('.').last;
-            
-            // Construimos el nombre del permiso esperado: 'stage_view_E1'
-            final permissionCode = 'stage_view_$stageCode';
-            
-            // Verificamos si el usuario tiene ese permiso activado en la DB
-            return _pm.can(currentUser, permissionCode);
-          }).toList();
+        final allProcesses = snapshot.data ?? [];
 
-          // Si no tiene permisos para ninguna columna, mostramos un aviso
-          if (visibleStages.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.lock_outline, size: 64, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  const Text("No tienes permisos para ver ninguna etapa del flujo.", 
-                    style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            );
-          }
+        final visibleStages = ProcessStage.values.where((stage) {
+          final stageCode = stage.toString().split('.').last;
+          return pm.can(widget.currentUser, 'stage_view_$stageCode');
+        }).toList();
 
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: visibleStages.map((stage) {
-                // Seguimos usando stageConfigs para obtener Colores e Iconos (Estética)
-                final config = stageConfigs[stage]!;
-                
-                // Filtramos las tarjetas que pertenecen a esta columna
-                final stageProcesses = allProcesses.where((p) => p.stage == stage).toList();
-
-                return _buildKanbanColumn(context, stage, config, stageProcesses);
-              }).toList(),
+        if (visibleStages.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.lock_outline, size: 64, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                const Text(
+                  "No tienes permisos para ver ninguna etapa del flujo.",
+                  style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
           );
-        },
-      ),
+        }
+
+        return Listener(
+          // Rueda del mouse / trackpad → scroll horizontal
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              final newOffset = (_scrollController.offset + event.scrollDelta.dy)
+                  .clamp(0.0, _scrollController.position.maxScrollExtent);
+              _scrollController.jumpTo(newOffset);
+            }
+          },
+          child: GestureDetector(
+            onHorizontalDragStart: (details) {
+              _isDragging = true;
+              _dragStartX = details.globalPosition.dx;
+              _scrollStartOffset = _scrollController.offset;
+            },
+            onHorizontalDragUpdate: (details) {
+              if (!_isDragging) return;
+              final delta = _dragStartX - details.globalPosition.dx;
+              final newOffset = (_scrollStartOffset + delta)
+                  .clamp(0.0, _scrollController.position.maxScrollExtent);
+              _scrollController.jumpTo(newOffset);
+            },
+            onHorizontalDragEnd: (_) => _isDragging = false,
+            child: MouseRegion(
+              cursor: _isDragging
+                  ? SystemMouseCursors.grabbing
+                  : SystemMouseCursors.grab,
+              child: Container(
+                color: const Color(0xFFF8FAFC),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  scrollDirection: Axis.horizontal,
+                  // En web desactivamos el scroll nativo para que el drag tome control
+                  physics: kIsWeb
+                      ? const NeverScrollableScrollPhysics()
+                      : const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(24),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: visibleStages.map((stage) {
+                      final config = stageConfigs[stage]!;
+                      final stageProcesses =
+                          allProcesses.where((p) => p.stage == stage).toList();
+                      return _buildKanbanColumn(
+                          context, stage, config, stageProcesses);
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  // Este widget se mantiene igual visualmente
-  Widget _buildKanbanColumn(BuildContext context, ProcessStage stage, StageConfig config, List<ProcessModel> processes) {
+  Widget _buildKanbanColumn(BuildContext context, ProcessStage stage,
+      StageConfig config, List<ProcessModel> processes) {
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -98,19 +140,16 @@ class KanbanView extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header de la Columna
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  config.color,
-                  config.color.withOpacity(0.85),
-                ],
+                colors: [config.color, config.color.withOpacity(0.85)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               boxShadow: [
                 BoxShadow(
                   color: config.color.withOpacity(0.3),
@@ -144,7 +183,8 @@ class KanbanView extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -168,8 +208,6 @@ class KanbanView extends StatelessWidget {
               ],
             ),
           ),
-          
-          // Lista de Tarjetas
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(12),
@@ -188,8 +226,9 @@ class KanbanView extends StatelessWidget {
                       'updatedAt': process.updatedAt.toIso8601String(),
                     },
                     onClick: () => showDialog(
-                      context: context, 
-                      builder: (_) => ProcessModal(process: process, user: currentUser,)
+                      context: context,
+                      builder: (_) => ProcessModal(
+                          process: process, user: widget.currentUser),
                     ),
                   ),
                 );

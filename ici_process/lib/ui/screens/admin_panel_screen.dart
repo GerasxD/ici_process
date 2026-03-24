@@ -126,11 +126,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
                   ),
                 ],
               ),
-              IconButton(
-                onPressed: () => Navigator.pop(context), 
-                icon: const Icon(LucideIcons.x, color: Color(0xFF94A3B8)),
-                tooltip: "Cerrar Panel",
-              )
             ],
           ),
           const SizedBox(height: 32),
@@ -850,7 +845,7 @@ class _RolesTab extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// 3. PESTAÑA DE CATÁLOGOS (Diseño Grid Moderno)
+// 3. PESTAÑA DE CATÁLOGOS (Diseño Grid Moderno - CORREGIDO SIN OVERFLOW)
 // -----------------------------------------------------------------------------
 class _CatalogsTab extends StatefulWidget {
   final AdminService adminService;
@@ -914,12 +909,11 @@ class _CatalogsTabState extends State<_CatalogsTab> {
                 selected: true,
                 selectedTileColor: const Color(0xFFEFF6FF),
               ),
-              // Aquí podrías agregar más catálogos futuros (ej: Unidades de Medida, Impuestos)
             ],
           ),
         ),
         
-        // CONTENT
+        // CONTENT - CORREGIDO: GridView con SingleChildScrollView
         Expanded(
           child: StreamBuilder<List<LaborCategory>>(
             stream: widget.adminService.getLaborCategories(),
@@ -928,53 +922,64 @@ class _CatalogsTabState extends State<_CatalogsTab> {
               
               return Container(
                 color: const Color(0xFFF8FAFC),
-                padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Tabulador de Salarios", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
-                            Text("Define los costos base para el cálculo de cotizaciones.", style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B))),
-                          ],
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => _addNewLabor(laborList),
-                          icon: const Icon(LucideIcons.plus, size: 18),
-                          label: const Text("Agregar Puesto"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB), 
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    // Header fijo
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Tabulador de Salarios", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
+                              Text("Define los costos base para el cálculo de cotizaciones.", style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B))),
+                            ],
                           ),
-                        )
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Expanded(
-                      child: GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 400, // Cards responsivos
-                          childAspectRatio: 2.8,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                        ),
-                        itemCount: laborList.length,
-                        itemBuilder: (context, index) {
-                          final item = laborList[index];
-                          return _LaborCard(
-                            key: ValueKey(item.id),
-                            item: item,
-                            onUpdate: (field, val) => _updateLabor(laborList, index, field, val),
-                            onDelete: () => _deleteLabor(laborList, index),
-                          );
-                        },
+                          ElevatedButton.icon(
+                            onPressed: () => _addNewLabor(laborList),
+                            icon: const Icon(LucideIcons.plus, size: 18),
+                            label: const Text("Agregar Puesto"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB), 
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          )
+                        ],
                       ),
                     ),
+                    
+                    // ✅ SOLUCIÓN: SingleChildScrollView + GridView con shrinkWrap
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 0),
+                        child: GridView.builder(
+                          shrinkWrap: true, // IMPORTANTE: Permite que GridView ocupe solo su contenido
+                          physics: const NeverScrollableScrollPhysics(), // Desactiva scroll interno
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 400, // Cards responsivos
+                            childAspectRatio: 2.8,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
+                          itemCount: laborList.length,
+                          itemBuilder: (context, index) {
+                            final item = laborList[index];
+                            return _LaborCard(
+                              key: ValueKey(item.id),
+                              item: item,
+                              onUpdate: (field, val) => _updateLabor(laborList, index, field, val),
+                              onDelete: () => _deleteLabor(laborList, index),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16), // Espacio extra al final
                   ],
                 ),
               );
@@ -1006,7 +1011,6 @@ class _LaborCardState extends State<_LaborCard> {
   late TextEditingController _nameCtrl;
   late TextEditingController _salaryCtrl;
   
-  // 1. Agregamos FocusNodes para detectar cuando el usuario sale del campo
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _salaryFocus = FocusNode();
 
@@ -1016,10 +1020,8 @@ class _LaborCardState extends State<_LaborCard> {
     _nameCtrl = TextEditingController(text: widget.item.name);
     _salaryCtrl = TextEditingController(text: widget.item.baseDailySalary.toString());
 
-    // 2. Escuchar cambios de foco
     _nameFocus.addListener(() {
       if (!_nameFocus.hasFocus) {
-        // Al perder el foco, guardamos si hubo cambios
         if (_nameCtrl.text != widget.item.name) {
           widget.onUpdate('name', _nameCtrl.text);
         }
@@ -1028,7 +1030,6 @@ class _LaborCardState extends State<_LaborCard> {
 
     _salaryFocus.addListener(() {
       if (!_salaryFocus.hasFocus) {
-        // Al perder el foco, guardamos el salario
         final val = double.tryParse(_salaryCtrl.text) ?? 0.0;
         if (val != widget.item.baseDailySalary) {
           widget.onUpdate('salary', val);
@@ -1063,7 +1064,7 @@ class _LaborCardState extends State<_LaborCard> {
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center, // Cambiado de start a center
         children: [
           Container(
             padding: const EdgeInsets.all(12),
@@ -1076,34 +1077,40 @@ class _LaborCardState extends State<_LaborCard> {
           const SizedBox(width: 16),
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.center, // Mantenemos center
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Nombre del puesto
                 TextField(
                   controller: _nameCtrl,
-                  focusNode: _nameFocus, // 3. Asignar FocusNode
+                  focusNode: _nameFocus,
                   onSubmitted: (val) => widget.onUpdate('name', val),
                   decoration: InputDecoration(
                     labelText: "Nombre del Puesto", 
                     labelStyle: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
                     isDense: true, 
                     border: InputBorder.none, 
-                    contentPadding: EdgeInsets.zero
+                    contentPadding: EdgeInsets.zero,
+                    // Eliminamos cualquier padding adicional
                   ),
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: const Color(0xFF0F172A)
+                    color: const Color(0xFF0F172A),
+                    height: 1.2, // Controlamos la altura de línea
                   ),
                 ),
                 const SizedBox(height: 8),
+                // Línea separadora
                 Container(height: 1, color: const Color(0xFFF1F5F9)),
                 const SizedBox(height: 8),
+                // Salario diario base
                 TextField(
                   controller: _salaryCtrl,
-                  focusNode: _salaryFocus, // 3. Asignar FocusNode
+                  focusNode: _salaryFocus,
                   onSubmitted: (val) => widget.onUpdate('salary', val),
                   decoration: InputDecoration(
-                    labelText: "Salario Diario Base", 
+                    labelText: "Salario Diario Base",
                     labelStyle: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
                     isDense: true, 
                     border: InputBorder.none, 
@@ -1112,9 +1119,13 @@ class _LaborCardState extends State<_LaborCard> {
                       color: const Color(0xFF64748B),
                       fontWeight: FontWeight.bold
                     ),
-                    contentPadding: EdgeInsets.zero
+                    contentPadding: EdgeInsets.zero,
                   ),
-                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF334155)),
+                  style: GoogleFonts.inter(
+                    fontSize: 14, 
+                    color: const Color(0xFF334155),
+                    height: 1.2, // Controlamos la altura de línea
+                  ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ],
@@ -1124,7 +1135,9 @@ class _LaborCardState extends State<_LaborCard> {
             onPressed: widget.onDelete,
             icon: const Icon(LucideIcons.trash2, color: Color(0xFFEF4444), size: 18),
             tooltip: "Eliminar",
-          )
+            padding: EdgeInsets.zero, // Eliminamos padding del botón
+            constraints: const BoxConstraints(), // Quitamos restricciones de tamaño
+          ),
         ],
       ),
     );
