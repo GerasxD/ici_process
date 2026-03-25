@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/foundation.dart';
 import '../../services/process_service.dart';
 import '../../models/process_model.dart';
 import '../../models/user_model.dart';
@@ -20,9 +19,6 @@ class KanbanView extends StatefulWidget {
 
 class _KanbanViewState extends State<KanbanView> {
   final ScrollController _scrollController = ScrollController();
-  bool _isDragging = false;
-  double _dragStartX = 0;
-  double _scrollStartOffset = 0;
 
   @override
   void dispose() {
@@ -65,55 +61,31 @@ class _KanbanViewState extends State<KanbanView> {
           );
         }
 
-        return Listener(
-          // Rueda del mouse / trackpad → scroll horizontal
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) {
-              final newOffset = (_scrollController.offset + event.scrollDelta.dy)
-                  .clamp(0.0, _scrollController.position.maxScrollExtent);
-              _scrollController.jumpTo(newOffset);
-            }
-          },
-          child: GestureDetector(
-            onHorizontalDragStart: (details) {
-              _isDragging = true;
-              _dragStartX = details.globalPosition.dx;
-              _scrollStartOffset = _scrollController.offset;
+        // --- AQUÍ ESTÁ LA SOLUCIÓN NATIVA ---
+        return ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(
+            // Le decimos a Flutter qué dispositivos pueden arrastrar la pantalla
+            dragDevices: {
+              PointerDeviceKind.touch,    // Teléfonos / Tablets
+              PointerDeviceKind.mouse,    // Clic sostenido de ratón
+              PointerDeviceKind.trackpad, // Trackpad de Laptops
             },
-            onHorizontalDragUpdate: (details) {
-              if (!_isDragging) return;
-              final delta = _dragStartX - details.globalPosition.dx;
-              final newOffset = (_scrollStartOffset + delta)
-                  .clamp(0.0, _scrollController.position.maxScrollExtent);
-              _scrollController.jumpTo(newOffset);
-            },
-            onHorizontalDragEnd: (_) => _isDragging = false,
-            child: MouseRegion(
-              cursor: _isDragging
-                  ? SystemMouseCursors.grabbing
-                  : SystemMouseCursors.grab,
-              child: Container(
-                color: const Color(0xFFF8FAFC),
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  scrollDirection: Axis.horizontal,
-                  // En web desactivamos el scroll nativo para que el drag tome control
-                  physics: kIsWeb
-                      ? const NeverScrollableScrollPhysics()
-                      : const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.all(24),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: visibleStages.map((stage) {
-                      final config = stageConfigs[stage]!;
-                      final stageProcesses =
-                          allProcesses.where((p) => p.stage == stage).toList();
-                      return _buildKanbanColumn(
-                          context, stage, config, stageProcesses);
-                    }).toList(),
-                  ),
-                ),
-              ),
+          ),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            // BouncingScrollPhysics da un efecto de rebote suave y natural al llegar a los bordes
+            physics: const BouncingScrollPhysics(), 
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: visibleStages.map((stage) {
+                final config = stageConfigs[stage]!;
+                final stageProcesses =
+                    allProcesses.where((p) => p.stage == stage).toList();
+                return _buildKanbanColumn(
+                    context, stage, config, stageProcesses);
+              }).toList(),
             ),
           ),
         );

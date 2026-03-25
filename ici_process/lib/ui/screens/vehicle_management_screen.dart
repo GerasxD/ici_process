@@ -338,38 +338,103 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Editar Vehículo"),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _input(_modelCtrl, "Modelo", LucideIcons.carrot),
-                const SizedBox(height: 16),
-                Row(
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              "Editar Vehículo", 
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
+            ),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start, // Alineación a la izquierda
                   children: [
-                    Expanded(child: _numericInput(_kmLiterCtrl, "KM/L", LucideIcons.gauge)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _numericInput(_costKmCtrl, "Cost/KM", LucideIcons.dollarSign)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _numericInput(_gasPriceCtrl, "\$/L Gas", LucideIcons.fuel)),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                      child: Text("MODELO DEL VEHÍCULO", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    // Cambié el icono de zanahoria (carrot) por el de camión (truck) 🚚
+                    _input(_modelCtrl, "Ej. Nissan NP300", LucideIcons.truck),
+                    
+                    const SizedBox(height: 16),
+                    
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("KM/L", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _numericInput(_kmLiterCtrl, "0.0", LucideIcons.gauge),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("COSTO/KM", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _numericInput(_costKmCtrl, "0.0", LucideIcons.dollarSign),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("\$/L GAS", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _numericInput(_gasPriceCtrl, "0.0", LucideIcons.fuel),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () { _resetForm(); Navigator.pop(ctx); }, child: const Text("Cancelar")),
-          ElevatedButton(
-            onPressed: () => _handleSave(docId: item.id),
-            child: const Text("Guardar Cambios"),
-          )
-        ],
+            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            actions: [
+              TextButton(
+                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
+                style: TextButton.styleFrom(foregroundColor: _textSecondary),
+                child: Text("Cancelar", style: GoogleFonts.inter()),
+              ),
+              ElevatedButton(
+                onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryBlue,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: _isUploading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+              )
+            ],
+          );
+        }
       ),
     ).then((_) => _resetForm());
   }

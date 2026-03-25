@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/services/admin_service.dart';
 import 'package:ici_process/ui/screens/admin_panel_screen.dart';
 import 'package:ici_process/ui/screens/client_managment_screen.dart';
 import 'package:ici_process/ui/screens/material_catalog_screen.dart';
@@ -28,71 +30,98 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
   bool _isSidebarOpen = true;
 
+  final AdminService _adminService = AdminService();
+  late final List<Widget> _views;
+
   // NOTA: El orden de esta lista debe coincidir con los índices que usamos abajo.
-  List<Widget> get _views => [
-    KanbanView(currentUser: widget.user), // 0
-    const Center(child: Text("Calendario (Próximamente)")), // 1
-    const Center(child: Text("Reportes (Próximamente)")), // 2
-    ClientManagementScreen(currentUser: widget.user), // 3
-    ProviderManagementScreen(currentUser: widget.user), // 4
-    MaterialCatalogScreen(currentUser: widget.user), // 5
-    ServiceCatalogScreen(currentUser:  widget.user), // 6
-    ToolCatalogScreen(currentUser: widget.user), // 7
-    VehicleManagementScreen(currentUser: widget.user),// 8
-    AdminPanelScreen(currentUser:widget.user), // 9
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // ✅ 2. Inicializamos todas las pantallas una sola vez
+    _views = [
+      KanbanView(currentUser: widget.user), // 0
+      const Center(child: Text("Calendario (Próximamente)")), // 1
+      const Center(child: Text("Reportes (Próximamente)")), // 2
+      ClientManagementScreen(currentUser: widget.user), // 3
+      ProviderManagementScreen(currentUser: widget.user), // 4
+      MaterialCatalogScreen(currentUser: widget.user), // 5
+      ServiceCatalogScreen(currentUser:  widget.user), // 6
+      ToolCatalogScreen(currentUser: widget.user), // 7
+      VehicleManagementScreen(currentUser: widget.user),// 8
+      AdminPanelScreen(currentUser: widget.user), // 9
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ... (El build del Scaffold se queda igual, no cambia nada aquí) ...
     final bool isDesktop = MediaQuery.of(context).size.width > 900;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: !isDesktop 
-        ? AppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            leading: Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(LucideIcons.menu, color: Color(0xFF94A3B8)),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              ),
+    
+    // ENVOLVEMOS TODO EN ESTE STREAM BUILDER
+    return StreamBuilder<Map<String, List<String>>>(
+      stream: _adminService.getRolePermissions(),
+      builder: (context, snapshot) {
+        
+        // Si Firebase aún está descargando los permisos, mostramos una pantalla de carga limpia
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF8FAFC),
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
             ),
-            title: const Text("ICI INTEGRAL", 
-              style: TextStyle(color: Color(0xFF1E293B), fontSize: 16, fontWeight: FontWeight.bold)),
-            actions: [
-               _buildNotificationBadge(),
-               const SizedBox(width: 16),
-            ],
-          )
-        : null,
-      body: Row(
-        children: [
-          if (isDesktop) _buildDesktopSidebar(),
-          Expanded(
-            child: Column(
-              children: [
-                if (isDesktop) _buildTopHeader(),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _views[_selectedIndex],
+          );
+        }
+
+        // Una vez que los permisos llegaron, dibujamos tu pantalla tal cual la tenías
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          appBar: !isDesktop 
+            ? AppBar(
+                backgroundColor: Colors.white,
+                elevation: 0,
+                leading: Builder(
+                  builder: (context) => IconButton(
+                    icon: const Icon(LucideIcons.menu, color: Color(0xFF94A3B8)),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
                   ),
                 ),
-              ],
-            ),
+                title: const Text("ICI-PROCESS", 
+                  style: TextStyle(color: Color(0xFF1E293B), fontSize: 16, fontWeight: FontWeight.bold)),
+                actions: [
+                   _buildNotificationBadge(),
+                   const SizedBox(width: 16),
+                ],
+              )
+            : null,
+          body: Row(
+            children: [
+              if (isDesktop) _buildDesktopSidebar(),
+              Expanded(
+                child: Column(
+                  children: [
+                    if (isDesktop) _buildTopHeader(),
+                    Expanded(
+                      // ✅ 3. ADIÓS ANIMATEDSWITCHER, HOLA INDEXEDSTACK
+                      child: IndexedStack(
+                        index: _selectedIndex,
+                        children: _views,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      drawer: !isDesktop 
-        ? Drawer(
-            width: 280,
-            child: Container(
-              color: const Color(0xFF0F172A), 
-              child: _buildSidebarContent(isMobile: true)
-            ),
-          ) 
-        : null,
+          drawer: !isDesktop 
+            ? Drawer(
+                width: 280,
+                child: Container(
+                  color: const Color(0xFF0F172A), 
+                  child: _buildSidebarContent(isMobile: true)
+                ),
+              ) 
+            : null,
+        );
+      }
     );
   }
 
@@ -125,7 +154,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               const Icon(LucideIcons.layout, color: Color(0xFF3B82F6), size: 32),
               if (showText) ...[
                 const SizedBox(width: 12),
-                const Text("ICI INTEGRAL", 
+                const Text("ICI-PROCESS", 
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
               ],
             ],
@@ -329,135 +358,196 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: 400,
-          height: 500,
-          padding: const EdgeInsets.all(20),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent, // Evita tintes raros de Material 3
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: SizedBox(
+          width: 420,
+          height: 550,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Icon(LucideIcons.bellRing, color: Color(0xFF3B82F6)),
-                  SizedBox(width: 12),
-                  Text("Notificaciones", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
+              // --- HEADER DEL MODAL ---
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF), // Fondo azul clarito
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(LucideIcons.bellRing, color: Color(0xFF2563EB), size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        Text("Notificaciones", 
+                          style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x, color: Color(0xFF64748B), size: 22),
+                      tooltip: "Cerrar",
+                      onPressed: () => Navigator.pop(context),
+                      splashRadius: 20,
+                    ),
+                  ],
+                ),
               ),
-              const Divider(height: 30),
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+              // --- CONTENIDO (LISTA O ESTADOS) ---
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('notifications')
                       .where('targetUserId', isEqualTo: widget.user.id)
-                      .orderBy('createdAt', descending: true) // <--- ESTA LÍNEA REQUIERE ÍNDICE
+                      .orderBy('createdAt', descending: true)
                       .limit(20)
                       .snapshots(),
                   builder: (context, snapshot) {
-                    // 1. Manejo de Errores (AQUÍ ESTÁ LA CLAVE)
+                    // 1. ESTADO DE ERROR
                     if (snapshot.hasError) {
                       print("Error en notificaciones: ${snapshot.error}");
                       return Center(
                         child: Padding(
-                          padding: const EdgeInsets.all(16.0),
+                          padding: const EdgeInsets.all(24.0),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(LucideIcons.alertTriangle, color: Colors.orange, size: 40),
-                              const SizedBox(height: 10),
-                              const Text(
-                                "Error cargando notificaciones.",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(color: const Color(0xFFFEF2F2), shape: BoxShape.circle),
+                                child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFEF4444), size: 32),
                               ),
-                              const SizedBox(height: 5),
-                              Text(
-                                "Revisa la consola para ver el enlace del Índice de Firebase.",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                              ),
-                              // Opcional: Mostrar el error técnico en pantalla para debug
-                              Text(snapshot.error.toString(), style: const TextStyle(fontSize: 10, color: Colors.red)),
+                              const SizedBox(height: 16),
+                              Text("Error de conexión", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF0F172A))),
+                              const SizedBox(height: 8),
+                              Text("Revisa la consola para crear el índice en Firebase.", textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
                             ],
                           ),
                         ),
                       );
                     }
 
+                    // 2. ESTADO DE CARGA
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(
+                        child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+                      );
                     }
                     
+                    // 3. ESTADO VACÍO (Cero notificaciones) - AHORA PERFECTAMENTE CENTRADO
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(LucideIcons.inbox, size: 48, color: Colors.grey.shade300),
-                          const SizedBox(height: 16),
-                          const Text("No tienes notificaciones", style: TextStyle(color: Colors.grey)),
-                        ],
+                      return Center( // <-- Este Center envuelve todo para alinear al medio de la pantalla
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: const BoxDecoration(color: Color(0xFFF8FAFC), shape: BoxShape.circle),
+                              child: const Icon(LucideIcons.bellOff, size: 40, color: Color(0xFFCBD5E1)),
+                            ),
+                            const SizedBox(height: 16),
+                            Text("Todo está al día", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+                            const SizedBox(height: 8),
+                            Text("No tienes notificaciones nuevas por ahora.", textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8))),
+                          ],
+                        ),
                       );
                     }
 
+                    // 4. LISTA DE NOTIFICACIONES
                     final docs = snapshot.data!.docs;
 
                     return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
                       itemBuilder: (context, index) {
                         final data = docs[index].data() as Map<String, dynamic>;
                         final docId = docs[index].id;
                         final isRead = data['read'] ?? false;
                         final title = data['title'] ?? 'Notificación';
                         final body = data['body'] ?? '';
-                        // Manejo seguro de la fecha por si viene nula al crearse
                         final date = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          tileColor: isRead ? null : Colors.blue.withOpacity(0.05),
-                          leading: CircleAvatar(
-                            backgroundColor: isRead ? Colors.grey.shade200 : const Color(0xFFEFF6FF),
-                            child: Icon(
-                              LucideIcons.info, 
-                              size: 18, 
-                              color: isRead ? Colors.grey : const Color(0xFF3B82F6)
+                        return Material(
+                          color: isRead ? Colors.transparent : const Color(0xFFF0F9FF), // Fondo azul muy claro si no está leída
+                          child: InkWell(
+                            onTap: () async {
+                              if (!isRead) {
+                                await FirebaseFirestore.instance
+                                    .collection('notifications')
+                                    .doc(docId)
+                                    .update({'read': true});
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Icono circular
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: isRead ? const Color(0xFFF1F5F9) : const Color(0xFFDBEAFE),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      LucideIcons.info, 
+                                      size: 18, 
+                                      color: isRead ? const Color(0xFF94A3B8) : const Color(0xFF2563EB)
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  
+                                  // Textos de la notificación
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(title, 
+                                          style: GoogleFonts.inter(
+                                            fontWeight: isRead ? FontWeight.w500 : FontWeight.bold, 
+                                            fontSize: 14,
+                                            color: isRead ? const Color(0xFF334155) : const Color(0xFF0F172A),
+                                          )
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(body, 
+                                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), height: 1.4)
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(DateFormat('dd MMM, HH:mm').format(date), 
+                                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500)
+                                        ),
+                                      ],
+                                    )
+                                  ),
+                                  
+                                  // Puntito indicador de "No leída"
+                                  if (!isRead)
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 6, left: 8),
+                                      width: 8, height: 8, 
+                                      decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle)
+                                    )
+                                ],
+                              ),
                             ),
                           ),
-                          title: Text(title, style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: 14)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(body, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                              const SizedBox(height: 4),
-                              Text(DateFormat('dd/MM HH:mm').format(date), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                            ],
-                          ),
-                          onTap: () async {
-                            if (!isRead) {
-                              await FirebaseFirestore.instance
-                                  .collection('notifications')
-                                  .doc(docId)
-                                  .update({'read': true});
-                            }
-                          },
-                          trailing: !isRead 
-                            ? Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle))
-                            : null,
                         );
                       },
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cerrar"),
-                ),
-              )
             ],
           ),
         ),
@@ -495,7 +585,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             backgroundColor: const Color(0xFF3B82F6),
             radius: 18,
             child: Text(
-              widget.user.name.isNotEmpty ? widget.user.name[0] : 'U', // Pequeña protección por si el nombre viene vacío
+              widget.user.name.isNotEmpty ? widget.user.name[0] : 'U', 
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
             ),
           ),
@@ -514,20 +604,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ],
               ),
             ),
-            // --- AQUÍ ESTÁ LA CORRECCIÓN ---
+            // --- CÓDIGO DE LOGOUT SIMPLIFICADO ---
             IconButton(
               icon: const Icon(LucideIcons.logOut, color: Colors.white30, size: 18),
               tooltip: "Cerrar Sesión",
               onPressed: () async {
                 try {
-                  // 1. Cerrar sesión en Firebase
                   await FirebaseAuth.instance.signOut();
-                  
-                  // 2. Verificar que el widget siga montado antes de usar el context
-                  if (context.mounted) {
-                    // 3. Ir al Login y BORRAR todo el historial de pantallas anterior
-                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                  }
                 } catch (e) {
                   print("Error al cerrar sesión: $e");
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -536,7 +619,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 }
               },
             ),
-            // -------------------------------
+            // -------------------------------------
           ],
         ],
       ),

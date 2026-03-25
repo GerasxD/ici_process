@@ -13,7 +13,6 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  PermissionManager().init();
   runApp(const MyApp());
 }
 
@@ -62,6 +61,7 @@ class AuthWrapper extends StatelessWidget {
               }
               
               if (userSnapshot.hasData && userSnapshot.data != null) {
+                PermissionManager().init();
                 // Enviamos los datos del usuario (con su rol) a la pantalla principal
                 return MainNavigationScreen(user: userSnapshot.data!);
               }

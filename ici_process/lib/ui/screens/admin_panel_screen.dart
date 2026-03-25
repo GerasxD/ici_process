@@ -45,12 +45,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'edit_materials': 'Editar/Crear Materiales',
     'edit_tools': 'Editar/Crear Herramientas',
     'edit_vehicles': 'Editar/Crear Vehículos',
+    'view_financials': 'Ver Resumen Financiero (Costos/Precios)',
   };
 
   // Estructura original de permisos
   final Map<String, List<String>> _permissionGroups = {
     'General': ['view_dashboard', 'manage_users', 'view_budget', 'move_stage'],
-    'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles'],
+    'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles','view_financials'],
     'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_tools', 'edit_vehicles'],
   };
 
@@ -495,10 +496,36 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       prefixIcon: const Icon(LucideIcons.shield, size: 18, color: Colors.grey),
                     ),
                     items: UserRole.values.map((role) {
-                      String label = role.toString().split('.').last.toUpperCase();
-                      if (role == UserRole.technician) label = "TÉCNICO";
-                      if (role == UserRole.purchasing) label = "COMPRAS";
-                      return DropdownMenuItem(value: role, child: Text(label, style: const TextStyle(fontSize: 13)));
+                      // Traducimos TODOS los roles al Español para la interfaz visual
+                      String label = '';
+                      switch (role) {
+                        case UserRole.superAdmin:
+                          label = "SUPER ADMIN";
+                          break;
+                        case UserRole.admin:
+                          label = "ADMINISTRADOR";
+                          break;
+                        case UserRole.manager:
+                          label = "GERENTE OPERATIVO";
+                          break;
+                        case UserRole.technician:
+                          label = "TÉCNICO";
+                          break;
+                        case UserRole.purchasing:
+                          label = "COMPRAS";
+                          break;
+                        case UserRole.accountant:
+                          label = "CONTADOR";
+                          break;
+                        // ignore: unreachable_switch_default
+                        default:
+                          label = role.toString().split('.').last.toUpperCase();
+                      }
+                      
+                      return DropdownMenuItem(
+                        value: role, 
+                        child: Text(label, style: const TextStyle(fontSize: 13))
+                      );
                     }).toList(),
                     onChanged: (val) => setState(() => _selectedRole = val!),
                   ),
@@ -888,31 +915,6 @@ class _CatalogsTabState extends State<_CatalogsTab> {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // SIDEBAR MENÚ CATÁLOGOS
-        Container(
-          width: 250,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text("CONFIGURACIÓN", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 1.0)),
-              ),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                leading: const Icon(LucideIcons.banknote, color: Color(0xFF2563EB), size: 20),
-                title: Text("Mano de Obra", style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: const Color(0xFF0F172A), fontSize: 14)),
-                subtitle: Text("Salarios base diarios", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
-                selected: true,
-                selectedTileColor: const Color(0xFFEFF6FF),
-              ),
-            ],
-          ),
-        ),
-        
         // CONTENT - CORREGIDO: GridView con SingleChildScrollView
         Expanded(
           child: StreamBuilder<List<LaborCategory>>(

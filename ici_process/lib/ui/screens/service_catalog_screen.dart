@@ -344,17 +344,41 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
           return AlertDialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text("Editar Servicio"),
+            title: Text(
+              "Editar Servicio", 
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
+            ),
             content: SizedBox(
               width: 500,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start, // Alineación a la izquierda
                   children: [
-                    _input(_nameCtrl, "Nombre", LucideIcons.fileText),
-                    const SizedBox(height: 12),
-                    _input(_unitCtrl, "Unidad", LucideIcons.clock),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                      child: Text("NOMBRE DEL SERVICIO / RENTA", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    _input(_nameCtrl, "Ej. Renta de Retroexcavadora", LucideIcons.fileText),
+                    
+                    const SizedBox(height: 16),
+                    
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                      child: Text("UNIDAD", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    _input(_unitCtrl, "Ej. Día, Mes, Hora", LucideIcons.clock),
+                    
                     const SizedBox(height: 24),
+                    
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0, left: 2),
+                      child: Text("COSTOS POR PROVEEDOR", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    
                     _PriceManager(
                       providers: providers,
                       initialPrices: _tempPrices,
@@ -366,11 +390,24 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                 ),
               ),
             ),
+            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             actions: [
-              TextButton(onPressed: () { _resetForm(); Navigator.pop(ctx); }, child: const Text("Cancelar")),
+              TextButton(
+                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
+                style: TextButton.styleFrom(foregroundColor: _textSecondary),
+                child: Text("Cancelar", style: GoogleFonts.inter()),
+              ),
               ElevatedButton(
-                onPressed: () => _handleSave(docId: item.id),
-                child: const Text("Guardar Cambios"),
+                onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryBlue,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: _isUploading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
               )
             ],
           );

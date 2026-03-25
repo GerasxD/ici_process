@@ -17,6 +17,8 @@ class ToolCatalogScreen extends StatefulWidget {
 class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
   final ToolService _toolService = ToolService();
 
+  late Stream<List<ToolItem>> _toolsStream;
+
   final _nameCtrl = TextEditingController();
   final _brandCtrl = TextEditingController();
   final _serialCtrl = TextEditingController();
@@ -42,6 +44,13 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
   final Color _accentColor = const Color(0xFFF59E0B);
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_tools');
+
+  @override
+  void initState() {
+    super.initState();
+    // Esto asegura que la conexión a Firebase se abra UNA SOLA VEZ
+    _toolsStream = _toolService.getTools(); 
+  }
 
   @override
   void dispose() {
@@ -148,7 +157,7 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
               const SizedBox(height: 40),
               
               StreamBuilder<List<ToolItem>>(
-                stream: _toolService.getTools(),
+                stream: _toolsStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return Text("Error: ${snapshot.error}");
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -250,6 +259,7 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     );
 
     return Container(
+      key: ValueKey(item.id),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: _cardBg,
@@ -421,26 +431,65 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
           return AlertDialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text("Editar Herramienta"),
+            title: Text(
+              "Editar Herramienta", 
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
+            ),
             content: SizedBox(
               width: 500,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start, // Alineación a la izquierda
                   children: [
-                    _input(_nameCtrl, "Nombre", LucideIcons.wrench),
-                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                      child: Text("NOMBRE DE LA HERRAMIENTA", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    _input(_nameCtrl, "Ej. Taladro Percutor", LucideIcons.wrench),
+                    
+                    const SizedBox(height: 16),
+                    
                     Row(
                       children: [
-                        Expanded(child: _input(_brandCtrl, "Marca", LucideIcons.tag)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("MARCA", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _input(_brandCtrl, "Ej. DeWalt", LucideIcons.tag),
+                            ],
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(child: _input(_serialCtrl, "No. Serie", LucideIcons.hash)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("NO. SERIE", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _input(_serialCtrl, "Ej. SN-12345", LucideIcons.hash),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
+                    
                     const SizedBox(height: 24),
-                    Text("ESTADO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary)),
-                    const SizedBox(height: 8),
+                    
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0, left: 2),
+                      child: Text("ESTADO ACTUAL", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(10)),
@@ -448,6 +497,7 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
                         child: DropdownButton<String>(
                           value: tempStatus,
                           isExpanded: true,
+                          icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
                           items: _statusOptions.map((status) {
                             return DropdownMenuItem(
                               value: status,
@@ -455,12 +505,13 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
                                 children: [
                                   Container(width: 8, height: 8, decoration: BoxDecoration(color: _getStatusColor(status), shape: BoxShape.circle)),
                                   const SizedBox(width: 10),
-                                  Text(status),
+                                  Text(status, style: GoogleFonts.inter(fontSize: 14, color: _textPrimary)),
                                 ],
                               ),
                             );
                           }).toList(),
                           onChanged: (val) {
+                            // La lógica intacta
                             setModalState(() => tempStatus = val!);
                             _selectedStatus = val!;
                           },
@@ -471,14 +522,28 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
                 ),
               ),
             ),
+            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             actions: [
-              TextButton(onPressed: () { _resetForm(); Navigator.pop(ctx); }, child: const Text("Cancelar")),
+              TextButton(
+                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
+                style: TextButton.styleFrom(foregroundColor: _textSecondary),
+                child: Text("Cancelar", style: GoogleFonts.inter()),
+              ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: _isUploading ? null : () {
+                  // La lógica intacta
                   _selectedStatus = tempStatus; 
                   _handleSave(docId: item.id);
                 },
-                child: const Text("Guardar Cambios"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryBlue,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: _isUploading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
               )
             ],
           );

@@ -438,16 +438,28 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           children: [
             Icon(LucideIcons.store, size: 12, color: iconColor),
             const SizedBox(width: 6),
-            Text(
-              providerName, 
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: textColor)
+            
+            // ✅ CORRECCIÓN: Flexible para que el texto se adapte y TextOverflow para los "..."
+            Flexible(
+              child: Text(
+                providerName, 
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: textColor),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
+            
             const SizedBox(width: 8),
             Container(width: 1, height: 10, color: iconColor.withOpacity(0.3)),
             const SizedBox(width: 8),
             Text(
               "Cambiar", 
-              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w500, color: iconColor, decoration: TextDecoration.underline)
+              style: GoogleFonts.inter(
+                fontSize: 10, 
+                fontWeight: FontWeight.w500, 
+                color: iconColor, 
+                decoration: TextDecoration.underline
+              )
             ),
           ],
         ),
@@ -842,7 +854,10 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text("Incluir Viáticos (Comidas y Hospedaje)", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                    // ✅ CORRECCIÓN 1: Expanded para que el texto baje de línea
+                    Expanded(
+                      child: Text("Incluir Viáticos (Comidas y Hospedaje)", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                    ),
                   ],
                 ),
                 if (data.travel.enabled) ...[
@@ -874,11 +889,15 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                 const SizedBox(height: 8),
                 const Divider(color: Colors.green),
                 const SizedBox(height: 8),
-                // ✅ TOTAL FINAL DE LA SECCIÓN (MANO DE OBRA + VIATICOS)
+                // ✅ TOTAL FINAL DE LA SECCIÓN
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Total Mano de Obra + Viáticos:", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.green.shade900)),
+                    // ✅ CORRECCIÓN 2: Expanded para que no empuje el precio fuera de la pantalla
+                    Expanded(
+                      child: Text("Total Mano de Obra + Viáticos:", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.green.shade900)),
+                    ),
+                    const SizedBox(width: 8),
                     Text(currencyFormat.format(laborTotal + travelTotal), style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.green.shade900)),
                   ],
                 )
@@ -902,8 +921,11 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
             children: [
               const Icon(LucideIcons.shieldCheck, color: Colors.amber, size: 20),
               const SizedBox(width: 12),
-              Text("Margen de Protección:", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
-              const SizedBox(width: 12),
+              // ✅ CORRECCIÓN 3: Expanded para que el texto ceda espacio al Input numérico
+              Expanded(
+                child: Text("Margen de Protección:", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              ),
+              const SizedBox(width: 8),
               SizedBox(
                 width: 80,
                 child: TextFormField(
@@ -994,35 +1016,45 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "TOTAL DE COTIZACIÓN", 
-                      style: GoogleFonts.inter(
-                        fontSize: 12, 
-                        fontWeight: FontWeight.w900, 
-                        color: const Color(0xFF4ADE80), // Verde esmeralda
-                        letterSpacing: 1.2,
+                // ✅ CORRECCIÓN 1: Expanded envuelve la columna de textos
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "TOTAL DE COTIZACIÓN", 
+                        style: GoogleFonts.inter(
+                          fontSize: 12, 
+                          fontWeight: FontWeight.w900, 
+                          color: const Color(0xFF4ADE80), // Verde esmeralda
+                          letterSpacing: 1.2,
+                        ),
                       ),
-                    ),
-                    Text(
-                      "Subtotal Sugerido (Sin IVA)", 
-                      style: GoogleFonts.inter(
-                        fontSize: 11, 
-                        color: Colors.white38,
+                      Text(
+                        "Subtotal Sugerido (Sin IVA)", 
+                        style: GoogleFonts.inter(
+                          fontSize: 11, 
+                          color: Colors.white38,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                Text(
-                  currencyFormat.format(finalPrice),
-                  style: GoogleFonts.inter(
-                    fontSize: 32, 
-                    fontWeight: FontWeight.w900, 
-                    color: const Color(0xFF4ADE80), 
-                    letterSpacing: -1,
+                const SizedBox(width: 12), // Un pequeño respiro entre el texto y el precio
+                // ✅ EVITAR OVERFLOW EN PRECIOS GIGANTES: Flexible ayuda si la cifra es de muchos millones
+                Flexible(
+                  child: Text(
+                    currencyFormat.format(finalPrice),
+                    style: GoogleFonts.inter(
+                      fontSize: 32, 
+                      fontWeight: FontWeight.w900, 
+                      color: const Color(0xFF4ADE80), 
+                      letterSpacing: -1,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
               ],
@@ -1033,33 +1065,40 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     );
   }
 
-  // Helper actualizado para soportar subtítulos y colores personalizados
+  // ✅ CORRECCIÓN 2: Helper actualizado con Expanded para evitar overflow en las filas de arriba
   Widget _buildSummaryRow(String label, String value, {String? subtitle, Color? valueColor, bool isWhite = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start, // Alinea arriba si el texto hace salto de línea
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label, 
-              style: GoogleFonts.inter(
-                fontSize: 11, 
-                fontWeight: FontWeight.w700, 
-                color: isWhite ? Colors.white70 : _labelColor,
-                letterSpacing: 0.5,
-              ),
-            ),
-            if (subtitle != null)
+        // ✅ Expanded aquí para que el label/subtitle baje de línea si choca con el precio
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                subtitle, 
+                label, 
                 style: GoogleFonts.inter(
-                  fontSize: 10, 
-                  color: isWhite ? Colors.white30 : _labelColor.withOpacity(0.6),
+                  fontSize: 11, 
+                  fontWeight: FontWeight.w700, 
+                  color: isWhite ? Colors.white70 : _labelColor,
+                  letterSpacing: 0.5,
                 ),
               ),
-          ],
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle, 
+                  style: GoogleFonts.inter(
+                    fontSize: 10, 
+                    color: isWhite ? Colors.white30 : _labelColor.withOpacity(0.6),
+                  ),
+                ),
+              ]
+            ],
+          ),
         ),
+        const SizedBox(width: 12),
         Text(
           value, 
           style: GoogleFonts.inter(

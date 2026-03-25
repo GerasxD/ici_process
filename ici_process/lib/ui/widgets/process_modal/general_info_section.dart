@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
-import 'package:ici_process/core/constants/app_constants.dart'; 
+import 'package:ici_process/core/constants/app_constants.dart';
+import 'package:ici_process/core/utils/permission_manager.dart'; 
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -12,6 +13,8 @@ import '../../../services/client_service.dart';
 import '../../../models/client_model.dart';
 
 class GeneralInfoSection extends StatefulWidget {
+  final UserModel currentUser;
+
   final TextEditingController titleController;
   final TextEditingController clientController;
   final TextEditingController descriptionController;
@@ -45,6 +48,7 @@ class GeneralInfoSection extends StatefulWidget {
 
   const GeneralInfoSection({
     super.key,
+    required this.currentUser,  
     required this.titleController,
     required this.clientController,
     required this.descriptionController,
@@ -164,6 +168,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
   @override
   Widget build(BuildContext context) {
+    bool canViewFinancials = PermissionManager().can(widget.currentUser, 'view_financials');
     double precioVentaSubtotal = double.tryParse(widget.amountController.text) ?? 0.0;
     double costoDirectoSubtotal = double.tryParse(widget.costController.text) ?? 0.0;
     double precioVentaTotalConIVA = precioVentaSubtotal * 1.16;
@@ -298,7 +303,8 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
         // --- SECCIÓN: COTIZACIÓN ---
         if (_showQuoteSection) ...[
-          if (_showEditQuoteButton) ...[
+          // ✅ NUEVO: Ocultamos el botón amarillo si no tiene permiso
+          if (_showEditQuoteButton && canViewFinancials) ...[ 
             Container(
               width: double.infinity,
               alignment: Alignment.centerRight,
@@ -352,9 +358,10 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState((){}))),
+                              // ✅ NUEVO: Pasamos el parámetro 'obscure'
+                              Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState((){}), obscure: !canViewFinancials)),
                               const SizedBox(width: 12),
-                              Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA)),
+                              Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials)),
                             ],
                           )
                         ],
@@ -369,9 +376,10 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState((){}))),
+                              // ✅ NUEVO: Pasamos el parámetro 'obscure'
+                              Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState((){}), obscure: !canViewFinancials)),
                               const SizedBox(width: 12),
-                              Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true)),
+                              Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials)),
                             ],
                           )
                         ],
@@ -529,8 +537,28 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   }
 
   // --- WIDGETS AUXILIARES ---
-  Widget _buildEditableMoneyInput(String label, TextEditingController ctrl, {bool isCost = false, VoidCallback? onChanged}) { return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 6), TextField(controller: ctrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,3}'))], onChanged: (_) { if (onChanged != null) onChanged(); }, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)), decoration: InputDecoration(prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); }
-  Widget _buildReadOnlyDisplay(String label, double amount, {bool isCost = false}) { return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 8), Text(currencyFormat.format(amount), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)))],)); }
+  Widget _buildEditableMoneyInput(String label, TextEditingController ctrl, {bool isCost = false, VoidCallback? onChanged, bool obscure = false}) { 
+    if (obscure) return _buildObscuredDisplay(label); // <- Si no tiene permiso, dibuja asteriscos
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 6), TextField(controller: ctrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,3}'))], onChanged: (_) { if (onChanged != null) onChanged(); }, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)), decoration: InputDecoration(prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); 
+  }
+  Widget _buildReadOnlyDisplay(String label, double amount, {bool isCost = false, bool obscure = false}) { 
+    if (obscure) return _buildObscuredDisplay(label); // <- Si no tiene permiso, dibuja asteriscos
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 8), Text(currencyFormat.format(amount), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)))],)); 
+  }
+  Widget _buildObscuredDisplay(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)),
+          const SizedBox(height: 8),
+          const Text("******", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF94A3B8))),
+        ],
+      ),
+    );
+  }
   void _restoreSelection(List<Client> clients) { if (_initialDataRestored) return; final fullText = widget.clientController.text; try { final matchedClient = clients.firstWhere((c) => fullText.startsWith(c.name)); String? matchedBranch; if (fullText.length > matchedClient.name.length + 3) { matchedBranch = fullText.substring(matchedClient.name.length + 3); if (!matchedClient.branchAddresses.contains(matchedBranch)) matchedBranch = null; } setState(() { _selectedClientObj = matchedClient; _selectedBranch = matchedBranch; _initialDataRestored = true; }); } catch (e) { setState(() => _initialDataRestored = true); } }
   InputDecoration _inputDecoration(IconData icon) { return InputDecoration(prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: const Color(0xFF64748B))), filled: true, fillColor: const Color(0xFFF8FAFC), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))); }
   Widget _buildCard({required Widget child}) { return Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE2E8F0)), boxShadow: [BoxShadow(color: const Color(0xFF1E293B).withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))]), padding: const EdgeInsets.all(24), child: child); }

@@ -591,6 +591,7 @@ class _ProcessModalState extends State<ProcessModal> {
                       child: Opacity(
                         opacity: canEditData ? 1.0 : 0.7, 
                         child: GeneralInfoSection(
+                          currentUser: widget.user,
                           titleController: _titleController,
                           clientController: _clientController,
                           descriptionController: _descriptionController,

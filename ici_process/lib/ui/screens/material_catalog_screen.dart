@@ -391,7 +391,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   void _showEditDialog(MaterialItem item, List<Provider> providers) {
     _nameCtrl.text = item.name;
     _unitCtrl.text = item.unit;
-    _stockCtrl.text = item.stock.toString(); // <--- 5. CARGAR STOCK AL EDITAR
+    _stockCtrl.text = item.stock.toString(); 
     _tempPrices = List.from(item.prices); 
 
     showDialog(
@@ -401,24 +401,67 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
           return AlertDialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text("Editar Material"),
+            title: Text(
+              "Editar Material", 
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
+            ),
             content: SizedBox(
               width: 500,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _input(_nameCtrl, "Nombre", LucideIcons.package),
-                    const SizedBox(height: 12),
+                    // Usamos el mismo estilo de "Label" que en el formulario principal
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                      child: Text("NOMBRE DEL MATERIAL", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    _input(_nameCtrl, "Ej. Cemento Cruz Azul", LucideIcons.package),
+                    
+                    const SizedBox(height: 16),
+                    
                     Row(
                       children: [
-                        Expanded(child: _input(_unitCtrl, "Unidad", LucideIcons.ruler)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("UNIDAD", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _input(_unitCtrl, "Ej. Bulto", LucideIcons.ruler),
+                            ],
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        // --- INPUT DE STOCK EN MODAL ---
-                        Expanded(child: _input(_stockCtrl, "Stock", LucideIcons.layers, isNumber: true)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
+                                child: Text("STOCK", 
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              ),
+                              _input(_stockCtrl, "0.00", LucideIcons.layers, isNumber: true),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
+                    
                     const SizedBox(height: 24),
+                    
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0, left: 2),
+                      child: Text("LISTA DE PRECIOS", 
+                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
+                    ),
+                    
                     _PriceManager(
                       providers: providers,
                       initialPrices: _tempPrices,
@@ -430,11 +473,24 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                 ),
               ),
             ),
+            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             actions: [
-              TextButton(onPressed: () { _resetForm(); Navigator.pop(ctx); }, child: const Text("Cancelar")),
+              TextButton(
+                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
+                style: TextButton.styleFrom(foregroundColor: _textSecondary),
+                child: Text("Cancelar", style: GoogleFonts.inter()),
+              ),
               ElevatedButton(
-                onPressed: () => _handleSave(docId: item.id),
-                child: const Text("Guardar Cambios"),
+                onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryBlue,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: _isUploading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
               )
             ],
           );
