@@ -108,28 +108,102 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // --- LÓGICA DE ELIMINACIÓN ---
   Future<void> _handleDelete() async {
-    // Solo si puede editar datos
     if (!canEditData) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("¿Eliminar Proceso?"),
-        content: const Text("Esta acción no se puede deshacer."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true), 
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Eliminar")
+    // ✅ Si YA está en X → eliminar permanente
+    if (widget.process?.stage == ProcessStage.X) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(LucideIcons.trash2, color: Colors.red),
+              SizedBox(width: 10),
+              Text("Eliminar Permanente", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ),
-        ],
-      ),
-    );
+          content: const Text(
+            "Este proceso será eliminado definitivamente y no podrá recuperarse.\n\n¿Estás seguro?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Sí, Eliminar Para Siempre"),
+            ),
+          ],
+        ),
+      );
 
-    if (confirm == true && widget.process != null) {
-      await _processService.deleteProcess(widget.process!.id);
-      if (mounted) Navigator.pop(context);
+      if (confirm == true && widget.process != null) {
+        await _processService.deleteProcess(widget.process!.id);
+        if (mounted) Navigator.pop(context);
+      }
+
+    } else {
+      // ✅ Si NO está en X → mover a Descartado (X)
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(LucideIcons.xCircle, color: Color(0xFF64748B)),
+              SizedBox(width: 10),
+              Text("Descartar Proceso", style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text(
+            "El proceso se moverá a la sección 'Descartado'.\n\nPodrá recuperarse o eliminarse permanentemente desde ahí.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF64748B),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Sí, Descartar"),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true && widget.process != null) {
+        final fechaActual = DateTime.now();
+
+        final historyEntry = HistoryEntry(
+          action: "Proceso Descartado",
+          userName: widget.user.name,
+          date: fechaActual,
+          details: "Movido a Descartado por ${widget.user.name}",
+        );
+
+        setState(() {
+          _comments.insert(0, CommentModel(
+            id: fechaActual.millisecondsSinceEpoch.toString(),
+            text: "🗑️ PROCESO DESCARTADO por ${widget.user.name}",
+            userName: widget.user.name,
+            date: fechaActual,
+          ));
+        });
+
+        final updated = _buildModelFromState(ProcessStage.X, historyEntry);
+        await _processService.updateProcess(updated);
+        if (mounted) Navigator.pop(context);
+      }
     }
   }
 
@@ -687,10 +761,20 @@ class _ProcessModalState extends State<ProcessModal> {
         children: [
           if (widget.process != null) ...[
             if (canEditData)
+              // ✅ Ícono y color cambian según si ya está descartado o no
               IconButton(
-                onPressed: _handleDelete, 
-                icon: const Icon(LucideIcons.trash2, color: Colors.redAccent),
-                tooltip: "Eliminar Proceso",
+                onPressed: _handleDelete,
+                icon: Icon(
+                  widget.process?.stage == ProcessStage.X
+                      ? LucideIcons.trash2        // Rojo = eliminar para siempre
+                      : LucideIcons.xCircle,      // Gris = descartar
+                  color: widget.process?.stage == ProcessStage.X
+                      ? Colors.red
+                      : const Color(0xFF64748B),
+                ),
+                tooltip: widget.process?.stage == ProcessStage.X
+                    ? "Eliminar Permanentemente"
+                    : "Descartar Proceso",
               ),
             
             const SizedBox(width: 8),

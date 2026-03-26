@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -33,10 +35,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final AdminService _adminService = AdminService();
   late final List<Widget> _views;
 
+  // ignore: unused_field
+  Map<String, List<String>> _permissions = {};
+  bool _permissionsLoaded = false;
+
+  StreamSubscription? _permissionsSubscription;
+
+
   // NOTA: El orden de esta lista debe coincidir con los índices que usamos abajo.
   @override
   void initState() {
     super.initState();
+
+    _permissionsSubscription = _adminService.getRolePermissions().listen((perms) {
+      if (mounted) {
+        setState(() {
+          _permissions = perms;
+          _permissionsLoaded = true;
+        });
+      }
+    });
+
+
     // ✅ 2. Inicializamos todas las pantallas una sola vez
     _views = [
       KanbanView(currentUser: widget.user), // 0
@@ -53,75 +73,76 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   @override
+  void dispose() {
+    _permissionsSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final bool isDesktop = MediaQuery.of(context).size.width > 900;
-    
-    // ENVOLVEMOS TODO EN ESTE STREAM BUILDER
-    return StreamBuilder<Map<String, List<String>>>(
-      stream: _adminService.getRolePermissions(),
-      builder: (context, snapshot) {
-        
-        // Si Firebase aún está descargando los permisos, mostramos una pantalla de carga limpia
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFFF8FAFC),
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-            ),
-          );
-        }
 
-        // Una vez que los permisos llegaron, dibujamos tu pantalla tal cual la tenías
-        return Scaffold(
-          backgroundColor: const Color(0xFFF8FAFC),
-          appBar: !isDesktop 
-            ? AppBar(
-                backgroundColor: Colors.white,
-                elevation: 0,
-                leading: Builder(
-                  builder: (context) => IconButton(
-                    icon: const Icon(LucideIcons.menu, color: Color(0xFF94A3B8)),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  ),
-                ),
-                title: const Text("ICI-PROCESS", 
-                  style: TextStyle(color: Color(0xFF1E293B), fontSize: 16, fontWeight: FontWeight.bold)),
-                actions: [
-                   _buildNotificationBadge(),
-                   const SizedBox(width: 16),
-                ],
-              )
-            : null,
-          body: Row(
-            children: [
-              if (isDesktop) _buildDesktopSidebar(),
-              Expanded(
-                child: Column(
-                  children: [
-                    if (isDesktop) _buildTopHeader(),
-                    Expanded(
-                      // ✅ 3. ADIÓS ANIMATEDSWITCHER, HOLA INDEXEDSTACK
-                      child: IndexedStack(
-                        index: _selectedIndex,
-                        children: _views,
-                      ),
-                    ),
-                  ],
+    // Pantalla de carga inicial SOLO la primera vez
+    if (!_permissionsLoaded) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF8FAFC),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+        ),
+      );
+    }
+
+    // Sin StreamBuilder = sin flashes
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: !isDesktop
+          ? AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              leading: Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(LucideIcons.menu, color: Color(0xFF94A3B8)),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
               ),
-            ],
-          ),
-          drawer: !isDesktop 
-            ? Drawer(
-                width: 280,
-                child: Container(
-                  color: const Color(0xFF0F172A), 
-                  child: _buildSidebarContent(isMobile: true)
+              title: const Text("ICI-PROCESS",
+                  style: TextStyle(
+                      color: Color(0xFF1E293B),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
+              actions: [
+                _buildNotificationBadge(),
+                const SizedBox(width: 16),
+              ],
+            )
+          : null,
+      body: Row(
+        children: [
+          if (isDesktop) _buildDesktopSidebar(),
+          Expanded(
+            child: Column(
+              children: [
+                if (isDesktop) _buildTopHeader(),
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: _views,
+                  ),
                 ),
-              ) 
-            : null,
-        );
-      }
+              ],
+            ),
+          ),
+        ],
+      ),
+      drawer: !isDesktop
+          ? Drawer(
+              width: 280,
+              child: Container(
+                color: const Color(0xFF0F172A),
+                child: _buildSidebarContent(isMobile: true),
+              ),
+            )
+          : null,
     );
   }
 
@@ -613,13 +634,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   await FirebaseAuth.instance.signOut();
                 } catch (e) {
                   print("Error al cerrar sesión: $e");
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Error al cerrar sesión"))
-                  );
+                  // ✅ Verificar mounted ANTES de usar context tras el await
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Error al cerrar sesión"))
+                    );
+                  }
                 }
               },
             ),
-            // -------------------------------------
           ],
         ],
       ),

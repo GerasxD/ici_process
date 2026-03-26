@@ -33,7 +33,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
   final Map<String, String> _permissionLabels = {
     'view_dashboard': 'Ver Panel de Control',
     'manage_users': 'Administrar Usuarios',
-    'view_budget': 'Ver Presupuestos',
+    'view_budget': 'Ver Reportes',
     'move_stage': 'Mover Etapas (Kanban)',
     'view_clients': 'Ver Clientes',
     'view_providers': 'Ver Proveedores',
@@ -271,7 +271,7 @@ class _UsersTabState extends State<_UsersTab> {
     switch (role.toLowerCase()) {
       case 'superadmin': return {'text': 'Super Admin', 'bg': const Color(0xFF312E81), 'fg': Colors.white};
       case 'admin': return {'text': 'Administrador', 'bg': const Color(0xFF1E40AF), 'fg': Colors.white};
-      case 'manager': return {'text': 'Gerente', 'bg': const Color(0xFF0369A1), 'fg': Colors.white};
+      case 'manager': return {'text': 'Gerente Operativo', 'bg': const Color(0xFF0369A1), 'fg': Colors.white};
       case 'technician': return {'text': 'Técnico', 'bg': const Color(0xFF0D9488), 'fg': Colors.white};
       case 'purchasing': return {'text': 'Compras', 'bg': const Color(0xFFB45309), 'fg': Colors.white};
       case 'accountant': return {'text': 'Contador', 'bg': const Color(0xFF059669), 'fg': Colors.white};
@@ -419,8 +419,30 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   UserRole _selectedRole = UserRole.technician;
+  bool _obscurePassword = true;
 
   bool get isEditing => widget.userToEdit != null;
+
+  // Config visual por rol
+  Map<String, dynamic> _getRoleConfig(UserRole role) {
+    switch (role) {
+      case UserRole.superAdmin:
+        return {'label': 'Super Admin', 'color': const Color(0xFF312E81), 'icon': LucideIcons.shieldAlert};
+      case UserRole.admin:
+        return {'label': 'Administrador', 'color': const Color(0xFF1E40AF), 'icon': LucideIcons.shield};
+      case UserRole.manager:
+        return {'label': 'Gerente Operativo', 'color': const Color(0xFF0369A1), 'icon': LucideIcons.briefcase};
+      case UserRole.technician:
+        return {'label': 'Técnico', 'color': const Color(0xFF0D9488), 'icon': LucideIcons.wrench};
+      case UserRole.purchasing:
+        return {'label': 'Compras', 'color': const Color(0xFFB45309), 'icon': LucideIcons.shoppingCart};
+      case UserRole.accountant:
+        return {'label': 'Contador', 'color': const Color(0xFF059669), 'icon': LucideIcons.dollarSign};
+      // ignore: unreachable_switch_default
+      default:
+        return {'label': role.name, 'color': Colors.grey, 'icon': LucideIcons.user};
+    }
+  }
 
   @override
   void initState() {
@@ -432,15 +454,22 @@ class _UserFormDialogState extends State<_UserFormDialog> {
     }
   }
 
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
   void _submit() {
     if (_formKey.currentState!.validate()) {
       final user = UserModel(
-        id: isEditing ? widget.userToEdit!.id : '', // ID vacío si es nuevo (se asigna en Service)
+        id: isEditing ? widget.userToEdit!.id : '',
         name: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         role: _selectedRole,
       );
-      
       widget.onSave(user, isEditing ? null : _passwordCtrl.text.trim());
       Navigator.pop(context);
     }
@@ -448,139 +477,411 @@ class _UserFormDialogState extends State<_UserFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Row(
-        children: [
-          Icon(isEditing ? LucideIcons.edit3 : LucideIcons.userPlus, color: const Color(0xFF2563EB)),
-          const SizedBox(width: 12),
-          Text(isEditing ? "Editar Usuario" : "Registrar Nuevo Usuario", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        ],
-      ),
-      content: SizedBox(
-        width: 400,
+    final roleConfig = _getRoleConfig(_selectedRole);
+    final Color roleColor = roleConfig['color'];
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        width: 520,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 40,
+              offset: const Offset(0, 20),
+            ),
+          ],
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildInput("Nombre Completo", _nameCtrl, LucideIcons.user),
-              const SizedBox(height: 16),
-              
-              // Email (Deshabilitado en edición para evitar conflictos con Auth)
-              _buildInput(
-                "Correo Electrónico", 
-                _emailCtrl, 
-                LucideIcons.mail, 
-                isEmail: true, 
-                isEnabled: !isEditing // No permitir cambiar email al editar
-              ),
-              const SizedBox(height: 16),
-              
-              if (!isEditing) ...[
-                _buildInput("Contraseña Inicial", _passwordCtrl, LucideIcons.lock, isPassword: true),
-                const SizedBox(height: 16),
-              ],
-              
-              // Selector de Rol
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Rol del Sistema", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<UserRole>(
-                    value: _selectedRole,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      prefixIcon: const Icon(LucideIcons.shield, size: 18, color: Colors.grey),
-                    ),
-                    items: UserRole.values.map((role) {
-                      // Traducimos TODOS los roles al Español para la interfaz visual
-                      String label = '';
-                      switch (role) {
-                        case UserRole.superAdmin:
-                          label = "SUPER ADMIN";
-                          break;
-                        case UserRole.admin:
-                          label = "ADMINISTRADOR";
-                          break;
-                        case UserRole.manager:
-                          label = "GERENTE OPERATIVO";
-                          break;
-                        case UserRole.technician:
-                          label = "TÉCNICO";
-                          break;
-                        case UserRole.purchasing:
-                          label = "COMPRAS";
-                          break;
-                        case UserRole.accountant:
-                          label = "CONTADOR";
-                          break;
-                        // ignore: unreachable_switch_default
-                        default:
-                          label = role.toString().split('.').last.toUpperCase();
-                      }
-                      
-                      return DropdownMenuItem(
-                        value: role, 
-                        child: Text(label, style: const TextStyle(fontSize: 13))
-                      );
-                    }).toList(),
-                    onChanged: (val) => setState(() => _selectedRole = val!),
+
+              // ── HEADER con gradiente ──────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(28, 28, 20, 24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF0F172A),
+                      const Color(0xFF1E293B),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    // Avatar con inicial (si es edición)
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: isEditing ? roleColor : const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isEditing ? roleColor : const Color(0xFF2563EB)).withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: isEditing
+                            ? Text(
+                                widget.userToEdit!.name.isNotEmpty
+                                    ? widget.userToEdit!.name[0].toUpperCase()
+                                    : 'U',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              )
+                            : Icon(LucideIcons.userPlus, color: Colors.white, size: 24),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isEditing ? "Editar Usuario" : "Nuevo Usuario",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isEditing
+                                ? "Modifica los datos del usuario"
+                                : "Completa el formulario para registrar acceso",
+                            style: GoogleFonts.inter(
+                              color: Colors.white54,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20),
+                      splashRadius: 20,
+                    ),
+                  ],
+                ),
               ),
-              if (isEditing) 
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Row(children: [
-                    Icon(LucideIcons.info, size: 14, color: Colors.amber.shade800),
-                    const SizedBox(width: 8),
-                    const Expanded(child: Text("El correo no se puede cambiar aquí. Para cambiar la contraseña, usa el botón de 'Reset Password'.", style: TextStyle(fontSize: 11, color: Colors.grey))),
-                  ]),
-                )
+
+              // ── CONTENIDO ────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    // Nombre completo
+                    _buildLabel("Nombre Completo"),
+                    const SizedBox(height: 8),
+                    _buildField(
+                      controller: _nameCtrl,
+                      hint: "Ej. Carlos Ramírez",
+                      icon: LucideIcons.user,
+                      validator: (v) => (v == null || v.isEmpty) ? "Campo obligatorio" : null,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Correo
+                    _buildLabel("Correo Electrónico"),
+                    const SizedBox(height: 8),
+                    _buildField(
+                      controller: _emailCtrl,
+                      hint: "usuario@empresa.com",
+                      icon: LucideIcons.mail,
+                      enabled: !isEditing,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return "Campo obligatorio";
+                        if (!v.contains('@')) return "Correo inválido";
+                        return null;
+                      },
+                    ),
+
+                    // Aviso si está deshabilitado
+                    if (isEditing) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(LucideIcons.info, size: 13, color: Colors.amber.shade700),
+                          const SizedBox(width: 6),
+                          Text(
+                            "El correo no puede modificarse. Usa Reset Password para cambiar contraseña.",
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.amber.shade800),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    // Contraseña (solo en creación)
+                    if (!isEditing) ...[
+                      const SizedBox(height: 20),
+                      _buildLabel("Contraseña Inicial"),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _passwordCtrl,
+                        obscureText: _obscurePassword,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return "Campo obligatorio";
+                          if (v.length < 6) return "Mínimo 6 caracteres";
+                          return null;
+                        },
+                        style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B)),
+                        decoration: InputDecoration(
+                          hintText: "Mínimo 6 caracteres",
+                          hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                          prefixIcon: Icon(LucideIcons.lock, size: 18, color: Colors.grey.shade400),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                              size: 18,
+                              color: Colors.grey.shade400,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Colors.red),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 24),
+
+                    // ── Selector de Rol ──────────────────────────────
+                    _buildLabel("Rol del Sistema"),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: UserRole.values.map((role) {
+                        final config = _getRoleConfig(role);
+                        final Color color = config['color'];
+                        final bool isSelected = _selectedRole == role;
+
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedRole = role),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected ? color : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected ? color : const Color(0xFFE2E8F0),
+                                width: isSelected ? 2 : 1,
+                              ),
+                              boxShadow: isSelected
+                                  ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))]
+                                  : [],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  config['icon'],
+                                  size: 15,
+                                  color: isSelected ? Colors.white : color,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  config['label'],
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected ? Colors.white : const Color(0xFF475569),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+
+                    // Preview del rol seleccionado
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: roleColor.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: roleColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(roleConfig['icon'], size: 16, color: roleColor),
+                          const SizedBox(width: 10),
+                          Text(
+                            "Acceso asignado como: ",
+                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                          ),
+                          Text(
+                            roleConfig['label'],
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: roleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── FOOTER ───────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: Text(
+                          "Cancelar",
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _submit,
+                        icon: Icon(
+                          isEditing ? LucideIcons.save : LucideIcons.userPlus,
+                          size: 18,
+                        ),
+                        label: Text(
+                          isEditing ? "Guardar Cambios" : "Crear Usuario",
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar", style: TextStyle(color: Colors.grey))),
-        ElevatedButton(
-          onPressed: _submit,
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
-          child: Text(isEditing ? "Guardar Cambios" : "Crear Usuario"),
-        ),
-      ],
     );
   }
 
-  Widget _buildInput(String label, TextEditingController ctrl, IconData icon, {bool isEmail = false, bool isPassword = false, bool isEnabled = true}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: ctrl,
-          enabled: isEnabled,
-          obscureText: isPassword,
-          validator: (val) {
-            if (val == null || val.isEmpty) return "Campo obligatorio";
-            if (isEmail && !val.contains("@")) return "Correo inválido";
-            if (isPassword && val.length < 6) return "Mínimo 6 caracteres";
-            return null;
-          },
-          decoration: InputDecoration(
-            hintText: "Escribe aquí...",
-            prefixIcon: Icon(icon, size: 18, color: Colors.grey),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: !isEnabled,
-            fillColor: !isEnabled ? Colors.grey.shade100 : null,
-          ),
+  // ── Helpers de UI ─────────────────────────────────────────────────────────
+
+  Widget _buildLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: const Color(0xFF94A3B8),
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool enabled = true,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+        prefixIcon: Icon(icon, size: 18, color: Colors.grey.shade400),
+        filled: true,
+        fillColor: enabled ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
         ),
-      ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+      ),
     );
   }
 }
@@ -612,7 +913,7 @@ class _RolesTab extends StatelessWidget {
       case 'superadmin': return 'Super Admin';
       case 'admin': return 'Administrador';
       case 'technician': return 'Técnico';
-      case 'manager': return 'Gerente';
+      case 'manager': return 'Gerente Operativo';
       case 'purchasing': return 'Compras';
       case 'accountant': return 'Contador';
       default: return role;
