@@ -7,9 +7,11 @@ import 'package:ici_process/ui/screens/main_navigation_screen.dart'; // Tu nueva
 import 'package:ici_process/services/auth_service.dart';
 import 'package:ici_process/models/user_model.dart';
 import 'firebase_options.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es', null);
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

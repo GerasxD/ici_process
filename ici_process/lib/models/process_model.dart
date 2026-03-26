@@ -5,8 +5,8 @@ class ProcessModel {
   final String id;
   final String title;
   final String client;
-  final String requestedBy; // Nuevo
-  final DateTime requestDate; // Nuevo
+  final String requestedBy;
+  final DateTime requestDate;
   final ProcessStage stage;
   final String description;
   final String priority;
@@ -17,9 +17,11 @@ class ProcessModel {
   final bool skipClientPO;
   final String logisticsStatus; // 'ToBuy', 'Incomplete', 'Complete'
   final List<HistoryEntry> history;
-  final List<CommentModel> comments; // Nuevo
+  final List<CommentModel> comments;
   final DateTime updatedAt;
   final Map<String, dynamic>? quotationData;
+  // ── NUEVO: datos completos de logística ─────────────────
+  final Map<String, dynamic>? logisticsData;
 
   ProcessModel({
     required this.id,
@@ -40,6 +42,7 @@ class ProcessModel {
     required this.comments,
     required this.updatedAt,
     this.quotationData,
+    this.logisticsData,
   });
 
   factory ProcessModel.fromMap(Map<String, dynamic> data, String docId) {
@@ -68,8 +71,12 @@ class ProcessModel {
           .map((e) => CommentModel.fromMap(e))
           .toList(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      quotationData: data['quotationData'] != null 
-          ? Map<String, dynamic>.from(data['quotationData']) 
+      quotationData: data['quotationData'] != null
+          ? Map<String, dynamic>.from(data['quotationData'])
+          : null,
+      // ── Leer logisticsData de Firestore ─────────────────
+      logisticsData: data['logisticsData'] != null
+          ? Map<String, dynamic>.from(data['logisticsData'])
           : null,
     );
   }
@@ -93,12 +100,13 @@ class ProcessModel {
       'comments': comments.map((e) => e.toMap()).toList(),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'quotationData': quotationData,
-      
+      // ── Guardar logisticsData en Firestore ───────────────
+      'logisticsData': logisticsData,
     };
   }
 }
 
-// --- Soporte para Comentarios ---
+// ── Soporte para Comentarios ─────────────────────────────────
 class CommentModel {
   final String id;
   final String text;
@@ -131,7 +139,7 @@ class CommentModel {
   }
 }
 
-// --- Historial de Cambios ---
+// ── Historial de Cambios ─────────────────────────────────────
 class HistoryEntry {
   final String action;
   final String userName;

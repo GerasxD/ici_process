@@ -45,6 +45,7 @@ class GeneralInfoSection extends StatefulWidget {
   final Function(DateTime) onDateChanged;
   
   final VoidCallback onOpenQuote;
+  final Widget? extraSection;
 
   const GeneralInfoSection({
     super.key,
@@ -73,6 +74,7 @@ class GeneralInfoSection extends StatefulWidget {
     required this.onRequesterChanged,
     required this.onDateChanged,
     required this.onOpenQuote,
+    this.extraSection,
   });
 
   @override
@@ -516,6 +518,12 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
           ),
         ),
         const SizedBox(height: 16),
+        
+        if (widget.extraSection != null) ...[
+          widget.extraSection!,
+          const SizedBox(height: 16),
+        ],
+        
         _buildCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

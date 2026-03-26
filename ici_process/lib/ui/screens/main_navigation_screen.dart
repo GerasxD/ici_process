@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/services/admin_service.dart';
 import 'package:ici_process/ui/screens/admin_panel_screen.dart';
+import 'package:ici_process/ui/screens/calendar_screen.dart';
 import 'package:ici_process/ui/screens/client_managment_screen.dart';
 import 'package:ici_process/ui/screens/material_catalog_screen.dart';
 import 'package:ici_process/ui/screens/provider_management_screen.dart';
@@ -60,7 +61,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     // ✅ 2. Inicializamos todas las pantallas una sola vez
     _views = [
       KanbanView(currentUser: widget.user), // 0
-      const Center(child: Text("Calendario (Próximamente)")), // 1
+      CalendarScreen(currentUser: widget.user), // 1
       const Center(child: Text("Reportes (Próximamente)")), // 2
       ClientManagementScreen(currentUser: widget.user), // 3
       ProviderManagementScreen(currentUser: widget.user), // 4
