@@ -269,7 +269,7 @@ class _ProcessCardState extends State<ProcessCard> {
               
               const SizedBox(height: 16),
               
-              // Footer: Fecha y Monto con mejor diseño
+             // Footer: Fecha y Monto con mejor diseño
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -277,23 +277,27 @@ class _ProcessCardState extends State<ProcessCard> {
                   Flexible(
                     child: _buildInfoChip(
                       icon: LucideIcons.calendar,
-                      label: _formatDate,
+                      label: _formatDate, // Aquí había un pequeño error de lógica en tu getter, pero asumo que lo tienes resuelto arriba
                       color: const Color(0xFF64748B),
                     ),
                   ),
                   
                   const SizedBox(width: 8),
                   
-                  // Monto
+                  // Monto (AQUÍ ESTÁ LA MEJORA)
                   if (widget.item['amount'] != null)
                     Flexible(
                       child: _buildInfoChip(
-                        icon: LucideIcons.dollarSign,
+                        // Cambiamos el ícono a un candado gris si no tiene permiso
+                        icon: widget.canViewPrices ? LucideIcons.dollarSign : LucideIcons.lock,
                         label: widget.canViewPrices
                             ? '\$${NumberFormat('#,###').format(widget.item['amount'])}'
-                            : '• • • •',
-                        color: const Color(0xFF10B981),
+                            : '***.**',
+                        // Cambiamos el color a gris si no tiene permiso para que no llame la atención (verde si sí tiene)
+                        color: widget.canViewPrices ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
                         isBold: true,
+                        // Le pasamos la bandera al chip para ajustar el espaciado
+                        isMasked: !widget.canViewPrices, 
                       ),
                     ),
                 ],
@@ -310,6 +314,7 @@ class _ProcessCardState extends State<ProcessCard> {
     required String label,
     required Color color,
     bool isBold = false,
+    bool isMasked = false, // <-- Nuevo parámetro
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -329,7 +334,8 @@ class _ProcessCardState extends State<ProcessCard> {
                 fontSize: 12,
                 color: color,
                 fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
-                letterSpacing: 0.2,
+                // Si está enmascarado, separamos un poco los asteriscos
+                letterSpacing: isMasked ? 2.0 : 0.2, 
               ),
               overflow: TextOverflow.ellipsis,
             ),

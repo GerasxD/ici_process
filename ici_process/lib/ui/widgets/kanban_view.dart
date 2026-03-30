@@ -30,6 +30,7 @@ class _KanbanViewState extends State<KanbanView> {
   Widget build(BuildContext context) {
     final ProcessService service = ProcessService();
     final PermissionManager pm = PermissionManager();
+    final bool canViewFinancials = pm.can(widget.currentUser, 'view_financials');
 
     return StreamBuilder<List<ProcessModel>>(
       stream: service.getProcessesStream(),
@@ -84,7 +85,7 @@ class _KanbanViewState extends State<KanbanView> {
                 final stageProcesses =
                     allProcesses.where((p) => p.stage == stage).toList();
                 return _buildKanbanColumn(
-                    context, stage, config, stageProcesses);
+                    context, stage, config, stageProcesses, canViewFinancials);
               }).toList(),
             ),
           ),
@@ -94,7 +95,7 @@ class _KanbanViewState extends State<KanbanView> {
   }
 
   Widget _buildKanbanColumn(BuildContext context, ProcessStage stage,
-      StageConfig config, List<ProcessModel> processes) {
+      StageConfig config, List<ProcessModel> processes, bool canViewFinancials) {
     return Container(
       width: 320,
       margin: const EdgeInsets.only(right: 16),
@@ -197,6 +198,7 @@ class _KanbanViewState extends State<KanbanView> {
                       'amount': process.amount,
                       'updatedAt': process.updatedAt.toIso8601String(),
                     },
+                    canViewPrices: canViewFinancials,
                     onClick: () => showDialog(
                       context: context,
                       builder: (_) => ProcessModal(

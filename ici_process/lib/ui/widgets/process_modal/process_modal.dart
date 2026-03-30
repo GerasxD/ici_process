@@ -44,6 +44,7 @@ class _ProcessModalState extends State<ProcessModal> {
 
   bool canEditData = false;
   bool canMoveStage = false;
+  bool canViewFinancials = false; 
 
   final _ocNumberController = TextEditingController();
   bool _isNoOc = false;
@@ -89,6 +90,7 @@ class _ProcessModalState extends State<ProcessModal> {
     final stageCode = currentStage.toString().split('.').last;
     canEditData = pm.can(widget.user, 'stage_edit_$stageCode');
     canMoveStage = pm.can(widget.user, 'move_stage');
+    canViewFinancials = pm.can(widget.user, 'view_financials');
   }
 
   @override
@@ -693,8 +695,10 @@ class _ProcessModalState extends State<ProcessModal> {
                               process: widget.process!,
                               isEditable: canEditData,
                               initialData: _currentLogisticsData,
+                              canViewFinancials: canViewFinancials,
                               onDataChanged: (data) {
                                 _currentLogisticsData = data;
+                                
                               },
                             )
                           : null,

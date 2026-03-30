@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/ui/pdf/purchase_order_pdf_generator.dart';
+import 'package:ici_process/ui/widgets/process_modal/execution_planning_widget.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import '../../../models/material_model.dart';
+import '../../../models/purchase_order_model.dart';
 import '../../../models/quotation_model.dart';
 import '../../../models/process_model.dart';
 import '../../../services/material_service.dart';
@@ -21,10 +24,12 @@ class LogisticsItem {
   double purchasedQty;
   String? selectedProviderId;
   String? selectedProviderName;
-  double actualUnitPrice;
-  double quotedUnitPrice;
+  double actualUnitPrice;   // precio al que se COMPRÓ al proveedor
+  double quotedUnitPrice;   // precio de la cotización
+  double stockUnitPrice;    // ← NUEVO: precio al que está valorado el stock
   DateTime? purchaseDate;
-
+  List<PurchaseOrder>? purchaseOrders;
+ 
   LogisticsItem({
     required this.materialId,
     required this.materialName,
@@ -36,22 +41,32 @@ class LogisticsItem {
     this.selectedProviderName,
     this.actualUnitPrice = 0,
     this.quotedUnitPrice = 0,
+    this.stockUnitPrice = 0,   // ← NUEVO
     this.purchaseDate,
+    this.purchaseOrders,
   });
-
-  // Cuánto hay que comprar (sin contar lo ya comprado)
+ 
   double get toBuyQty => (requiredQty - stockQty).clamp(0.0, double.infinity);
-
-  // Lo que aún falta después de stock + comprado
   double get pendingQty =>
       (requiredQty - stockQty - purchasedQty).clamp(0.0, double.infinity);
-
-  // True si el stock solo alcanza
   bool get coveredByStock => stockQty >= requiredQty;
-
-  // True si stock + comprado alcanza
   bool get fullyCovered => stockQty + purchasedQty >= requiredQty;
-
+ 
+  // ── Costos separados ─────────────────────────────────────
+  double get stockCost {
+    final used = stockQty.clamp(0.0, requiredQty);
+    return used * stockUnitPrice;
+  }
+ 
+  double get purchasedCost {
+    final stockUsed = stockQty.clamp(0.0, requiredQty);
+    final purchasedUsed =
+        purchasedQty.clamp(0.0, (requiredQty - stockUsed).clamp(0.0, double.infinity));
+    return purchasedUsed * actualUnitPrice;
+  }
+ 
+  double get totalCost => stockCost + purchasedCost;
+ 
   Map<String, dynamic> toMap() => {
         'materialId': materialId,
         'materialName': materialName,
@@ -63,9 +78,11 @@ class LogisticsItem {
         'selectedProviderName': selectedProviderName,
         'actualUnitPrice': actualUnitPrice,
         'quotedUnitPrice': quotedUnitPrice,
+        'stockUnitPrice': stockUnitPrice,   // ← NUEVO
         'purchaseDate': purchaseDate?.toIso8601String(),
+        'purchaseOrders': purchaseOrders?.map((o) => o.toMap()).toList() ?? [],
       };
-
+ 
   factory LogisticsItem.fromMap(Map<String, dynamic> map) => LogisticsItem(
         materialId: map['materialId'] ?? '',
         materialName: map['materialName'] ?? '',
@@ -77,11 +94,16 @@ class LogisticsItem {
         selectedProviderName: map['selectedProviderName'],
         actualUnitPrice: (map['actualUnitPrice'] ?? 0).toDouble(),
         quotedUnitPrice: (map['quotedUnitPrice'] ?? 0).toDouble(),
+        stockUnitPrice: (map['stockUnitPrice'] ?? 0).toDouble(),   // ← NUEVO
         purchaseDate: map['purchaseDate'] != null
             ? DateTime.tryParse(map['purchaseDate'])
             : null,
+        purchaseOrders: (map['purchaseOrders'] as List? ?? [])
+            .map((e) => PurchaseOrder.fromMap(Map<String, dynamic>.from(e)))
+            .toList(),
       );
 }
+
 
 // ============================================================
 //  MAIN WIDGET: LogisticsSection
@@ -91,6 +113,7 @@ class LogisticsSection extends StatefulWidget {
   final bool isEditable;
   final Map<String, dynamic>? initialData;
   final Function(Map<String, dynamic>) onDataChanged;
+  final bool canViewFinancials;
 
   const LogisticsSection({
     super.key,
@@ -98,6 +121,7 @@ class LogisticsSection extends StatefulWidget {
     required this.isEditable,
     this.initialData,
     required this.onDataChanged,
+    required this.canViewFinancials,
   });
 
   @override
@@ -139,14 +163,9 @@ class _LogisticsSectionState extends State<LogisticsSection> {
   }
 
   // ── Costo real calculado ─────────────────────────────────
-  double get _realCostSubtotal {
-    return _items.fold(0.0, (sum, item) {
-      final covered =
-          (item.stockQty + item.purchasedQty).clamp(0.0, item.requiredQty);
-      return sum + covered * item.actualUnitPrice;
-    });
-  }
-
+  double get _realCostSubtotal =>
+    _items.fold(0.0, (sum, item) => sum + item.totalCost);
+ 
   double get _realCostTotal => _realCostSubtotal * 1.16;
 
   // ── Inicialización ───────────────────────────────────────
@@ -171,15 +190,15 @@ class _LogisticsSectionState extends State<LogisticsSection> {
         _materialsDB = mats;
         _providersDB = provs;
       });
-
+  
       if (widget.initialData != null && widget.initialData!.isNotEmpty) {
-        // Cargar datos guardados previamente
         _notesController.text = widget.initialData!['notes'] ?? '';
         final rawItems = (widget.initialData!['items'] as List? ?? []);
-        final loadedItems =
-            rawItems.map((e) => LogisticsItem.fromMap(Map<String, dynamic>.from(e))).toList();
-
-        // Actualizar stock con valores actuales de la BD
+        final loadedItems = rawItems
+            .map((e) => LogisticsItem.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+  
+        // ── Actualizar stock Y stockUnitPrice desde la BD ──────────────
         for (final item in loadedItems) {
           try {
             final dbMat = _materialsDB.firstWhere(
@@ -187,13 +206,20 @@ class _LogisticsSectionState extends State<LogisticsSection> {
                   m.id == item.materialId ||
                   m.name.toLowerCase() == item.materialName.toLowerCase(),
             );
+  
+            // Cantidad de stock actualizada
             item.stockQty = dbMat.stock;
+  
+            // ★ FIX: recalcular stockUnitPrice si no fue guardado (0)
+            //   o simplemente actualizarlo siempre con el precio de referencia
+            if (item.stockUnitPrice == 0) {
+              item.stockUnitPrice = _resolveStockPrice(dbMat, item.quotedUnitPrice);
+            }
           } catch (_) {}
         }
-
+  
         if (mounted) setState(() { _items = loadedItems; _isLoading = false; });
       } else {
-        // Inicializar desde la cotización
         _initFromQuotation();
         if (mounted) setState(() => _isLoading = false);
       }
@@ -202,21 +228,36 @@ class _LogisticsSectionState extends State<LogisticsSection> {
     }
   }
 
+  // Función para calcular los días cotizados basándose en la mano de obra
+  double _calculateQuotedDays() {
+    if (widget.process.quotationData == null) return 0.0;
+    try {
+      final q = QuotationModel.fromMap(widget.process.quotationData!);
+      double maxDays = 0;
+      for (var labor in q.labor) {
+        if (labor.days > maxDays) maxDays = labor.days;
+      }
+      return maxDays;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
   void _initFromQuotation() {
     if (widget.process.quotationData == null) return;
     final quotation = QuotationModel.fromMap(widget.process.quotationData!);
     final List<LogisticsItem> items = [];
-
+  
     for (final qItem in quotation.materials) {
       if (qItem.name.isEmpty) continue;
-
+  
       MaterialItem? dbMat;
       try {
         dbMat = _materialsDB.firstWhere(
           (m) => m.name.toLowerCase() == qItem.name.toLowerCase(),
         );
       } catch (_) {}
-
+  
       final logItem = LogisticsItem(
         materialId: dbMat?.id ?? qItem.id,
         materialName: qItem.name,
@@ -225,18 +266,23 @@ class _LogisticsSectionState extends State<LogisticsSection> {
         stockQty: dbMat?.stock ?? 0,
         quotedUnitPrice: qItem.unitPrice,
         actualUnitPrice: qItem.unitPrice,
+        // ★ FIX: usar el helper centralizado
+        stockUnitPrice: _resolveStockPrice(dbMat, qItem.unitPrice),
       );
-
-      // Auto-selección si solo hay un proveedor
+  
       if (dbMat != null && dbMat.prices.length == 1) {
         logItem.selectedProviderId = dbMat.prices.first.providerId;
         logItem.selectedProviderName = dbMat.prices.first.providerName;
         logItem.actualUnitPrice = dbMat.prices.first.price;
       }
-
+  
       items.add(logItem);
     }
     _items = items;
+  }
+
+  double _resolveStockPrice(MaterialItem? dbMat, double quotedPrice) {
+    return quotedPrice > 0 ? quotedPrice : 0;
   }
 
   void _notifyChanged() {
@@ -384,6 +430,33 @@ class _LogisticsSectionState extends State<LogisticsSection> {
               "Gestión de Compras a Proveedores", LucideIcons.shoppingCart),
           const SizedBox(height: 16),
           _buildPurchasesSection(),
+
+          const SizedBox(height: 24),
+          const Divider(color: Color(0xFFF1F5F9), thickness: 1.5),
+          const SizedBox(height: 20),
+
+          // ── 5. Planificación de Ejecución ────────────────
+          _buildSectionTitle(
+              "Planificación de Ejecución", LucideIcons.calendarClock),
+          const SizedBox(height: 16),
+          ExecutionPlanningWidget(
+            process: widget.process,
+            quotedDays: _calculateQuotedDays(), // Usa la función que acabamos de agregar
+            isEditable: widget.isEditable,
+            initialData: widget.initialData?['executionPlanning'],
+            onChanged: (planningData) {
+              // Actualizamos y mandamos TODA la data (Logística + Planificación)
+              final currentData = {
+                'notes': _notesController.text,
+                'status': _logisticsStatus,
+                'realCostSubtotal': _realCostSubtotal,
+                'realCostTotal': _realCostTotal,
+                'items': _items.map((e) => e.toMap()).toList(),
+                'executionPlanning': planningData, // <-- Guardamos los datos de planificación aquí
+              };
+              widget.onDataChanged(currentData);
+            },
+          ),
         ],
       ),
     );
@@ -534,7 +607,7 @@ class _LogisticsSectionState extends State<LogisticsSection> {
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: _PurchaseCard(
+          child: PurchaseCard(
             item: item,
             dbMaterial: dbMat,
             isEditable: widget.isEditable,
@@ -542,7 +615,9 @@ class _LogisticsSectionState extends State<LogisticsSection> {
             onChanged: () {
               setState(() {});
               _notifyChanged();
-            },
+            }, 
+            process: widget.process, 
+            currentUserName: "Usuario"
           ),
         );
       }).toList(),
@@ -658,6 +733,9 @@ class _LogisticsSectionState extends State<LogisticsSection> {
   }
 
   Widget _buildMoneyDisplay(String label, double amount, {bool highlight = false}) {
+    // 👇 EVALUAMOS SI TIENE PERMISO
+    final bool canView = widget.canViewFinancials;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -670,14 +748,22 @@ class _LogisticsSectionState extends State<LogisticsSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF94A3B8),
-              letterSpacing: 0.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF94A3B8),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              // Opcional: Mostrar un candadito si no tiene permiso
+              if (!canView)
+                const Icon(LucideIcons.lock, size: 12, color: Color(0xFF94A3B8)),
+            ],
           ),
           const SizedBox(height: 6),
           Row(
@@ -689,11 +775,14 @@ class _LogisticsSectionState extends State<LogisticsSection> {
                 style: GoogleFonts.inter(fontSize: 13, color: Colors.grey),
               ),
               Text(
-                amount.toStringAsFixed(2),
+                // 👇 SI canView ES FALSE, MOSTRAMOS *** EN VEZ DEL NÚMERO
+                canView ? amount.toStringAsFixed(2) : "***.**",
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: highlight ? const Color(0xFF0369A1) : const Color(0xFF334155),
+                  // Opcional: Cambiamos un poco el estilo de los asteriscos
+                  letterSpacing: canView ? 0 : 2.0, 
                 ),
               ),
             ],
@@ -750,63 +839,99 @@ class _LogisticsSectionState extends State<LogisticsSection> {
   }
 }
 
-// ============================================================
-//  PURCHASE CARD (StatefulWidget independiente con controllers)
-// ============================================================
-class _PurchaseCard extends StatefulWidget {
+// ─────────────────────────────────────────────────────────────
+//  HELPER: genera un folio legible  OC-2026-0001
+// ─────────────────────────────────────────────────────────────
+String _generateFolio() {
+  final now = DateTime.now();
+  final ms = now.millisecondsSinceEpoch.toString();
+  return 'OC-${now.year}-${ms.substring(ms.length - 4)}';
+}
+ 
+// ─────────────────────────────────────────────────────────────
+//  WIDGET PRINCIPAL: _PurchaseCard
+// ─────────────────────────────────────────────────────────────
+class PurchaseCard extends StatefulWidget {
   final LogisticsItem item;
   final MaterialItem? dbMaterial;
   final bool isEditable;
   final NumberFormat currFmt;
   final VoidCallback onChanged;
-
-  const _PurchaseCard({
-    // ignore: unused_element_parameter
+  // Datos del proceso para el PDF
+  final ProcessModel process;
+  final String currentUserName;
+ 
+  const PurchaseCard({
     super.key,
     required this.item,
     required this.dbMaterial,
     required this.isEditable,
     required this.currFmt,
     required this.onChanged,
+    required this.process,
+    required this.currentUserName,
   });
-
+ 
   @override
-  State<_PurchaseCard> createState() => _PurchaseCardState();
+  State<PurchaseCard> createState() => _PurchaseCardState();
 }
-
-class _PurchaseCardState extends State<_PurchaseCard> {
+ 
+class _PurchaseCardState extends State<PurchaseCard> {
   late TextEditingController _purchasedCtrl;
   late TextEditingController _priceCtrl;
-
+ 
+  // Estado de la orden actual (antes de registrar)
+  bool _isRegistering = false; // muestra el formulario de registro
+  final TextEditingController _justificationCtrl = TextEditingController();
+  bool _isSavingOrder = false;
+  bool _isGeneratingPdf = false;
+ 
   List<PriceEntry> get _prices => widget.dbMaterial?.prices ?? [];
-
+ 
+  // ── Historial de órdenes del item ───────────────────────
+  List<PurchaseOrder> get _orders =>
+      widget.item.purchaseOrders ?? [];
+ 
+  // ── Excedente de la cantidad actual ─────────────────────
+  bool get _hasExcess =>
+      (double.tryParse(_purchasedCtrl.text) ?? 0) >
+      widget.item.toBuyQty;
+ 
+  double get _excessQty =>
+      ((double.tryParse(_purchasedCtrl.text) ?? 0) -
+          widget.item.toBuyQty)
+          .clamp(0.0, double.infinity);
+ 
   @override
   void initState() {
     super.initState();
     _purchasedCtrl = TextEditingController(
-      text: widget.item.purchasedQty > 0 ? widget.item.purchasedQty.toString() : '',
+      text: widget.item.purchasedQty > 0
+          ? widget.item.purchasedQty.toString()
+          : '',
     );
     _priceCtrl = TextEditingController(
       text: widget.item.actualUnitPrice > 0
           ? widget.item.actualUnitPrice.toStringAsFixed(2)
           : '',
     );
-
-    // Auto-seleccionar si solo hay un proveedor y aún no se ha elegido
-    if (_prices.length == 1 && widget.item.selectedProviderId == null) {
+ 
+    if (_prices.length == 1 &&
+        widget.item.selectedProviderId == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _selectProvider(_prices.first);
       });
     }
   }
-
+ 
   @override
   void dispose() {
     _purchasedCtrl.dispose();
     _priceCtrl.dispose();
+    _justificationCtrl.dispose();
     super.dispose();
   }
-
+ 
   void _selectProvider(PriceEntry price) {
     setState(() {
       widget.item.selectedProviderId = price.providerId;
@@ -816,23 +941,114 @@ class _PurchaseCardState extends State<_PurchaseCard> {
     });
     widget.onChanged();
   }
-
+ 
+  // ── Registrar nueva orden ────────────────────────────────
+  Future<void> _registerOrder() async {
+    final qty = double.tryParse(_purchasedCtrl.text) ?? 0;
+    final price = double.tryParse(_priceCtrl.text) ?? 0;
+ 
+    if (qty <= 0) {
+      _showSnack("Ingresa una cantidad válida", isError: true);
+      return;
+    }
+    if (widget.item.selectedProviderName == null ||
+        widget.item.selectedProviderName!.isEmpty) {
+      _showSnack("Selecciona un proveedor", isError: true);
+      return;
+    }
+    if (_hasExcess && _justificationCtrl.text.trim().isEmpty) {
+      _showSnack(
+          "Ingresa la justificación del excedente", isError: true);
+      return;
+    }
+ 
+    setState(() => _isSavingOrder = true);
+ 
+    final newOrder = PurchaseOrder(
+      id: _generateFolio(),
+      materialId: widget.item.materialId,
+      materialName: widget.item.materialName,
+      unit: widget.item.unit,
+      providerName: widget.item.selectedProviderName!,
+      providerId: widget.item.selectedProviderId ?? '',
+      quantity: qty,
+      quotedQuantity: widget.item.toBuyQty,
+      unitPrice: price,
+      totalPrice: qty * price,
+      date: DateTime.now(),
+      justification: _hasExcess
+          ? _justificationCtrl.text.trim()
+          : null,
+      hasExcess: _hasExcess,
+    );
+ 
+    setState(() {
+      widget.item.purchaseOrders = [
+        ...(_orders),
+        newOrder,
+      ];
+      widget.item.purchasedQty = qty;
+      _isRegistering = false;
+      _justificationCtrl.clear();
+      _isSavingOrder = false;
+    });
+ 
+    widget.onChanged();
+    _showSnack("Orden registrada correctamente");
+  }
+ 
+  // ── Descargar PDF ────────────────────────────────────────
+  Future<void> _downloadPdf(PurchaseOrder order) async {
+    setState(() => _isGeneratingPdf = true);
+    try {
+      await PurchaseOrderPdfGenerator.generateAndPrint(
+        order: order,
+        projectTitle: widget.process.title,
+        clientName: widget.process.client,
+        folio: order.id,
+        generatedBy: widget.currentUserName,
+      );
+    } catch (e) {
+      _showSnack("Error al generar PDF: $e", isError: true);
+    } finally {
+      if (mounted) setState(() => _isGeneratingPdf = false);
+    }
+  }
+ 
+  void _showSnack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg,
+          style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+      backgroundColor:
+          isError ? const Color(0xFFDC2626) : const Color(0xFF059669),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+ 
+  // ─────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
     final pending = item.pendingQty;
     final isCovered = item.fullyCovered;
-
+ 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isCovered ? const Color(0xFF6EE7B7) : const Color(0xFFFCA5A5),
+          color: isCovered
+              ? const Color(0xFF6EE7B7)
+              : const Color(0xFFFCA5A5),
           width: 1.5,
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
         ],
       ),
       child: Padding(
@@ -840,206 +1056,244 @@ class _PurchaseCardState extends State<_PurchaseCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header del material ──────────────────────────
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(LucideIcons.package, size: 16, color: Color(0xFF64748B)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.materialName,
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                      if (item.unit.isNotEmpty)
-                        Text(
-                          item.unit,
-                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
-                        ),
-                    ],
-                  ),
-                ),
-                // Badge de estado
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isCovered ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isCovered ? const Color(0xFF6EE7B7) : const Color(0xFFFCA5A5),
-                    ),
-                  ),
-                  child: Text(
-                    isCovered
-                        ? "✓ Cubierto"
-                        : "Pendiente: ${pending.toStringAsFixed(pending.truncateToDouble() == pending ? 0 : 2)} ${item.unit}",
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color:
-                          isCovered ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
+            // ── Header del material ────────────────────────
+            _buildMaterialHeader(item, isCovered, pending),
+ 
             const SizedBox(height: 12),
-
-            // ── Chips de cantidad ───────────────────────────
+ 
+            // ── Chips de cantidad ──────────────────────────
             Wrap(
               spacing: 8,
               runSpacing: 6,
               children: [
-                _buildChip("Requerido",
-                    "${item.requiredQty.toStringAsFixed(0)} ${item.unit}",
+                _buildChip(
+                    "Requerido",
+                    "${_fmtQty(item.requiredQty)} ${item.unit}",
                     const Color(0xFF64748B)),
-                _buildChip("En Stock",
-                    "${item.stockQty.toStringAsFixed(0)} ${item.unit}",
+                _buildChip(
+                    "En Stock",
+                    "${_fmtQty(item.stockQty)} ${item.unit}",
                     const Color(0xFF2563EB)),
-                _buildChip("A Comprar",
-                    "${item.toBuyQty.toStringAsFixed(0)} ${item.unit}",
+                _buildChip(
+                    "A Comprar",
+                    "${_fmtQty(item.toBuyQty)} ${item.unit}",
                     const Color(0xFFEA580C)),
               ],
             ),
-
+ 
             const SizedBox(height: 16),
             const Divider(height: 1),
             const SizedBox(height: 16),
-
-            // ── Formulario de compra ────────────────────────
-            LayoutBuilder(builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 600;
-              if (isNarrow) {
-                // Layout en columna para pantallas pequeñas
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildLabel("PROVEEDOR"),
-                    const SizedBox(height: 8),
-                    _buildProviderSelector(),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel("COMPRADO"),
-                              const SizedBox(height: 8),
-                              _buildPurchasedQtyField(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel("COSTO UNIT."),
-                              const SizedBox(height: 8),
-                              _buildPriceField(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel("FECHA"),
-                              const SizedBox(height: 8),
-                              _buildDatePicker(),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              }
-              // Layout en fila para pantallas grandes
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel("PROVEEDOR"),
-                        const SizedBox(height: 8),
-                        _buildProviderSelector(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel("COMPRADO"),
-                        const SizedBox(height: 8),
-                        _buildPurchasedQtyField(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel("COSTO UNIT."),
-                        const SizedBox(height: 8),
-                        _buildPriceField(),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel("FECHA"),
-                        const SizedBox(height: 8),
-                        _buildDatePicker(),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }),
-
-            // ── Comparativa de precio / Ahorro ──────────────
+ 
+            // ── Formulario de selección (proveedor, qty, precio, fecha) ──
+            _buildPurchaseForm(item),
+ 
+            // ── Comparativa precio ─────────────────────────
             if (item.selectedProviderId != null) ...[
               const SizedBox(height: 12),
-              _buildPriceComparison(),
+              _buildPriceComparison(item),
+            ],
+
+            _buildCostBreakdown(),
+ 
+            // ── Botón: Registrar Orden ─────────────────────
+            if (widget.isEditable && !_isRegistering) ...[
+              const SizedBox(height: 16),
+              _buildRegisterButton(),
+            ],
+ 
+            // ── Formulario de registro de orden ───────────
+            if (_isRegistering) ...[
+              const SizedBox(height: 16),
+              _buildOrderForm(),
+            ],
+ 
+            // ── Historial de órdenes ───────────────────────
+            if (_orders.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              _buildOrderHistory(),
             ],
           ],
         ),
       ),
     );
   }
-
+ 
+  // ── HEADER MATERIAL ───────────────────────────────────────
+  Widget _buildMaterialHeader(
+      LogisticsItem item, bool isCovered, double pending) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(LucideIcons.package,
+              size: 16, color: Color(0xFF64748B)),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.materialName,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              if (item.unit.isNotEmpty)
+                Text(item.unit,
+                    style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: const Color(0xFF94A3B8))),
+            ],
+          ),
+        ),
+        Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isCovered
+                ? const Color(0xFFECFDF5)
+                : const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isCovered
+                  ? const Color(0xFF6EE7B7)
+                  : const Color(0xFFFCA5A5),
+            ),
+          ),
+          child: Text(
+            isCovered
+                ? "✓ Cubierto"
+                : "Pendiente: ${_fmtQty(pending)} ${item.unit}",
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isCovered
+                  ? const Color(0xFF059669)
+                  : const Color(0xFFDC2626),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+ 
+  // ── FORMULARIO DE COMPRA ──────────────────────────────────
+  Widget _buildPurchaseForm(LogisticsItem item) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final isNarrow = constraints.maxWidth < 600;
+      if (isNarrow) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel("PROVEEDOR"),
+            const SizedBox(height: 8),
+            _buildProviderSelector(),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel("COMPRADO"),
+                    const SizedBox(height: 8),
+                    _buildPurchasedQtyField(),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel("COSTO UNIT."),
+                    const SizedBox(height: 8),
+                    _buildPriceField(),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel("FECHA"),
+                    const SizedBox(height: 8),
+                    _buildDatePicker(),
+                  ],
+                ),
+              ),
+            ]),
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLabel("PROVEEDOR"),
+                const SizedBox(height: 8),
+                _buildProviderSelector(),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLabel("COMPRADO"),
+                const SizedBox(height: 8),
+                _buildPurchasedQtyField(),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLabel("COSTO UNIT."),
+                const SizedBox(height: 8),
+                _buildPriceField(),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLabel("FECHA"),
+                const SizedBox(height: 8),
+                _buildDatePicker(),
+              ],
+            ),
+          ),
+        ],
+      );
+    });
+  }
+ 
+  // ── PROVEEDOR ─────────────────────────────────────────────
   Widget _buildProviderSelector() {
     if (_prices.isEmpty) {
-      // Sin proveedores en catálogo: input libre
       return TextField(
         enabled: widget.isEditable,
         onChanged: (val) {
@@ -1050,10 +1304,9 @@ class _PurchaseCardState extends State<_PurchaseCard> {
         decoration: _inputDeco("Nombre del proveedor..."),
       );
     }
-
-    // Con proveedores: dropdown
     return DropdownButtonFormField<String>(
-      value: _prices.any((p) => p.providerId == widget.item.selectedProviderId)
+      value: _prices
+              .any((p) => p.providerId == widget.item.selectedProviderId)
           ? widget.item.selectedProviderId
           : null,
       isExpanded: true,
@@ -1062,74 +1315,75 @@ class _PurchaseCardState extends State<_PurchaseCard> {
       items: _prices.map((price) {
         return DropdownMenuItem<String>(
           value: price.providerId,
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  price.providerName,
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  "\$${price.price.toStringAsFixed(2)}",
+          child: Row(children: [
+            Expanded(
+              child: Text(price.providerName,
                   style: GoogleFonts.inter(
+                      fontSize: 13, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                "\$${price.price.toStringAsFixed(2)}",
+                style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
+                    color: Colors.blue.shade700),
               ),
-            ],
-          ),
+            ),
+          ]),
         );
       }).toList(),
       onChanged: widget.isEditable
-          ? (selectedId) {
-              if (selectedId == null) return;
-              final price = _prices.firstWhere((p) => p.providerId == selectedId);
+          ? (id) {
+              if (id == null) return;
+              final price =
+                  _prices.firstWhere((p) => p.providerId == id);
               _selectProvider(price);
             }
           : null,
       decoration: _inputDeco(""),
     );
   }
-
+ 
   Widget _buildPurchasedQtyField() {
     return TextField(
       controller: _purchasedCtrl,
       enabled: widget.isEditable,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType:
+          const TextInputType.numberWithOptions(decimal: true),
       onChanged: (val) {
         widget.item.purchasedQty = double.tryParse(val) ?? 0;
+        setState(() {}); // para actualizar _hasExcess
         widget.onChanged();
       },
-      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
+      style: GoogleFonts.inter(fontSize: 13),
       decoration: _inputDeco("0"),
     );
   }
-
+ 
   Widget _buildPriceField() {
     return TextField(
       controller: _priceCtrl,
       enabled: widget.isEditable,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType:
+          const TextInputType.numberWithOptions(decimal: true),
       onChanged: (val) {
         widget.item.actualUnitPrice = double.tryParse(val) ?? 0;
         widget.onChanged();
       },
-      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
+      style: GoogleFonts.inter(fontSize: 13),
       decoration: _inputDeco("\$ 0.00").copyWith(prefixText: "\$ "),
     );
   }
-
+ 
   Widget _buildDatePicker() {
     return InkWell(
       onTap: widget.isEditable
@@ -1141,7 +1395,8 @@ class _PurchaseCardState extends State<_PurchaseCard> {
                 lastDate: DateTime(2100),
                 builder: (context, child) => Theme(
                   data: ThemeData.light().copyWith(
-                    colorScheme: const ColorScheme.light(primary: Color(0xFFB45309)),
+                    colorScheme: const ColorScheme.light(
+                        primary: Color(0xFFB45309)),
                   ),
                   child: child!,
                 ),
@@ -1154,41 +1409,44 @@ class _PurchaseCardState extends State<_PurchaseCard> {
           : null,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.calendar, size: 14, color: Color(0xFF64748B)),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                widget.item.purchaseDate != null
-                    ? DateFormat('dd/MM/yy').format(widget.item.purchaseDate!)
-                    : DateFormat('dd/MM/yyyy').format(DateTime.now()),
-                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1E293B)),
-              ),
+        child: Row(children: [
+          const Icon(LucideIcons.calendar,
+              size: 14, color: Color(0xFF64748B)),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              widget.item.purchaseDate != null
+                  ? DateFormat('dd/MM/yy')
+                      .format(widget.item.purchaseDate!)
+                  : DateFormat('dd/MM/yy').format(DateTime.now()),
+              style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: const Color(0xFF1E293B)),
             ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
-
-  Widget _buildPriceComparison() {
-    final item = widget.item;
+ 
+  // ── COMPARATIVA DE PRECIO ─────────────────────────────────
+  Widget _buildPriceComparison(LogisticsItem item) {
     final savings = item.quotedUnitPrice - item.actualUnitPrice;
     final hasSavings = savings > 0.01;
     final isMore = savings < -0.01;
-
+ 
     Color bgColor;
     Color iconColor;
     IconData icon;
     String text;
-
+ 
     if (hasSavings) {
       bgColor = const Color(0xFFECFDF5);
       iconColor = const Color(0xFF059669);
@@ -1205,9 +1463,10 @@ class _PurchaseCardState extends State<_PurchaseCard> {
       bgColor = const Color(0xFFF8FAFC);
       iconColor = const Color(0xFF64748B);
       icon = LucideIcons.info;
-      text = "Precio igual al cotizado: ${widget.currFmt.format(item.quotedUnitPrice)}";
+      text =
+          "Precio igual al cotizado: ${widget.currFmt.format(item.quotedUnitPrice)}";
     }
-
+ 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -1215,24 +1474,597 @@ class _PurchaseCardState extends State<_PurchaseCard> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: iconColor.withOpacity(0.25)),
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: iconColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.inter(fontSize: 11, color: iconColor),
+      child: Row(children: [
+        Icon(icon, size: 14, color: iconColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text,
+              style: GoogleFonts.inter(fontSize: 11, color: iconColor)),
+        ),
+      ]),
+    );
+  }
+
+  /// Muestra el desglose: costo de stock vs costo de compra
+Widget _buildCostBreakdown() {
+  final item = widget.item;
+ 
+  // Solo mostrar si hay algo que comparar
+  final hasStock = item.stockQty > 0;
+  final hasPurchased = item.purchasedQty > 0;
+  if (!hasStock && !hasPurchased) return const SizedBox.shrink();
+ 
+  // ¿Los precios difieren? (para resaltar la diferencia)
+  final pricesDiffer =
+      (item.stockUnitPrice - item.actualUnitPrice).abs() > 0.01;
+ 
+  return Container(
+    margin: const EdgeInsets.only(top: 12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFFE2E8F0)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Encabezado
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          child: Row(
+            children: [
+              const Icon(LucideIcons.calculator,
+                  size: 13, color: Color(0xFF64748B)),
+              const SizedBox(width: 6),
+              Text(
+                "DESGLOSE DE COSTO",
+                style: GoogleFonts.inter(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF64748B),
+                  letterSpacing: 0.6,
+                ),
+              ),
+              if (pricesDiffer) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF9C3),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFFCD34D)),
+                  ),
+                  child: Text(
+                    "precios distintos",
+                    style: GoogleFonts.inter(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+ 
+        const Divider(height: 1, color: Color(0xFFE2E8F0)),
+ 
+        // Fila: Stock
+        if (hasStock)
+          _costRow(
+            icon: LucideIcons.package,
+            iconColor: const Color(0xFF2563EB),
+            label: "Stock existente",
+            detail:
+                "${_fmtQty(item.stockQty.clamp(0, item.requiredQty))} ${item.unit} × "
+                "${widget.currFmt.format(item.stockUnitPrice)}",
+            total: item.stockCost,
+            totalColor: const Color(0xFF2563EB),
+            currFmt: widget.currFmt,
+          ),
+ 
+        // Separador interno
+        if (hasStock && hasPurchased)
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+ 
+        // Fila: Comprado
+        if (hasPurchased)
+          _costRow(
+            icon: LucideIcons.shoppingCart,
+            iconColor: const Color(0xFF059669),
+            label: "Compra a proveedor",
+            detail:
+                "${_fmtQty(item.purchasedQty.clamp(0, (item.requiredQty - item.stockQty).clamp(0, double.infinity)))} ${item.unit} × "
+                "${widget.currFmt.format(item.actualUnitPrice)}",
+            total: item.purchasedCost,
+            totalColor: const Color(0xFF059669),
+            currFmt: widget.currFmt,
+          ),
+ 
+        // Total
+        if (hasStock && hasPurchased) ...[
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 12, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF0F172A),
+              borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(9)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Total material",
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  widget.currFmt.format(item.totalCost),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
+        ],
+      ],
+    ),
+  );
+}
+ 
+/// Fila de costo individual (stock o compra)
+Widget _costRow({
+  required IconData icon,
+  required Color iconColor,
+  required String label,
+  required String detail,
+  required double total,
+  required Color totalColor,
+  required NumberFormat currFmt,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, size: 12, color: iconColor),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+              Text(
+                detail,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          currFmt.format(total),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: totalColor,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+ 
+  // ── BOTÓN REGISTRAR ORDEN ─────────────────────────────────
+  Widget _buildRegisterButton() {
+    return InkWell(
+      onTap: () => setState(() => _isRegistering = true),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16, vertical: 11),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(LucideIcons.clipboardCheck,
+              size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Text("Registrar Orden de Compra",
+              style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white)),
+        ]),
+      ),
+    );
+  }
+ 
+  // ── FORMULARIO DE ORDEN (con justificación) ───────────────
+  Widget _buildOrderForm() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(LucideIcons.clipboardCheck,
+                size: 16, color: Color(0xFF0F172A)),
+            const SizedBox(width: 8),
+            Text("Nueva Orden de Compra",
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A))),
+          ]),
+ 
+          const SizedBox(height: 14),
+ 
+          // Resumen de la orden que se va a crear
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: _summaryItem("Material",
+                    widget.item.materialName)),
+              Expanded(
+                  child: _summaryItem(
+                      "Proveedor",
+                      widget.item.selectedProviderName ??
+                          "No seleccionado")),
+              _summaryItem(
+                  "Cantidad",
+                  "${_purchasedCtrl.text.isNotEmpty ? _purchasedCtrl.text : '0'} "
+                      "${widget.item.unit}"),
+              _summaryItem(
+                  "Total",
+                  widget.currFmt.format(
+                      (double.tryParse(_purchasedCtrl.text) ?? 0) *
+                          widget.item.actualUnitPrice)),
+            ]),
+          ),
+ 
+          // Alerta de excedente
+          if (_hasExcess) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Row(children: [
+                const Icon(LucideIcons.alertTriangle,
+                    size: 16, color: Color(0xFFDC2626)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Estás comprando ${_fmtQty(_excessQty)} ${widget.item.unit} más de lo cotizado. "
+                    "Se requiere justificación.",
+                    style: GoogleFonts.inter(
+                        fontSize: 12, color: const Color(0xFFDC2626)),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Text("JUSTIFICACIÓN DEL EXCEDENTE *",
+                style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFDC2626),
+                    letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _justificationCtrl,
+              maxLines: 3,
+              style: GoogleFonts.inter(fontSize: 13),
+              decoration: _inputDeco(
+                  "Explica el motivo de la compra adicional..."),
+            ),
+          ],
+ 
+          const SizedBox(height: 16),
+ 
+          Row(children: [
+            TextButton(
+              onPressed: () =>
+                  setState(() {
+                    _isRegistering = false;
+                    _justificationCtrl.clear();
+                  }),
+              child: Text("Cancelar",
+                  style: GoogleFonts.inter(
+                      color: const Color(0xFF64748B))),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton.icon(
+              onPressed: _isSavingOrder ? null : _registerOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              icon: _isSavingOrder
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Icon(LucideIcons.checkCircle2, size: 16),
+              label: Text("Confirmar y Registrar",
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+            ),
+          ]),
         ],
       ),
     );
   }
-
+ 
+  Widget _summaryItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: GoogleFonts.inter(
+                fontSize: 9,
+                color: const Color(0xFF94A3B8),
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(value,
+            style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E293B)),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+ 
+  // ── HISTORIAL DE ÓRDENES ──────────────────────────────────
+  Widget _buildOrderHistory() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Título de sección
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A).withOpacity(0.06),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(LucideIcons.history,
+                size: 14, color: Color(0xFF0F172A)),
+          ),
+          const SizedBox(width: 8),
+          Text("HISTORIAL DE ÓRDENES",
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF475569),
+                letterSpacing: 0.6,
+              )),
+          const SizedBox(width: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text("${_orders.length}",
+                style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+          ),
+        ]),
+ 
+        const SizedBox(height: 10),
+ 
+        // Lista de órdenes
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: _orders.asMap().entries.map((entry) {
+              final i = entry.key;
+              final order = entry.value;
+              final isLast = i == _orders.length - 1;
+              return _buildOrderRow(order, isLast);
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+ 
+  Widget _buildOrderRow(PurchaseOrder order, bool isLast) {
+    final dateFmt = DateFormat('d/M/yyyy');
+ 
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: order.hasExcess
+            ? const Color(0xFFFFF7ED)
+            : Colors.white,
+        border: isLast
+            ? null
+            : const Border(
+                bottom: BorderSide(color: Color(0xFFF1F5F9))),
+        borderRadius: isLast
+            ? const BorderRadius.only(
+                bottomLeft: Radius.circular(9),
+                bottomRight: Radius.circular(9))
+            : null,
+      ),
+      child: Column(
+        children: [
+          Row(children: [
+            // Folio
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Text(order.id,
+                  style: GoogleFonts.robotoMono(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF64748B),
+              )),
+            ),
+            const SizedBox(width: 8),
+            // Proveedor + fecha
+            Expanded(
+              child: Row(children: [
+                Text(order.providerName,
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E293B))),
+                const SizedBox(width: 8),
+                Text("| ${dateFmt.format(order.date)}",
+                    style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF94A3B8))),
+              ]),
+            ),
+            // Total
+            Text(
+              widget.currFmt.format(order.totalPrice),
+              style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF059669)),
+            ),
+            const SizedBox(width: 12),
+            // Botón PDF
+            Tooltip(
+              message: "Descargar Orden de Compra (PDF)",
+              child: InkWell(
+                onTap: _isGeneratingPdf
+                    ? null
+                    : () => _downloadPdf(order),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: _isGeneratingPdf
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 1.5))
+                      : const Icon(LucideIcons.fileDown,
+                          size: 16, color: Color(0xFF475569)),
+                ),
+              ),
+            ),
+          ]),
+ 
+          // Excedente + justificación (si aplica)
+          if (order.hasExcess && order.justification != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: const Color(0xFFFCA5A5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(LucideIcons.alertTriangle,
+                        size: 12, color: Color(0xFFEA580C)),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Excedente: +${_fmtQty(order.quantity - order.quotedQuantity)} ${order.unit}",
+                      style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFEA580C)),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(
+                    order.justification!,
+                    style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: const Color(0xFF7C2D12)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+ 
+  // ── HELPERS UI ────────────────────────────────────────────
   Widget _buildChip(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(8),
@@ -1243,16 +2075,20 @@ class _PurchaseCardState extends State<_PurchaseCard> {
         children: [
           Text(label,
               style: GoogleFonts.inter(
-                  fontSize: 9, fontWeight: FontWeight.w700, color: color.withOpacity(0.7))),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: color.withOpacity(0.7))),
           const SizedBox(height: 2),
           Text(value,
               style: GoogleFonts.inter(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color)),
         ],
       ),
     );
   }
-
+ 
   Widget _buildLabel(String text) => Text(
         text,
         style: GoogleFonts.inter(
@@ -1262,14 +2098,16 @@ class _PurchaseCardState extends State<_PurchaseCard> {
           letterSpacing: 0.5,
         ),
       );
-
+ 
   InputDecoration _inputDeco(String hint) => InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 12),
+        hintStyle: GoogleFonts.inter(
+            color: Colors.grey.shade400, fontSize: 12),
         filled: true,
         fillColor: const Color(0xFFF8FAFC),
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -1284,7 +2122,13 @@ class _PurchaseCardState extends State<_PurchaseCard> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFB45309), width: 1.5),
+          borderSide: const BorderSide(
+              color: Color(0xFFB45309), width: 1.5),
         ),
       );
+ 
+  static String _fmtQty(double qty) {
+    if (qty == qty.truncateToDouble()) return qty.toStringAsFixed(0);
+    return qty.toStringAsFixed(2);
+  }
 }
