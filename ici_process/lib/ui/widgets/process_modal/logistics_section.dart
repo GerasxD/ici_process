@@ -114,6 +114,7 @@ class LogisticsSection extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final Function(Map<String, dynamic>) onDataChanged;
   final bool canViewFinancials;
+  final String currentUserName;
 
   const LogisticsSection({
     super.key,
@@ -122,6 +123,7 @@ class LogisticsSection extends StatefulWidget {
     this.initialData,
     required this.onDataChanged,
     required this.canViewFinancials,
+    required this.currentUserName,
   });
 
   @override
@@ -617,7 +619,7 @@ class _LogisticsSectionState extends State<LogisticsSection> {
               _notifyChanged();
             }, 
             process: widget.process, 
-            currentUserName: "Usuario"
+            currentUserName: widget.currentUserName
           ),
         );
       }).toList(),
@@ -1068,15 +1070,15 @@ class _PurchaseCardState extends State<PurchaseCard> {
               children: [
                 _buildChip(
                     "Requerido",
-                    "${_fmtQty(item.requiredQty)} ${item.unit}",
+                    "${_fmtQty(item.requiredQty)} ${item.materialName}",
                     const Color(0xFF64748B)),
                 _buildChip(
                     "En Stock",
-                    "${_fmtQty(item.stockQty)} ${item.unit}",
+                    "${_fmtQty(item.stockQty)} ${item.materialName}",
                     const Color(0xFF2563EB)),
                 _buildChip(
                     "A Comprar",
-                    "${_fmtQty(item.toBuyQty)} ${item.unit}",
+                    "${_fmtQty(item.toBuyQty)} ${item.materialName}",
                     const Color(0xFFEA580C)),
               ],
             ),
@@ -1173,7 +1175,7 @@ class _PurchaseCardState extends State<PurchaseCard> {
           child: Text(
             isCovered
                 ? "✓ Cubierto"
-                : "Pendiente: ${_fmtQty(pending)} ${item.unit}",
+                : "Pendiente: ${_fmtQty(pending)} ${item.materialName}",
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -1558,7 +1560,7 @@ Widget _buildCostBreakdown() {
             iconColor: const Color(0xFF2563EB),
             label: "Stock existente",
             detail:
-                "${_fmtQty(item.stockQty.clamp(0, item.requiredQty))} ${item.unit} × "
+                "${_fmtQty(item.stockQty.clamp(0, item.requiredQty))} ${item.materialName} × "
                 "${widget.currFmt.format(item.stockUnitPrice)}",
             total: item.stockCost,
             totalColor: const Color(0xFF2563EB),
@@ -1576,7 +1578,7 @@ Widget _buildCostBreakdown() {
             iconColor: const Color(0xFF059669),
             label: "Compra a proveedor",
             detail:
-                "${_fmtQty(item.purchasedQty.clamp(0, (item.requiredQty - item.stockQty).clamp(0, double.infinity)))} ${item.unit} × "
+                "${_fmtQty(item.purchasedQty.clamp(0, (item.requiredQty - item.stockQty).clamp(0, double.infinity)))} ${item.materialName} × "
                 "${widget.currFmt.format(item.actualUnitPrice)}",
             total: item.purchasedCost,
             totalColor: const Color(0xFF059669),
@@ -1752,7 +1754,7 @@ Widget _costRow({
               _summaryItem(
                   "Cantidad",
                   "${_purchasedCtrl.text.isNotEmpty ? _purchasedCtrl.text : '0'} "
-                      "${widget.item.unit}"),
+                      "${widget.item.materialName}"),
               _summaryItem(
                   "Total",
                   widget.currFmt.format(
@@ -1777,7 +1779,7 @@ Widget _costRow({
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    "Estás comprando ${_fmtQty(_excessQty)} ${widget.item.unit} más de lo cotizado. "
+                    "Estás comprando ${_fmtQty(_excessQty)} ${widget.item.materialName} más de lo cotizado. "
                     "Se requiere justificación.",
                     style: GoogleFonts.inter(
                         fontSize: 12, color: const Color(0xFFDC2626)),
@@ -2037,7 +2039,7 @@ Widget _costRow({
                         size: 12, color: Color(0xFFEA580C)),
                     const SizedBox(width: 6),
                     Text(
-                      "Excedente: +${_fmtQty(order.quantity - order.quotedQuantity)} ${order.unit}",
+                      "Excedente: +${_fmtQty(order.quantity - order.quotedQuantity)} ${order.materialName}",
                       style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
