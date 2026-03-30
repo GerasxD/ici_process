@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/core/constants/app_constants.dart';
 import 'package:ici_process/ui/pdf/purchase_order_pdf_generator.dart';
 import 'package:ici_process/ui/widgets/process_modal/execution_planning_widget.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -115,6 +116,7 @@ class LogisticsSection extends StatefulWidget {
   final Function(Map<String, dynamic>) onDataChanged;
   final bool canViewFinancials;
   final String currentUserName;
+  final UserRole currentUserRole;
 
   const LogisticsSection({
     super.key,
@@ -124,6 +126,7 @@ class LogisticsSection extends StatefulWidget {
     required this.onDataChanged,
     required this.canViewFinancials,
     required this.currentUserName,
+    required this.currentUserRole,
   });
 
   @override
@@ -309,6 +312,10 @@ class _LogisticsSectionState extends State<LogisticsSection> {
       );
     }
 
+    final allowedRoles = [UserRole.superAdmin, UserRole.admin, UserRole.accountant, UserRole.purchasing];
+
+    final bool canViewPurchases = allowedRoles.contains(widget.currentUserRole);
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -428,14 +435,17 @@ class _LogisticsSectionState extends State<LogisticsSection> {
           const SizedBox(height: 20),
 
           // ── 4. Gestión de Compras ────────────────────────
-          _buildSectionTitle(
-              "Gestión de Compras a Proveedores", LucideIcons.shoppingCart),
-          const SizedBox(height: 16),
-          _buildPurchasesSection(),
+          if (canViewPurchases) ...[
+            _buildSectionTitle(
+                "Gestión de Compras a Proveedores", LucideIcons.shoppingCart),
+            const SizedBox(height: 16),
+            _buildPurchasesSection(),
 
           const SizedBox(height: 24),
           const Divider(color: Color(0xFFF1F5F9), thickness: 1.5),
           const SizedBox(height: 20),
+
+          ],
 
           // ── 5. Planificación de Ejecución ────────────────
           _buildSectionTitle(

@@ -42,4 +42,17 @@ class EventService {
     });
   }
 
+  // ── OBTENER DOCUMENTO RAW (para verificar finalización) ──
+  Future<Map<String, dynamic>?> getEventDoc(String id) async {
+    try {
+      final doc = await _ref.doc(id).get();
+      if (doc.exists) {
+        return doc.data() as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
 }

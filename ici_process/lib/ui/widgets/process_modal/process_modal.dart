@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:ici_process/services/user_service.dart';
+import 'package:ici_process/ui/widgets/process_modal/execution_status_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/logistics_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/quote_form_modal.dart';
 import 'package:intl/intl.dart';
@@ -656,7 +657,7 @@ class _ProcessModalState extends State<ProcessModal> {
             0,
             CommentModel(
               id: fechaActual.millisecondsSinceEpoch.toString(),
-              text: "🗑️ PROCESO DESCARTADO por ${widget.user.name}",
+              text: "PROCESO DESCARTADO por ${widget.user.name}",
               userName: widget.user.name,
               date: fechaActual,
             ),
@@ -690,6 +691,260 @@ class _ProcessModalState extends State<ProcessModal> {
 
     final nextStage = stages[currentIndex + 1];
     bool isAuthorizing = widget.process!.stage == ProcessStage.E2;
+
+    // NUEVO: VALIDACION ESTRICTA DE ORDEN DE COMPRA EN E4
+    if (widget.process!.stage == ProcessStage.E4) {
+      final bool missingOc = !_isNoOc && _ocNumberController.text.trim().isEmpty;
+
+      if (missingOc) {
+        // Lanzamos la advertencia visual y bloqueamos el avance
+        await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Container(
+            width: 460,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 40,
+                  offset: const Offset(0, 20),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── HEADER ──────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          LucideIcons.fileX2,
+                          color: Color(0xFFDC2626),
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Falta Orden de Compra",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              "Requerida para avanzar a la siguiente etapa",
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(LucideIcons.x,
+                            color: Color(0xFF94A3B8), size: 20),
+                        splashRadius: 20,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── CONTENIDO ────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                  child: Column(
+                    children: [
+                      // Tarjeta del proceso
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(LucideIcons.fileText,
+                                  size: 16, color: Color(0xFF64748B)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.process?.title ?? "Sin título",
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    widget.process?.client ?? "",
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Color(0xFF64748B)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Advertencia principal
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(LucideIcons.alertTriangle,
+                                size: 16, color: Color(0xFFDC2626)),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "Para avanzar debes ingresar el número de O.C. en el campo correspondiente.",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF991B1B),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Nota alternativa
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9FF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(LucideIcons.info,
+                                size: 16, color: Color(0xFF0369A1)),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "Si el proyecto no requiere O.C., marca la casilla \"Trabajo sin O.C.\" para continuar.",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF0C4A6E),
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── FOOTER ───────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(LucideIcons.checkCircle2, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            "Entendido, Completar O.C. para Avanzar",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+        return; // Esto detiene el flujo y evita que pase a E5
+      }
+    }
 
     // ── Verificar materiales pendientes al avanzar desde E5 ──
     if (widget.process!.stage == ProcessStage.E5 && _currentLogisticsData != null) {
@@ -1429,8 +1684,8 @@ class _ProcessModalState extends State<ProcessModal> {
           _ocReceptionDate = fechaActual;
         }
         String commentText = isAuthorizing
-            ? "✅ COTIZACIÓN COMPLETADA: Se ha enviado a espera de autorización."
-            : "🚀 AVANCE DE ETAPA: El proceso avanzó a ${nextStage.name}";
+            ? "COTIZACIÓN COMPLETADA: Se ha enviado a espera de autorización."
+            : "AVANCE DE ETAPA: El proceso avanzó a ${nextStage.name}";
         _comments.insert(
           0,
           CommentModel(
@@ -1811,7 +2066,7 @@ class _ProcessModalState extends State<ProcessModal> {
           0,
           CommentModel(
             id: fechaActual.millisecondsSinceEpoch.toString(),
-            text: "🔄 RETROCESO DE ETAPA: $motivo",
+            text: "RETROCESO DE ETAPA: $motivo",
             userName: widget.user.name,
             date: fechaActual,
           ),
@@ -1934,138 +2189,489 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // ── NOTIFY USERS ──────────────────────────────────────────
   Future<void> _handleNotifyUsers() async {
+    Set<String> selectedUserIds = {};
+
     await showDialog(
       context: context,
-      builder: (ctx) {
-        Set<String> selectedUserIds = {};
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)),
-              SizedBox(width: 10),
-              Text("Notificar Usuarios"),
-            ],
-          ),
-          content: SizedBox(
-            width: 400,
-            height: 300,
-            child: StreamBuilder<List<UserModel>>(
-              stream: UserService().getUsersStream(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final users = snapshot.data!;
-                return StatefulBuilder(
-                  builder: (context, setStateDialog) => ListView.builder(
-                    itemCount: users.length,
-                    itemBuilder: (context, index) {
-                      final u = users[index];
-                      if (u.id == widget.user.id) return const SizedBox.shrink();
-                      final isSelected = selectedUserIds.contains(u.id);
-                      return CheckboxListTile(
-                        value: isSelected,
-                        activeColor: const Color(0xFF7C3AED),
-                        title: Text(u.name,
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: Text(u.email,
-                            style: const TextStyle(fontSize: 12)),
-                        secondary: CircleAvatar(
-                          backgroundColor: Colors.grey.shade200,
-                          child: Text(u.name.isNotEmpty ? u.name[0] : 'U'),
-                        ),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            if (val == true) {
-                              selectedUserIds.add(u.id);
-                            } else {
-                              selectedUserIds.remove(u.id);
-                            }
-                          });
-                        },
-                      );
-                    },
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Container(
+            width: 500,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 40,
+                  offset: const Offset(0, 20),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── HEADER ──────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
-                );
-              },
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7C3AED).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          LucideIcons.bellRing,
+                          color: Color(0xFF7C3AED),
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Notificar Usuarios",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "O.C. recibida · ${_titleController.text}",
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF7C3AED),
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(LucideIcons.x,
+                            color: Color(0xFF94A3B8), size: 20),
+                        splashRadius: 20,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── CONTENIDO ────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Label de sección
+                      Row(
+                        children: [
+                          const Icon(LucideIcons.users,
+                              size: 14, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 8),
+                          const Text(
+                            "SELECCIONAR DESTINATARIOS",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF94A3B8),
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (selectedUserIds.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF7C3AED),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                "${selectedUserIds.length} seleccionado${selectedUserIds.length > 1 ? 's' : ''}",
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Lista de usuarios
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 300),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: StreamBuilder<List<UserModel>>(
+                            stream: UserService().getUsersStream(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFF7C3AED),
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              }
+                              final users = snapshot.data!
+                                  .where((u) => u.id != widget.user.id)
+                                  .toList();
+
+                              if (users.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: Center(
+                                    child: Text(
+                                      "No hay otros usuarios disponibles.",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF94A3B8),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              return ListView.separated(
+                                shrinkWrap: true,
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                itemCount: users.length,
+                                separatorBuilder: (_, __) => const Divider(
+                                  height: 1,
+                                  indent: 16,
+                                  endIndent: 16,
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                                itemBuilder: (context, index) {
+                                  final u = users[index];
+                                  final isSelected =
+                                      selectedUserIds.contains(u.id);
+                                  final initials = u.name.isNotEmpty
+                                      ? u.name
+                                          .trim()
+                                          .split(' ')
+                                          .take(2)
+                                          .map((w) => w[0].toUpperCase())
+                                          .join()
+                                      : '?';
+
+                                  return InkWell(
+                                    onTap: () {
+                                      setStateDialog(() {
+                                        if (isSelected) {
+                                          selectedUserIds.remove(u.id);
+                                        } else {
+                                          selectedUserIds.add(u.id);
+                                        }
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 150),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 12),
+                                      color: isSelected
+                                          ? const Color(0xFF7C3AED)
+                                              .withOpacity(0.06)
+                                          : Colors.transparent,
+                                      child: Row(
+                                        children: [
+                                          // Avatar
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? const Color(0xFF7C3AED)
+                                                  : const Color(0xFFE2E8F0),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                initials,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: isSelected
+                                                      ? Colors.white
+                                                      : const Color(0xFF64748B),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // Nombre y email
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  u.name,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isSelected
+                                                        ? const Color(0xFF7C3AED)
+                                                        : const Color(0xFF0F172A),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  u.email,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Color(0xFF94A3B8),
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Checkbox visual
+                                          AnimatedContainer(
+                                            duration:
+                                                const Duration(milliseconds: 150),
+                                            width: 22,
+                                            height: 22,
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? const Color(0xFF7C3AED)
+                                                  : Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? const Color(0xFF7C3AED)
+                                                    : const Color(0xFFCBD5E1),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: isSelected
+                                                ? const Icon(LucideIcons.check,
+                                                    size: 14, color: Colors.white)
+                                                : null,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Nota informativa
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F3FF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color:
+                                  const Color(0xFFDDD6FE).withOpacity(0.6)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(LucideIcons.info,
+                                size: 15, color: Color(0xFF7C3AED)),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "Los usuarios seleccionados recibirán una notificación sobre la O.C. recibida.",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF5B21B6),
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── FOOTER ───────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: TextButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side:
+                                  const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                          child: const Text(
+                            "Cancelar",
+                            style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: selectedUserIds.isEmpty
+                              ? null
+                              : () async {
+                                  Navigator.pop(ctx);
+                                  try {
+                                    final batch =
+                                        FirebaseFirestore.instance.batch();
+                                    final collRef = FirebaseFirestore.instance
+                                        .collection('notifications');
+                                    for (final targetId in selectedUserIds) {
+                                      final docRef = collRef.doc();
+                                      batch.set(docRef, {
+                                        'targetUserId': targetId,
+                                        'title': '📌 O.C. Recibida',
+                                        'body':
+                                            'Proyecto: ${_titleController.text}',
+                                        'read': false,
+                                        'createdAt':
+                                            FieldValue.serverTimestamp(),
+                                        'senderName': widget.user.name,
+                                        'processId': widget.process?.id ?? '',
+                                      });
+                                    }
+                                    await batch.commit();
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              "Notificación enviada a ${selectedUserIds.length} usuario${selectedUserIds.length > 1 ? 's' : ''}"),
+                                          backgroundColor:
+                                              const Color(0xFF10B981),
+                                        ),
+                                      );
+                                    }
+                                    setState(() {
+                                      _comments.insert(
+                                        0,
+                                        CommentModel(
+                                          id: DateTime.now()
+                                              .millisecondsSinceEpoch
+                                              .toString(),
+                                          text:
+                                              "Se notificó sobre la O.C. a ${selectedUserIds.length} persona${selectedUserIds.length > 1 ? 's' : ''}.",
+                                          userName: widget.user.name,
+                                          date: DateTime.now(),
+                                        ),
+                                      );
+                                    });
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                "Error al enviar notificaciones")),
+                                      );
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF7C3AED),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                const Color(0xFFE2E8F0),
+                            disabledForegroundColor:
+                                const Color(0xFF94A3B8),
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(LucideIcons.send, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                selectedUserIds.isEmpty
+                                    ? "Selecciona usuarios"
+                                    : "Enviar a ${selectedUserIds.length} usuario${selectedUserIds.length > 1 ? 's' : ''}",
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("Cancelar"),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                if (selectedUserIds.isEmpty) {
-                  Navigator.pop(ctx);
-                  return;
-                }
-                Navigator.pop(ctx);
-                try {
-                  final batch = FirebaseFirestore.instance.batch();
-                  final collRef =
-                      FirebaseFirestore.instance.collection('notifications');
-                  for (final targetId in selectedUserIds) {
-                    final docRef = collRef.doc();
-                    batch.set(docRef, {
-                      'targetUserId': targetId,
-                      'title': '📌 O.C. Recibida',
-                      'body': 'Proyecto: ${_titleController.text}',
-                      'read': false,
-                      'createdAt': FieldValue.serverTimestamp(),
-                      'senderName': widget.user.name,
-                      'processId': widget.process?.id ?? '',
-                    });
-                  }
-                  await batch.commit();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            "Notificación enviada a ${selectedUserIds.length} usuarios"),
-                        backgroundColor: const Color(0xFF10B981),
-                      ),
-                    );
-                  }
-                  setState(() {
-                    _comments.insert(
-                      0,
-                      CommentModel(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        text:
-                            "🔔 Se notificó sobre la O.C. a ${selectedUserIds.length} personas.",
-                        userName: widget.user.name,
-                        date: DateTime.now(),
-                      ),
-                    );
-                  });
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text("Error al enviar notificaciones")),
-                    );
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(LucideIcons.send, size: 16),
-              label: const Text("Enviar Notificación"),
-            ),
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 
   // ── BUILD ─────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final bool isE5 = widget.process?.stage == ProcessStage.E5;
+   final bool showLogistics = widget.process != null && [
+      ProcessStage.E5,
+      ProcessStage.E6,
+      ProcessStage.E7,
+      ProcessStage.E8,
+      ProcessStage.X,
+    ].contains(widget.process!.stage);
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -2116,16 +2722,29 @@ class _ProcessModalState extends State<ProcessModal> {
                           }),
                           onOcDateChanged: (val) =>
                               setState(() => _ocReceptionDate = val),
-                          extraSection: (isE5 && widget.process != null) 
-                          ? LogisticsSection(
-                              process: widget.process!,
-                              isEditable: canEditData,
-                              initialData: _currentLogisticsData,
-                              canViewFinancials: canViewFinancials,
-                              currentUserName: widget.user.name, // ← NUEVO
-                              onDataChanged: (data) {
-                                _currentLogisticsData = data;
-                              },
+                          extraSection: showLogistics
+                          ? Column(
+                              children: [
+                                LogisticsSection(
+                                  process: widget.process!,
+                                  isEditable: widget.process!.stage == ProcessStage.E5 ? canEditData : false,
+                                  initialData: _currentLogisticsData,
+                                  canViewFinancials: canViewFinancials,
+                                  currentUserName: widget.user.name,
+                                  currentUserRole: widget.user.role,
+                                  onDataChanged: (data) {
+                                    _currentLogisticsData = data;
+                                  },
+                                ),
+                                // Mostrar Estatus de Ejecución en E6 en adelante
+                                if (widget.process!.stage.index >= ProcessStage.E6.index) ...[
+                                  const SizedBox(height: 16),
+                                  ExecutionStatusSection(
+                                    process: widget.process!,
+                                    logisticsData: _currentLogisticsData,
+                                  ),
+                                ],
+                              ],
                             )
                           : null,
                         ),
@@ -2278,7 +2897,6 @@ class _ProcessModalState extends State<ProcessModal> {
     );
   }
 
-  // ── COMMENTS ──────────────────────────────────────────────
   Widget _buildCommentsSection() {
     return Container(
       decoration: BoxDecoration(
@@ -2286,118 +2904,371 @@ class _ProcessModalState extends State<ProcessModal> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(LucideIcons.messageSquare, size: 18, color: Color(0xFF3B82F6)),
-              SizedBox(width: 12),
-              Text("NOTAS Y COMENTARIOS",
+          // ── Cabecera de sección ──────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(LucideIcons.messageSquare,
+                      size: 16, color: Color(0xFF2563EB)),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  "HISTORIAL Y COMENTARIOS",
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Color(0xFF1E293B))),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _commentController,
-            onSubmitted: (_) => _addComment(),
-            decoration: InputDecoration(
-              hintText: "Escribe una actualización...",
-              hintStyle:
-                  const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-              suffixIcon: IconButton(
-                onPressed: _addComment,
-                icon: const Icon(LucideIcons.send,
-                    color: Color(0xFF2563EB), size: 20),
-              ),
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: Color(0xFF1E293B),
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const Spacer(),
+                if (_comments.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "${_comments.length} ${_comments.length == 1 ? 'entrada' : 'entradas'}",
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          if (_comments.isEmpty)
-            const Center(
-              child: Text("No hay comentarios aún.",
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                      fontStyle: FontStyle.italic)),
-            )
-          else
-            Column(children: _comments.map((c) => _buildCommentItem(c)).toList()),
+
+          // ── Campo de nuevo comentario ────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Avatar del usuario actual
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.user.name.isNotEmpty
+                          ? widget.user.name
+                              .trim()
+                              .split(' ')
+                              .take(2)
+                              .map((w) => w[0].toUpperCase())
+                              .join()
+                          : '?',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    onSubmitted: (_) => _addComment(),
+                    maxLines: 1,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF1E293B),
+                        height: 1.4),
+                    decoration: InputDecoration(
+                      hintText: "Escribe una actualización o nota...",
+                      hintStyle: const TextStyle(
+                          fontSize: 13, color: Color(0xFF94A3B8)),
+                      suffixIcon: IconButton(
+                        onPressed: _addComment,
+                        icon: const Icon(LucideIcons.send,
+                            color: Color(0xFF2563EB), size: 18),
+                        tooltip: "Enviar",
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF2563EB), width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Lista de comentarios ─────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: _comments.isEmpty
+                ? Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          style: BorderStyle.solid),
+                    ),
+                    child: const Column(
+                      children: [
+                        Icon(LucideIcons.messageSquareDashed,
+                            size: 28, color: Color(0xFFCBD5E1)),
+                        SizedBox(height: 10),
+                        Text(
+                          "Sin comentarios aún",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "Las actualizaciones del proceso aparecerán aquí.",
+                          style: TextStyle(
+                              fontSize: 12, color: Color(0xFFCBD5E1)),
+                        ),
+                      ],
+                    ),
+                  )
+                : Column(
+                    children: _comments
+                        .map((c) => _buildCommentItem(c))
+                        .toList()),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildCommentItem(CommentModel c) {
-    bool isRegression = c.text.contains("🔄 RETROCESO");
-    bool isAdvance = c.text.contains("🚀 AVANCE");
+    // Clasificar el tipo de entrada
+    final bool isRegression = c.text.startsWith("RETROCESO DE ETAPA");
+    final bool isAdvance = c.text.startsWith("AVANCE DE ETAPA");
+    final bool isAuthorized = c.text.startsWith("COTIZACIÓN COMPLETADA");
+    final bool isDiscarded = c.text.startsWith("PROCESO DESCARTADO");
+    final bool isNotification = c.text.startsWith("Notificación de O.C.");
+    final bool isSystemEvent = isRegression ||
+        isAdvance ||
+        isAuthorized ||
+        isDiscarded ||
+        isNotification;
+
+    // Paleta por tipo
+    Color accentColor;
     Color bgColor;
     Color borderColor;
-    Color textColor;
+    IconData typeIcon;
+    String? typeLabel;
 
     if (isRegression) {
+      accentColor = const Color(0xFFEA580C);
       bgColor = const Color(0xFFFFF7ED);
-      borderColor = Colors.orange.shade200;
-      textColor = const Color(0xFF9A3412);
+      borderColor = const Color(0xFFFED7AA);
+      typeIcon = LucideIcons.arrowLeftCircle;
+      typeLabel = "RETROCESO";
     } else if (isAdvance) {
+      accentColor = const Color(0xFF059669);
       bgColor = const Color(0xFFECFDF5);
-      borderColor = Colors.green.shade200;
-      textColor = const Color(0xFF065F46);
+      borderColor = const Color(0xFFBBF7D0);
+      typeIcon = LucideIcons.arrowRightCircle;
+      typeLabel = "AVANCE";
+    } else if (isAuthorized) {
+      accentColor = const Color(0xFF4338CA);
+      bgColor = const Color(0xFFEEF2FF);
+      borderColor = const Color(0xFFC7D2FE);
+      typeIcon = LucideIcons.shieldCheck;
+      typeLabel = "AUTORIZACIÓN";
+    } else if (isDiscarded) {
+      accentColor = const Color(0xFF64748B);
+      bgColor = const Color(0xFFF8FAFC);
+      borderColor = const Color(0xFFE2E8F0);
+      typeIcon = LucideIcons.archive;
+      typeLabel = "DESCARTADO";
+    } else if (isNotification) {
+      accentColor = const Color(0xFF7C3AED);
+      bgColor = const Color(0xFFF5F3FF);
+      borderColor = const Color(0xFFDDD6FE);
+      typeIcon = LucideIcons.bellRing;
+      typeLabel = "NOTIFICACIÓN";
     } else {
-      bgColor = const Color(0xFFF1F5F9);
-      borderColor = Colors.transparent;
-      textColor = const Color(0xFF334155);
+      accentColor = const Color(0xFF2563EB);
+      bgColor = const Color(0xFFF8FAFC);
+      borderColor = const Color(0xFFE2E8F0);
+      typeIcon = LucideIcons.messageSquare;
+      typeLabel = null;
+    }
+
+    // Iniciales del autor
+    final initials = c.userName.isNotEmpty
+        ? c.userName
+            .trim()
+            .split(' ')
+            .take(2)
+            .map((w) => w[0].toUpperCase())
+            .join()
+        : '?';
+
+    // Texto limpio (quitar el prefijo de tipo si es evento de sistema)
+    String displayText = c.text;
+    if (isRegression) {
+      displayText = c.text.replaceFirst("RETROCESO DE ETAPA: ", "");
+    } else if (isAdvance) {
+      displayText = c.text.replaceFirst("AVANCE DE ETAPA: ", "");
+    } else if (isAuthorized) {
+      displayText = c.text.replaceFirst("COTIZACIÓN COMPLETADA: ", "");
+    } else if (isDiscarded) {
+      displayText = c.text.replaceFirst("PROCESO DESCARTADO por ${c.userName}", "Movido a Descartados.");
     }
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: (isRegression || isAdvance) ? Border.all(color: borderColor) : null,
+        border: Border.all(color: borderColor),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                c.userName,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    color: isRegression
-                        ? Colors.orange.shade700
-                        : (isAdvance
-                            ? Colors.green.shade700
-                            : const Color(0xFF2563EB))),
+          // ── Ícono / Avatar ────────────────────────────────
+          if (isSystemEvent)
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              Text(DateFormat('dd/MM HH:mm').format(c.date),
-                  style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            c.text,
-            style: TextStyle(
-              fontSize: 13,
-              color: textColor,
-              fontWeight:
-                  (isRegression || isAdvance) ? FontWeight.w600 : FontWeight.normal,
+              child: Icon(typeIcon, size: 16, color: accentColor),
+            )
+          else
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ),
+
+          const SizedBox(width: 12),
+
+          // ── Contenido ────────────────────────────────────
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Badge de tipo (solo eventos de sistema)
+                    if (typeLabel != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: accentColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          typeLabel,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: accentColor,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: Text(
+                        c.userName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isSystemEvent
+                              ? accentColor
+                              : const Color(0xFF334155),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      DateFormat('dd MMM · HH:mm', 'es').format(c.date),
+                      style: const TextStyle(
+                          fontSize: 11, color: Color(0xFF94A3B8)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  displayText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isSystemEvent
+                        ? accentColor.withOpacity(0.85)
+                        : const Color(0xFF475569),
+                    fontWeight: isSystemEvent
+                        ? FontWeight.w500
+                        : FontWeight.normal,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
