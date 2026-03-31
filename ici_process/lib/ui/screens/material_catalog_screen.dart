@@ -248,29 +248,75 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                     
                     // --- 3. MOSTRAR STOCK EN LA TARJETA ---
                     const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: lowStock ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: lowStock ? Colors.red.withOpacity(0.3) : Colors.blue.withOpacity(0.3))
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(LucideIcons.layers, size: 12, color: lowStock ? Colors.red : Colors.blue),
-                          const SizedBox(width: 6),
-                          Text(
-                            "Stock: ${item.stock.toStringAsFixed(2)} ${item.unit}", // Muestra decimales si es necesario
-                            style: GoogleFonts.inter(
-                              fontSize: 12, 
-                              fontWeight: FontWeight.w600, 
-                              color: lowStock ? Colors.red : Colors.blue
-                            )
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        // Badge de Stock Total
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: lowStock ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: lowStock ? Colors.red.withOpacity(0.3) : Colors.blue.withOpacity(0.3))
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.layers, size: 12, color: lowStock ? Colors.red : Colors.blue),
+                              const SizedBox(width: 6),
+                              Text(
+                                "Stock: ${item.stock.toStringAsFixed(2)} ${item.unit}",
+                                style: GoogleFonts.inter(
+                                  fontSize: 12, 
+                                  fontWeight: FontWeight.w600, 
+                                  color: lowStock ? Colors.red : Colors.blue
+                                )
+                              ),
+                            ],
+                          ),
+                        ),
+                        // ★ NUEVO: Badge de Apartado (solo si hay reservas)
+                        if (item.reservedStock > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.amber.withOpacity(0.3))
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.lock, size: 12, color: Colors.amber.shade700),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Apartado: ${item.reservedStock.toStringAsFixed(2)}",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12, 
+                                    fontWeight: FontWeight.w600, 
+                                    color: Colors.amber.shade700,
+                                  )
+                                ),
+                              ],
+                            ),
                           ),
                         ],
+                      ],
+                    ),
+                    // ★ NUEVO: Mostrar Disponible si hay reservas
+                    if (item.reservedStock > 0) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        "Disponible: ${item.availableStock.toStringAsFixed(2)} ${item.unit}",
+                        style: GoogleFonts.inter(
+                          fontSize: 11, 
+                          fontWeight: FontWeight.w500, 
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
-                    )
+                    ],
                     // --------------------------------------
                   ],
                 ),

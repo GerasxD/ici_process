@@ -30,6 +30,8 @@ class LogisticsItem {
   double stockUnitPrice;    // ← NUEVO: precio al que está valorado el stock
   DateTime? purchaseDate;
   List<PurchaseOrder>? purchaseOrders;
+  bool isStockReserved;       // ¿ya se apartó el stock?
+  double reservedStockQty;    // cantidad que se apartó
  
   LogisticsItem({
     required this.materialId,
@@ -42,9 +44,11 @@ class LogisticsItem {
     this.selectedProviderName,
     this.actualUnitPrice = 0,
     this.quotedUnitPrice = 0,
-    this.stockUnitPrice = 0,   // ← NUEVO
+    this.stockUnitPrice = 0,  
     this.purchaseDate,
     this.purchaseOrders,
+     this.isStockReserved = false,   
+    this.reservedStockQty = 0, 
   });
  
   double get toBuyQty => (requiredQty - stockQty).clamp(0.0, double.infinity);
@@ -82,6 +86,8 @@ class LogisticsItem {
         'stockUnitPrice': stockUnitPrice,   // ← NUEVO
         'purchaseDate': purchaseDate?.toIso8601String(),
         'purchaseOrders': purchaseOrders?.map((o) => o.toMap()).toList() ?? [],
+        'isStockReserved': isStockReserved,     
+        'reservedStockQty': reservedStockQty,
       };
  
   factory LogisticsItem.fromMap(Map<String, dynamic> map) => LogisticsItem(
@@ -102,6 +108,8 @@ class LogisticsItem {
         purchaseOrders: (map['purchaseOrders'] as List? ?? [])
             .map((e) => PurchaseOrder.fromMap(Map<String, dynamic>.from(e)))
             .toList(),
+        isStockReserved: map['isStockReserved'] ?? false,         
+        reservedStockQty: (map['reservedStockQty'] ?? 0).toDouble(), 
       );
 }
 
@@ -211,9 +219,13 @@ class _LogisticsSectionState extends State<LogisticsSection> {
                   m.id == item.materialId ||
                   m.name.toLowerCase() == item.materialName.toLowerCase(),
             );
-  
-            // Cantidad de stock actualizada
-            item.stockQty = dbMat.stock;
+
+            // Si ya está reservado, mantenemos el stockQty original
+            if (!item.isStockReserved) {
+              item.stockQty = dbMat.availableStock;
+            } else {
+              item.stockQty = item.reservedStockQty; // Usamos lo que ya apartamos
+            }
   
             // ★ FIX: recalcular stockUnitPrice si no fue guardado (0)
             //   o simplemente actualizarlo siempre con el precio de referencia
@@ -268,7 +280,7 @@ class _LogisticsSectionState extends State<LogisticsSection> {
         materialName: qItem.name,
         unit: dbMat?.unit ?? '',
         requiredQty: qItem.quantity,
-        stockQty: dbMat?.stock ?? 0,
+        stockQty: dbMat?.availableStock ?? 0,  // ★ Usar stock disponible (sin reservas)
         quotedUnitPrice: qItem.unitPrice,
         actualUnitPrice: qItem.unitPrice,
         // ★ FIX: usar el helper centralizado
@@ -298,6 +310,139 @@ class _LogisticsSectionState extends State<LogisticsSection> {
       'realCostTotal': _realCostTotal,
       'items': _items.map((e) => e.toMap()).toList(),
     });
+  }
+
+  Future<void> _reserveAllStock() async {
+    final itemsToReserve = _items.where(
+      (i) => !i.isStockReserved && i.stockQty > 0 && i.requiredQty > 0
+    ).toList();
+ 
+    if (itemsToReserve.isEmpty) {
+      _showSnack("No hay materiales pendientes de apartar", isError: true);
+      return;
+    }
+ 
+    // Confirmación
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(LucideIcons.packageCheck, color: Color(0xFF2563EB), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text("Apartar Stock", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Se reservará el stock disponible para ${itemsToReserve.length} material(es). "
+              "El stock quedará apartado para este proyecto pero NO se descontará hasta que avance a Ejecución.",
+              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            // Lista resumida de lo que se va a apartar
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: itemsToReserve.map((item) {
+                  final toReserve = item.stockQty.clamp(0.0, item.requiredQty);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.package, size: 14, color: Color(0xFF2563EB)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(item.materialName, 
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                        ),
+                        Text("${_fmtQty(toReserve)} ${item.unit}", 
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF2563EB))),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B))),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(LucideIcons.packageCheck, size: 16),
+            label: Text("Apartar Stock", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+ 
+    if (confirm != true) return;
+ 
+    // Ejecutar las reservas
+    int successCount = 0;
+    for (final item in itemsToReserve) {
+      final toReserve = item.stockQty.clamp(0.0, item.requiredQty);
+      if (toReserve > 0) {
+        final success = await _materialService.reserveStock(item.materialId, toReserve);
+        if (success) {
+          setState(() {
+            item.isStockReserved = true;
+            item.reservedStockQty = toReserve;
+          });
+          successCount++;
+        }
+      }
+    }
+ 
+    _notifyChanged();
+ 
+    if (successCount > 0) {
+      _showSnack("✓ Stock apartado para $successCount material(es)");
+    } else {
+      _showSnack("No se pudo apartar el stock", isError: true);
+    }
+  }
+ 
+  /// Helper para mostrar snackbar desde LogisticsSection
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+      backgroundColor: isError ? const Color(0xFFDC2626) : const Color(0xFF059669),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+ 
+  static String _fmtQty(double qty) {
+    if (qty == qty.truncateToDouble()) return qty.toStringAsFixed(0);
+    return qty.toStringAsFixed(2);
   }
 
   // ── BUILD ────────────────────────────────────────────────
@@ -429,6 +574,12 @@ class _LogisticsSectionState extends State<LogisticsSection> {
           _buildSectionTitle("Balance de Materiales", LucideIcons.table),
           const SizedBox(height: 16),
           _buildBalanceTable(),
+ 
+          // ★ NUEVO: Botón de Apartar Stock
+          if (widget.isEditable && _items.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildReserveStockButton(),
+          ],
 
           const SizedBox(height: 24),
           const Divider(color: Color(0xFFF1F5F9), thickness: 1.5),
@@ -555,7 +706,35 @@ class _LogisticsSectionState extends State<LogisticsSection> {
                     ),
                   ),
                   Expanded(flex: 2, child: _buildQtyCell("${item.requiredQty.toStringAsFixed(item.requiredQty.truncateToDouble() == item.requiredQty ? 0 : 2)}", null)),
-                  Expanded(flex: 2, child: _buildQtyCell("${item.stockQty.toStringAsFixed(item.stockQty.truncateToDouble() == item.stockQty ? 0 : 2)}", const Color(0xFF2563EB))),
+                  Expanded(
+                    flex: 2, 
+                    child: Column(
+                      children: [
+                        _buildQtyCell(
+                          "${item.stockQty.toStringAsFixed(item.stockQty.truncateToDouble() == item.stockQty ? 0 : 2)}", 
+                          const Color(0xFF2563EB),
+                        ),
+                        // ★ Indicador visual de reserva
+                        if (item.isStockReserved)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF059669).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              "Apartado",
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF059669),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                   Expanded(flex: 2, child: _buildQtyCell("${item.purchasedQty.toStringAsFixed(item.purchasedQty.truncateToDouble() == item.purchasedQty ? 0 : 2)}", const Color(0xFF10B981))),
                   Expanded(flex: 2, child: _buildQtyCell(pending.toStringAsFixed(pending.truncateToDouble() == pending ? 0 : 2), pendingColor)),
                 ],
@@ -563,6 +742,94 @@ class _LogisticsSectionState extends State<LogisticsSection> {
             );
           }),
         ],
+      ),
+    );
+  }
+
+  Widget _buildReserveStockButton() {
+    final hasUnreserved = _items.any(
+      (i) => !i.isStockReserved && i.stockQty > 0 && i.requiredQty > 0
+    );
+    final allReserved = _items.isNotEmpty && 
+      _items.where((i) => i.stockQty > 0 && i.requiredQty > 0).every((i) => i.isStockReserved);
+ 
+    if (allReserved && _items.any((i) => i.isStockReserved)) {
+      // Ya todo está apartado — mostrar badge de éxito
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECFDF5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF6EE7B7)),
+        ),
+        child: Row(
+          children: [
+            const Icon(LucideIcons.shieldCheck, color: Color(0xFF059669), size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Stock Apartado",
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: const Color(0xFF059669),
+                    ),
+                  ),
+                  Text(
+                    "El material en stock ya está reservado para este proyecto. "
+                    "Se descontará al avanzar a Ejecución.",
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF065F46),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+ 
+    if (!hasUnreserved) return const SizedBox.shrink();
+ 
+    // Botón para apartar
+    return InkWell(
+      onTap: _reserveAllStock,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2563EB).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(LucideIcons.packageCheck, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              "Apartar Stock del Almacén",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
