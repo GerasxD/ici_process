@@ -1342,6 +1342,285 @@ class _ProcessModalState extends State<ProcessModal> {
     }
     // ── FIN de verificación E5 ──
 
+    if (widget.process!.stage == ProcessStage.E5) {
+      final planningData = _currentLogisticsData?['executionPlanning'] as Map<String, dynamic>?;
+
+      final String? startDate = planningData?['startDate'];
+      final String? endDate = planningData?['endDate'];
+      final List techIds = planningData?['technicianIds'] as List? ?? [];
+
+      final bool missingStart = startDate == null || startDate.isEmpty;
+      final bool missingEnd = endDate == null || endDate.isEmpty;
+      final bool missingTechs = techIds.isEmpty;
+
+      final List<String> missing = [];
+      if (missingStart) missing.add("Fecha de inicio de ejecución");
+      if (missingEnd) missing.add("Fecha de fin de ejecución");
+      if (missingTechs) missing.add("Al menos un técnico asignado");
+
+      if (missing.isNotEmpty) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 480,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── HEADER ──────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFFFF7ED), Color(0xFFFEF3C7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB45309).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            LucideIcons.calendarX2,
+                            color: Color(0xFFB45309),
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Planificación Incompleta",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "${missing.length} campo${missing.length > 1 ? 's' : ''} requerido${missing.length > 1 ? 's' : ''} para ejecutar",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFFB45309),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x, color: Color(0xFF94A3B8), size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── CONTENIDO ────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Tarjeta del proceso
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(LucideIcons.layoutList, size: 16, color: Color(0xFF64748B)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      widget.process?.title ?? "Sin título",
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      widget.process?.client ?? "",
+                                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Label de campos faltantes
+                        const Row(
+                          children: [
+                            Icon(LucideIcons.alertCircle, size: 14, color: Color(0xFFB45309)),
+                            SizedBox(width: 8),
+                            Text(
+                              "INFORMACIÓN REQUERIDA",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFB45309),
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Lista de campos faltantes
+                        ...missing.map((field) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFCD34D).withOpacity(0.6)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFB45309),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  field,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF92400E),
+                                  ),
+                                ),
+                              ),
+                              const Icon(LucideIcons.xCircle, size: 16, color: Color(0xFFB45309)),
+                            ],
+                          ),
+                        )),
+
+                        const SizedBox(height: 12),
+
+                        // Nota informativa
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(LucideIcons.info, size: 16, color: Color(0xFF0369A1)),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Completa la sección \"Planificación de Ejecución\" en Logística antes de avanzar a Ejecución.",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF0C4A6E),
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── FOOTER ───────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFB45309),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(LucideIcons.checkCircle2, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              "Entendido, Completar Planificación",
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        return; // ← Bloquea el avance
+      }
+    }
+    // ── FIN de validación planificación de ejecución ──
+
     // Configuración visual según tipo de avance
     final currentStageConfig = stageConfigs[widget.process!.stage];
     final nextStageConfig = stageConfigs[nextStage];
@@ -2164,10 +2443,35 @@ class _ProcessModalState extends State<ProcessModal> {
   // ── QUOTE ─────────────────────────────────────────────────
   Future<void> _openQuoteModal() async {
     if (widget.process == null) return;
+
+    // ✅ Usar los datos de cotización ya guardados en el estado local
+    final processWithLatestQuote = ProcessModel(
+      id: widget.process!.id,
+      title: _titleController.text,
+      client: _clientController.text,
+      requestedBy: _requestedBy ?? widget.process!.requestedBy,
+      requestDate: _requestDate,
+      description: _descriptionController.text,
+      priority: _priority,
+      stage: widget.process!.stage,
+      comments: _comments,
+      history: widget.process!.history,
+      updatedAt: widget.process!.updatedAt,
+      amount: double.tryParse(_amountController.text) ?? widget.process!.amount,
+      estimatedCost: double.tryParse(_costController.text) ?? widget.process!.estimatedCost,
+      poNumber: _ocNumberController.text,
+      skipClientPO: _isNoOc,
+      poDate: widget.process!.poDate,
+      quotationData: _currentQuotationData ?? widget.process!.quotationData, // ← clave
+      logisticsData: _currentLogisticsData,
+      logisticsStatus: _resolveLogisticsStatus(),
+    );
+
     await showDialog(
       context: context,
-      builder: (_) => QuoteFormModal(process: widget.process!),
+      builder: (_) => QuoteFormModal(process: processWithLatestQuote), // ← proceso actualizado
     );
+
     final updatedProcess = await _processService.getProcessById(widget.process!.id);
     if (updatedProcess != null && mounted) {
       setState(() {

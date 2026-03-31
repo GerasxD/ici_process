@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
+import 'package:ici_process/core/utils/web_utils.dart';
 
 class WorkOrderPdfGenerator {
   // ── PALETA DE COLORES ─────────────────────────────────────
@@ -37,7 +39,7 @@ class WorkOrderPdfGenerator {
     required DateTime? startDate,
     required DateTime? endDate,
     required DateTime? realCompletionDate,
-    required List<String> technicianNames,
+    required List<Map<String, String>> technicians,
     required List<String> toolNames,
     required List<Map<String, String>> materials,
     required String notes,
@@ -51,16 +53,31 @@ class WorkOrderPdfGenerator {
       startDate: startDate,
       endDate: endDate,
       realCompletionDate: realCompletionDate,
-      technicianNames: technicianNames,
+      technicians: technicians,
       toolNames: toolNames,
       materials: materials,
       notes: notes,
       folio: folio,
     );
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'OrdenTrabajo-$folio.pdf',
-    );
+
+    final bytes = await pdf.save();
+    final fileName = 'OrdenTrabajo-$folio.pdf';
+
+    if (kIsWeb) {
+      // ── Flutter Web: abre el PDF en nueva pestaña del navegador ──
+      _openPdfInBrowser(bytes, fileName);
+    } else {
+      // ── Mobile / Desktop: diálogo de impresión nativo ──
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+        name: fileName,
+      );
+    }
+  }
+
+  static void _openPdfInBrowser(List<int> bytes, String fileName) {
+    // La función correcta se resuelve automáticamente por el import condicional
+    openPdfInBrowser(bytes, fileName);
   }
 
   // ── CONSTRUCCIÓN INTERNA ──────────────────────────────────
@@ -72,7 +89,7 @@ class WorkOrderPdfGenerator {
     required DateTime? startDate,
     required DateTime? endDate,
     required DateTime? realCompletionDate,
-    required List<String> technicianNames,
+    required List<Map<String, String>> technicians,
     required List<String> toolNames,
     required List<Map<String, String>> materials,
     required String notes,
@@ -117,7 +134,7 @@ class WorkOrderPdfGenerator {
                 pw.SizedBox(height: 20),
 
                 // ── 4. Personal Asignado ──
-                _buildPersonnelSection(technicianNames),
+                _buildPersonnelSection(technicians),
 
                 pw.SizedBox(height: 20),
 
@@ -369,11 +386,11 @@ class WorkOrderPdfGenerator {
   }
 
   // ── 4. PERSONAL ASIGNADO ──────────────────────────────────
- static pw.Widget _buildPersonnelSection(List<String> names) {
+  static pw.Widget _buildPersonnelSection(List<Map<String, String>> technicians) {
     return _buildSectionContainer(
       title: 'PERSONAL ASIGNADO',
       iconColor: _orange,
-      child: names.isEmpty
+      child: technicians.isEmpty
           ? pw.Text('Sin personal asignado.',
               style: pw.TextStyle(fontSize: 10, color: _slate400))
           : pw.Table(
@@ -385,22 +402,38 @@ class WorkOrderPdfGenerator {
                 verticalInside: pw.BorderSide(color: _slate200, width: 0.3),
               ),
               columnWidths: {
-                0: const pw.FlexColumnWidth(1),
-                1: const pw.FlexColumnWidth(7),
+                0: const pw.FlexColumnWidth(0.5),  // #
+                1: const pw.FlexColumnWidth(3),    // Nombre
+                2: const pw.FlexColumnWidth(2),    // NSS
+                3: const pw.FlexColumnWidth(1),    // Tipo de Sangre
+                4: const pw.FlexColumnWidth(2),    // Contacto Emergencia
               },
               children: [
+                // ── Encabezado ──
                 pw.TableRow(
-                  decoration: pw.BoxDecoration(color: _slate100),
+                  decoration: pw.BoxDecoration(color: _navy),
                   children: [
-                    _tableHeader('#'),
-                    _tableHeader('NOMBRE'),
+                    _tableHeaderWhite('#'),
+                    _tableHeaderWhite('NOMBRE'),
+                    _tableHeaderWhite('NSS'),
+                    _tableHeaderWhite('TIPO DE SANGRE'),
+                    _tableHeaderWhite('NUMERO DE EMERGENCIA'),
                   ],
                 ),
-                ...names.asMap().entries.map((entry) {
+                // ── Filas ──
+                ...technicians.asMap().entries.map((entry) {
+                  final t = entry.value;
+                  final isEven = entry.key % 2 == 0;
                   return pw.TableRow(
+                    decoration: pw.BoxDecoration(
+                      color: isEven ? _white : _slate100,
+                    ),
                     children: [
                       _tableCell('${entry.key + 1}', centered: true),
-                      _tableCell(entry.value),
+                      _tableCellBold(t['name'] ?? '—'),
+                      _tableCell(t['nss']?.isNotEmpty == true ? t['nss']! : '—'),
+                      _tableCellBloodType(t['bloodType'] ?? ''),
+                      _tableCellEmergency(t['emergencyPhone'] ?? ''),
                     ],
                   );
                 }),
@@ -623,21 +656,82 @@ class WorkOrderPdfGenerator {
     );
   }
 
-  static pw.Widget _tableHeader(String text) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      child: pw.Text(text,
-          style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _slate600, letterSpacing: 0.5),
-          textAlign: pw.TextAlign.center),
-    );
-  }
-
   static pw.Widget _tableCell(String text, {bool centered = false}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: pw.Text(text,
           style: pw.TextStyle(fontSize: 10, color: _slate800),
           textAlign: centered ? pw.TextAlign.center : pw.TextAlign.left),
+    );
+  }
+
+  static pw.Widget _tableHeaderWhite(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 7,
+          fontWeight: pw.FontWeight.bold,
+          color: _white,
+          letterSpacing: 0.5,
+        ),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  static pw.Widget _tableCellBold(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 9.5,
+          fontWeight: pw.FontWeight.bold,
+          color: _slate800,
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _tableCellBloodType(String bloodType) {
+    final bool hasValue = bloodType.isNotEmpty;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: hasValue
+          ? pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: pw.BoxDecoration(
+                color: PdfColor.fromInt(0xFFFFE4E6), // rojo claro
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Text(
+                bloodType,
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0xFFDC2626),
+                ),
+                textAlign: pw.TextAlign.center,
+              ),
+            )
+          : pw.Text('—', style: pw.TextStyle(fontSize: 9, color: _slate400), textAlign: pw.TextAlign.center),
+    );
+  }
+
+  static pw.Widget _tableCellEmergency(String phone) {
+    final bool hasValue = phone.isNotEmpty;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: pw.Text(
+        hasValue ? phone : '—',
+        style: pw.TextStyle(
+          fontSize: 9,
+          color: hasValue ? PdfColor.fromInt(0xFFFF6B35) : _slate400,
+          fontWeight: hasValue ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+      ),
     );
   }
 }

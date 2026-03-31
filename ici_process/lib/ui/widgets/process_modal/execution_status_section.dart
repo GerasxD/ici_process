@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:ici_process/services/worker_service.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import '../../../models/process_model.dart';
@@ -139,7 +140,7 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
     setState(() => _isLoadingPdf = true);
 
     try {
-      // Obtener nombres de herramientas desde la BD
+      // ── Herramientas (sin cambios) ──
       List<String> toolNames = [];
       if (_toolIds.isNotEmpty) {
         final tools = await _toolService.getTools().first;
@@ -153,7 +154,33 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
         }
       }
 
-      // Obtener lista de materiales del logisticsData
+      // ── NUEVO: Busca los datos extra de cada técnico ──
+      final workerService = WorkerService();
+      final allWorkers = await workerService.getWorkers().first;
+
+      final List<Map<String, String>> technicians = _technicianNames.map((name) {
+        try {
+          final worker = allWorkers.firstWhere(
+            (w) => w.name.trim().toLowerCase() == name.trim().toLowerCase(),
+          );
+          return {
+            'name': worker.name,
+            'nss': worker.nss,
+            'bloodType': worker.bloodType,
+            'emergencyPhone': worker.emergencyPhone,
+          };
+        } catch (_) {
+          // Si no se encuentra, muestra solo el nombre
+          return {
+            'name': name,
+            'nss': '',
+            'bloodType': '',
+            'emergencyPhone': '',
+          };
+        }
+      }).toList();
+
+      // ── Materiales (sin cambios) ──
       List<Map<String, String>> materials = [];
       final items = widget.logisticsData?['items'] as List? ?? [];
       for (final rawItem in items) {
@@ -173,7 +200,7 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
         startDate: _startDate,
         endDate: _endDate,
         realCompletionDate: _realCompletionDate,
-        technicianNames: _technicianNames,
+        technicians: technicians,          // ← nombre actualizado
         toolNames: toolNames,
         materials: materials,
         notes: widget.logisticsData?['notes'] ?? '',

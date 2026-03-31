@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:ici_process/core/utils/web_utils.dart';
 import 'package:ici_process/models/purchase_order_model.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -43,11 +45,20 @@ class PurchaseOrderPdfGenerator {
       folio: folio,
       generatedBy: generatedBy,
     );
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'OC-$folio-${order.providerName}.pdf',
-    );
+
+    final bytes = await pdf.save();
+    final fileName = 'OC-$folio-${order.providerName}.pdf';
+
+    if (kIsWeb) {
+      openPdfInBrowser(bytes, fileName); // ← usa el helper condicional
+    } else {
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+        name: fileName,
+      );
+    }
   }
+
 
   static Future<List<int>> generateBytes({
     required PurchaseOrder order,

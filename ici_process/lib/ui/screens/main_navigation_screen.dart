@@ -13,6 +13,7 @@ import 'package:ici_process/ui/screens/provider_management_screen.dart';
 import 'package:ici_process/ui/screens/service_catalog_screen.dart';
 import 'package:ici_process/ui/screens/tool_catalog_screen.dart';
 import 'package:ici_process/ui/screens/vehicle_management_screen.dart';
+import 'package:ici_process/ui/screens/worker_management_screen.dart';
 import 'package:ici_process/ui/widgets/process_modal/process_modal.dart';
 import 'package:ici_process/ui/widgets/kanban_view.dart';
 import 'package:intl/intl.dart'; 
@@ -60,16 +61,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     // ✅ 2. Inicializamos todas las pantallas una sola vez
     _views = [
-      KanbanView(currentUser: widget.user), // 0
-      CalendarScreen(currentUser: widget.user), // 1
-      const Center(child: Text("Reportes (Próximamente)")), // 2
-      ClientManagementScreen(currentUser: widget.user), // 3
-      ProviderManagementScreen(currentUser: widget.user), // 4
-      MaterialCatalogScreen(currentUser: widget.user), // 5
-      ServiceCatalogScreen(currentUser:  widget.user), // 6
-      ToolCatalogScreen(currentUser: widget.user), // 7
-      VehicleManagementScreen(currentUser: widget.user),// 8
-      AdminPanelScreen(currentUser: widget.user), // 9
+      KanbanView(currentUser: widget.user),                    // 0
+      CalendarScreen(currentUser: widget.user),                // 1
+      const Center(child: Text("Reportes (Próximamente)")),    // 2
+      ClientManagementScreen(currentUser: widget.user),        // 3
+      ProviderManagementScreen(currentUser: widget.user),      // 4
+      MaterialCatalogScreen(currentUser: widget.user),         // 5
+      ServiceCatalogScreen(currentUser: widget.user),          // 6
+      ToolCatalogScreen(currentUser: widget.user),             // 7
+      VehicleManagementScreen(currentUser: widget.user),       // 8
+      WorkerManagementScreen(currentUser: widget.user),        // 9  
+      AdminPanelScreen(currentUser: widget.user),              // 10
     ];
   }
 
@@ -229,9 +231,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               // Vehículos
               if (pm.can(widget.user, 'view_vehicles'))
                 _buildNavItem(8, "Vehiculos", LucideIcons.truck, isMobile),
+
+              if (pm.can(widget.user, 'view_workers'))
+                _buildNavItem(9, "Personal", LucideIcons.hardHat, isMobile),
+                
               // Admin Panel (Usamos manage_users como llave maestra para ver el panel)
               if (pm.can(widget.user, 'manage_users'))
-                _buildNavItem(9, "Administración", LucideIcons.settings, isMobile),
+                _buildNavItem(10, "Administración", LucideIcons.settings, isMobile),
             ],
           ),
         ),

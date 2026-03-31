@@ -45,14 +45,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'edit_materials': 'Editar/Crear Materiales',
     'edit_tools': 'Editar/Crear Herramientas',
     'edit_vehicles': 'Editar/Crear Vehículos',
+    'view_workers': 'Ver Personal / Trabajadores',    // ← NUEVO
+    'edit_workers': 'Editar/Crear Trabajadores',  
     'view_financials': 'Ver Resumen Financiero (Costos/Precios)',
   };
 
   // Estructura original de permisos
   final Map<String, List<String>> _permissionGroups = {
     'General': ['view_dashboard', 'manage_users', 'view_budget', 'move_stage'],
-    'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles','view_financials'],
-    'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_tools', 'edit_vehicles'],
+    'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles','view_workers','view_financials',],
+    'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_tools', 'edit_vehicles','edit_workers',],
   };
 
   @override
