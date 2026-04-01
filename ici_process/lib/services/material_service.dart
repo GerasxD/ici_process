@@ -24,8 +24,11 @@ class MaterialService {
   }
 
   // 3. ACTUALIZAR
+  // ★ FIX: No sobreescribir reservedStock al editar desde el catálogo
   Future<void> updateMaterial(MaterialItem material) async {
-    await _materialsRef.doc(material.id).update(material.toMap());
+    final map = material.toMap();
+    map.remove('reservedStock'); // Nunca tocar las reservas desde aquí
+    await _materialsRef.doc(material.id).update(map);
   }
 
   // 4. ELIMINAR
@@ -34,18 +37,10 @@ class MaterialService {
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  ★ NUEVO: SISTEMA DE RESERVA DE STOCK EN 2 FASES
+  //  SISTEMA DE RESERVA DE STOCK EN 2 FASES
   // ═══════════════════════════════════════════════════════════
 
   /// FASE 1 — APARTAR STOCK
-  /// Incrementa `reservedStock` en el material sin tocar `stock`.
-  /// Se llama desde Logística (E5) cuando el usuario presiona "Apartar".
-  /// 
-  /// [materialId] — ID del material en Firestore
-  /// [qty] — Cantidad a reservar
-  /// 
-  /// Usa transacción para evitar race conditions si dos usuarios
-  /// intentan reservar al mismo tiempo.
   Future<bool> reserveStock(String materialId, double qty) async {
     if (qty <= 0 || materialId.isEmpty) return false;
 
@@ -61,9 +56,8 @@ class MaterialService {
         final currentReserved = (data['reservedStock'] as num?)?.toDouble() ?? 0.0;
         final available = currentStock - currentReserved;
 
-        // Solo reservamos lo que realmente hay disponible
         final toReserve = qty.clamp(0.0, available);
-        if (toReserve <= 0) return; // No hay nada que reservar
+        if (toReserve <= 0) return;
 
         transaction.update(docRef, {
           'reservedStock': currentReserved + toReserve,
@@ -77,10 +71,6 @@ class MaterialService {
   }
 
   /// FASE 2 — CONFIRMAR DEDUCCIÓN (al avanzar a E6)
-  /// Descuenta del `stock` real y limpia la reserva.
-  /// 
-  /// [materialId] — ID del material
-  /// [qty] — Cantidad que se reservó previamente
   Future<bool> confirmStockDeduction(String materialId, double qty) async {
     if (qty <= 0 || materialId.isEmpty) return false;
 
@@ -95,7 +85,6 @@ class MaterialService {
         final currentStock = (data['stock'] as num?)?.toDouble() ?? 0.0;
         final currentReserved = (data['reservedStock'] as num?)?.toDouble() ?? 0.0;
 
-        // Descontar del stock real y limpiar la reserva
         final newStock = (currentStock - qty).clamp(0.0, double.infinity);
         final newReserved = (currentReserved - qty).clamp(0.0, double.infinity);
 
@@ -111,8 +100,7 @@ class MaterialService {
     }
   }
 
-  /// CANCELAR RESERVA (si se regresa de etapa o se descarta)
-  /// Libera el stock reservado sin descontar nada.
+  /// CANCELAR RESERVA
   Future<bool> cancelReservation(String materialId, double qty) async {
     if (qty <= 0 || materialId.isEmpty) return false;
 

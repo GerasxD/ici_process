@@ -130,25 +130,34 @@ class _ProcessModalState extends State<ProcessModal> {
   /// FASE 2: Confirmar deducción de stock al avanzar de E5 → E6
   Future<void> _confirmStockDeductions() async {
     if (_currentLogisticsData == null) return;
-
+ 
     final items = _currentLogisticsData!['items'] as List? ?? [];
     int deducted = 0;
-
-    for (final rawItem in items) {
-      final map = Map<String, dynamic>.from(rawItem);
+ 
+    for (int i = 0; i < items.length; i++) {
+      // ★ FIX: Trabajar con la referencia ORIGINAL, no una copia
+      final rawItem = items[i];
+      if (rawItem is! Map) continue;
+      
+      final map = rawItem as Map<String, dynamic>;
       final isReserved = map['isStockReserved'] ?? false;
       final reservedQty = (map['reservedStockQty'] ?? 0).toDouble();
       final materialId = map['materialId'] ?? '';
-
+ 
       if (isReserved && reservedQty > 0 && materialId.isNotEmpty) {
         final success = await _materialService.confirmStockDeduction(
           materialId, 
           reservedQty,
         );
-        if (success) deducted++;
+        if (success) {
+          // ★ FIX: Limpiar banderas en el mapa ORIGINAL
+          map['isStockReserved'] = false;
+          map['reservedStockQty'] = 0;
+          deducted++;
+        }
       }
     }
-
+ 
     if (deducted > 0) {
       print("✅ Stock descontado de $deducted material(es)");
     }
@@ -157,19 +166,23 @@ class _ProcessModalState extends State<ProcessModal> {
   /// Cancelar reservas de stock (al retroceder o descartar desde E5)
   Future<void> _cancelStockReservations() async {
     if (_currentLogisticsData == null) return;
-
+ 
     final items = _currentLogisticsData!['items'] as List? ?? [];
-
-    for (final rawItem in items) {
-      final map = Map<String, dynamic>.from(rawItem);
+ 
+    for (int i = 0; i < items.length; i++) {
+      // ★ FIX: Trabajar con la referencia ORIGINAL, no una copia
+      final rawItem = items[i];
+      if (rawItem is! Map) continue;
+      
+      final map = rawItem as Map<String, dynamic>;
       final isReserved = map['isStockReserved'] ?? false;
       final reservedQty = (map['reservedStockQty'] ?? 0).toDouble();
       final materialId = map['materialId'] ?? '';
-
+ 
       if (isReserved && reservedQty > 0 && materialId.isNotEmpty) {
         await _materialService.cancelReservation(materialId, reservedQty);
         
-        // ★ LIMPIAR la bandera en los datos locales para que no se quede "Apartado"
+        // ★ FIX: Limpiar banderas en el mapa ORIGINAL (no en una copia)
         map['isStockReserved'] = false;
         map['reservedStockQty'] = 0;
       }

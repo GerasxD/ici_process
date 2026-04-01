@@ -219,16 +219,22 @@ class _LogisticsSectionState extends State<LogisticsSection> {
                   m.id == item.materialId ||
                   m.name.toLowerCase() == item.materialName.toLowerCase(),
             );
-
-            // Si ya está reservado, mantenemos el stockQty original
-            if (!item.isStockReserved) {
-              item.stockQty = dbMat.availableStock;
-            } else {
-              item.stockQty = item.reservedStockQty; // Usamos lo que ya apartamos
+ 
+            // ★ FIX: Solo refrescar stock desde la BD cuando estamos en E5 (editable).
+            // En E6+ el stock ya fue descontado de la BD, así que si recargamos
+            // veríamos 0. Mantenemos el valor guardado que refleja lo que SE USÓ.
+            if (widget.isEditable) {
+              if (!item.isStockReserved) {
+                // No reservado → mostrar stock disponible actual de la BD
+                item.stockQty = dbMat.availableStock;
+              } else {
+                // Ya reservado → mostrar la cantidad que apartamos
+                item.stockQty = item.reservedStockQty;
+              }
             }
-  
-            // ★ FIX: recalcular stockUnitPrice si no fue guardado (0)
-            //   o simplemente actualizarlo siempre con el precio de referencia
+            // Si !widget.isEditable (E6+), NO tocamos item.stockQty
+            // Se queda con el valor que se guardó en Firestore.
+ 
             if (item.stockUnitPrice == 0) {
               item.stockUnitPrice = _resolveStockPrice(dbMat, item.quotedUnitPrice);
             }
