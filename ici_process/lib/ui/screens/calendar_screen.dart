@@ -190,73 +190,108 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                  color: const Color(0xFF2563EB).withOpacity(0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4))
-            ],
-          ),
-          child: const Icon(LucideIcons.calendarDays, color: Color(0xFF2563EB), size: 28),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Calendario de Proyectos",
-                  style: GoogleFonts.inter(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0F172A),
-                      letterSpacing: -0.5)),
-              Text("Visualiza la actividad del equipo por fecha.",
-                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
-            ],
-          ),
-        ),
-        _buildPillButton(
-          label: "Hoy",
-          icon: LucideIcons.locate,
-          onTap: _goToday,
-          color: const Color(0xFF2563EB),
-        ),
-        const SizedBox(width: 8),
-        Tooltip(
-          message: _sidebarVisible ? "Ocultar panel" : "Mostrar panel",
-          child: InkWell(
-            onTap: () => setState(() => _sidebarVisible = !_sidebarVisible),
-            borderRadius: BorderRadius.circular(10),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _sidebarVisible ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isNarrow = constraints.maxWidth < 380;
+        
+        // 1. CAMBIAMOS DE ROW A WRAP
+        Widget actionButtons = Wrap( 
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _buildPillButton(
+              label: "Hoy",
+              icon: LucideIcons.locate,
+              onTap: _goToday,
+              color: const Color(0xFF2563EB),
+            ),
+            Tooltip(
+              message: _sidebarVisible ? "Ocultar panel" : "Mostrar panel",
+              child: InkWell(
+                onTap: () => setState(() => _sidebarVisible = !_sidebarVisible),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _sidebarVisible
-                      ? const Color(0xFF0F172A)
-                      : const Color(0xFFE2E8F0),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _sidebarVisible ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _sidebarVisible
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Icon(
+                    _sidebarVisible ? LucideIcons.panelRightClose : LucideIcons.panelRightOpen,
+                    size: 17,
+                    color: _sidebarVisible ? Colors.white : const Color(0xFF64748B),
+                  ),
                 ),
               ),
-              child: Icon(
-                _sidebarVisible ? LucideIcons.panelRightClose : LucideIcons.panelRightOpen,
-                size: 17,
-                color: _sidebarVisible ? Colors.white : const Color(0xFF64748B),
-              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.1),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4))
+                    ],
+                  ),
+                  child: const Icon(LucideIcons.calendarDays, color: Color(0xFF2563EB), size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Calendario de Proyectos",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              letterSpacing: -0.5)),
+                      Text("Visualiza la actividad del equipo por fecha.",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
+                    ],
+                  ),
+                ),
+                if (!isNarrow) ...[
+                  const SizedBox(width: 8),
+                  actionButtons,
+                ]
+              ],
+            ),
+            if (isNarrow) ...[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: actionButtons,
+              )
+            ]
+          ],
+        );
+      },
     );
   }
 
@@ -286,35 +321,47 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildMonthNavigation() {
+ Widget _buildMonthNavigation() {
     final monthName = DateFormat('MMMM', 'es').format(_focusedMonth);
     final capitalized = monthName[0].toUpperCase() + monthName.substring(1);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Wrap( // 2. EL ROW PRINCIPAL AHORA ES UN WRAP
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          RichText(
-            text: TextSpan(children: [
-              TextSpan(
-                  text: "$capitalized ",
-                  style: GoogleFonts.inter(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0F172A),
-                      letterSpacing: -0.5)),
-              TextSpan(
-                  text: _focusedMonth.year.toString(),
-                  style: GoogleFonts.inter(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF94A3B8),
-                      letterSpacing: -0.5)),
-            ]),
+          Container( // 3. ESTO REEMPLAZA AL EXPANDED
+            constraints: const BoxConstraints(maxWidth: 160), 
+            child: RichText(
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(children: [
+                TextSpan(
+                    text: "$capitalized ",
+                    style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                        letterSpacing: -0.5)),
+                TextSpan(
+                    text: _focusedMonth.year.toString(),
+                    style: GoogleFonts.inter(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w400,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: -0.5)),
+              ]),
+            ),
           ),
-          const Spacer(),
-          _buildNavArrow(LucideIcons.chevronLeft, _previousMonth),
-          const SizedBox(width: 8),
-          _buildNavArrow(LucideIcons.chevronRight, _nextMonth),
+          Wrap( // 4. LAS FLECHAS SE ACOMODAN SOLAS SI NO HAY ESPACIO
+            spacing: 8,
+            children: [
+              _buildNavArrow(LucideIcons.chevronLeft, _previousMonth),
+              _buildNavArrow(LucideIcons.chevronRight, _nextMonth),
+            ],
+          ),
         ],
       ),
     );
@@ -346,6 +393,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           return Expanded(
             child: Center(
               child: Text(d,
+                  maxLines: 1, // <-- PROTEGE LA CELDA
+                  overflow: TextOverflow.clip,
                   style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -389,10 +438,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  // ── CELDA ─────────────────────────────────────────────────
-  // CAMBIO 1: La celda seleccionada ya NO se rellena de azul.
-  // Ahora usa un borde azul más grueso + fondo muy sutil,
-  // manteniendo el texto y chips con su color original.
+
   Widget _buildDayCell(DateTime? day, int weekdayIndex,
       List<ProcessModel> processes, List<CalendarEvent> events) {
     final today = _isToday(day);
@@ -402,11 +448,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final hasContent = processes.isNotEmpty || events.isNotEmpty;
     final totalCount = processes.length + events.length;
 
-    // ── Colores de celda según estado (sin azul sólido en selected) ──
     Color cellBg() {
       if (isEmpty) return Colors.transparent;
       if (today) return const Color(0xFFEFF6FF);
-      if (selected) return const Color(0xFFF0F7FF); // azul muy suave
+      if (selected) return const Color(0xFFF0F7FF); 
       if (isWeekend) return const Color(0xFFFAFAFC);
       return Colors.white;
     }
@@ -425,7 +470,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       onDoubleTap: day != null ? () => _openCreateEvent(day) : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        constraints: BoxConstraints(minHeight: _cellMinHeight),
+        clipBehavior: Clip.hardEdge, // <-- OCULTA LOS ERRORES FRACCIONARIOS (0.286px)
+        constraints: const BoxConstraints(minHeight: _cellMinHeight),
         margin: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           color: cellBg(),
@@ -442,14 +488,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ── Número + badge ──
                     Row(
                       children: [
                         Container(
                           width: 26,
                           height: 26,
                           decoration: BoxDecoration(
-                            // Hoy: círculo azul. Seleccionado: círculo azul outline. Normal: transparente.
                             color: today
                                 ? const Color(0xFF2563EB)
                                 : selected
@@ -469,7 +513,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 fontWeight: today || selected
                                     ? FontWeight.w800
                                     : FontWeight.w500,
-                                // El número nunca se vuelve blanco porque el fondo ya no es azul sólido
                                 color: today
                                     ? Colors.white
                                     : selected
@@ -483,19 +526,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                         if (hasContent) ...[
                           const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              "$totalCount",
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF2563EB),
+                          Flexible( // <-- PROTEGE EL BADGE SI LA CELDA SE VUELVE MUY ANGOSTA
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                "$totalCount",
+                                maxLines: 1, // <-- PREVIENE ERRORES INTERNOS
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF2563EB),
+                                ),
                               ),
                             ),
                           ),
@@ -505,7 +552,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
                     if (hasContent) ...[
                       const SizedBox(height: 5),
-                      // CAMBIO 2: chips más grandes y visibles
                       ...events.take(2).map((e) => _buildEventChip(e)),
                       ...processes
                           .take(3 - events.take(2).length)
@@ -515,6 +561,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           padding: const EdgeInsets.only(top: 3),
                           child: Text(
                             "+${totalCount - 3} más",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.inter(
                               fontSize: 9,
                               color: const Color(0xFF94A3B8),

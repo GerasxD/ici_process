@@ -91,6 +91,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   bool _initialDataRestored = false;
   
   final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 3);
+  bool _isMobile(BuildContext context) => MediaQuery.of(context).size.width < 700;
 
   @override
   void initState() {
@@ -170,6 +171,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
   @override
   Widget build(BuildContext context) {
+    final mobile = _isMobile(context);
     bool canViewFinancials = PermissionManager().can(widget.currentUser, 'view_financials');
     double precioVentaSubtotal = double.tryParse(widget.amountController.text) ?? 0.0;
     double costoDirectoSubtotal = double.tryParse(widget.costController.text) ?? 0.0;
@@ -186,7 +188,6 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
             children: [
               _buildSectionTitle("Información Principal", LucideIcons.fileText),
               const SizedBox(height: 20),
-              
               _buildInputField(
                 label: "Título del Proyecto",
                 controller: widget.titleController,
@@ -195,13 +196,13 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                 isLarge: true,
               ),
               const SizedBox(height: 20),
-              
-              // Selector de Clientes
+
+              // ── Cliente / Sucursal / Solicitante ──────────────
               StreamBuilder<List<Client>>(
                 stream: _clientService.getClients(),
                 builder: (context, snapshot) {
                   final clients = snapshot.data ?? [];
-                  
+
                   if (!_initialDataRestored && clients.isNotEmpty && widget.clientController.text.isNotEmpty) {
                     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreSelection(clients));
                   }
@@ -213,100 +214,111 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                     } catch (e) { valueForDropdown = null; }
                   }
 
-                  return Row(
+                  final clientDropdown = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text("CLIENTE", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
-                            const SizedBox(height: 10),
-                            DropdownButtonFormField<Client>(
-                              isExpanded: true,
-                              hint: const Text("Seleccionar Cliente..."),
-                              value: valueForDropdown, 
-                              items: clients.map((c) => DropdownMenuItem(value: c, child: Text(c.name, overflow: TextOverflow.ellipsis))).toList(),
-                              onChanged: (val) => setState(() { _selectedClientObj = val; _selectedBranch = null; _updateClientController(); }),
-                              decoration: _inputDecoration(LucideIcons.building2),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      if (_selectedClientObj != null && _selectedClientObj!.branchAddresses.isNotEmpty) ...[
-                        Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("SUCURSAL", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
-                              const SizedBox(height: 10),
-                              DropdownButtonFormField<String>(
-                                isExpanded: true,
-                                hint: const Text("Selecc..."),
-                                value: _selectedBranch,
-                                items: _selectedClientObj!.branchAddresses.map((b) => DropdownMenuItem(value: b, child: Text(b, overflow: TextOverflow.ellipsis))).toList(),
-                                onChanged: (val) => setState(() { _selectedBranch = val; _updateClientController(); }),
-                                decoration: _inputDecoration(LucideIcons.store),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                      ],
-                      
-                      Expanded(
-                        flex: 3,
-                        child: StreamBuilder<List<UserModel>>(
-                          stream: _userService.getUsersStream(),
-                          builder: (context, userSnapshot) {
-                            final users = userSnapshot.data ?? [];
-                            String? currentValue = widget.selectedRequester;
-                            bool valueExists = users.any((u) => u.name == currentValue);
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("SOLICITADA POR", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
-                                const SizedBox(height: 10),
-                                DropdownButtonFormField<String>(
-                                  value: valueExists ? currentValue : null,
-                                  isExpanded: true,
-                                  icon: const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFF64748B)),
-                                  style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), fontWeight: FontWeight.w500),
-                                  items: users.map((u) => DropdownMenuItem(value: u.name, child: Text(u.name, overflow: TextOverflow.ellipsis))).toList(),
-                                  onChanged: widget.onRequesterChanged,
-                                  decoration: InputDecoration(
-                                    hintText: "Seleccionar...",
-                                    hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
-                                    prefixIcon: const Padding(padding: EdgeInsets.all(12), child: Icon(LucideIcons.userCheck, size: 20, color: Color(0xFF64748B))),
-                                    filled: true, fillColor: const Color(0xFFF8FAFC),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))
-                                  )
-                                ),
-                              ],
-                            );
-                          }
-                        ),
+                      const Text("CLIENTE", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<Client>(
+                        isExpanded: true,
+                        hint: const Text("Seleccionar Cliente..."),
+                        value: valueForDropdown,
+                        items: clients.map((c) => DropdownMenuItem(value: c, child: Text(c.name, overflow: TextOverflow.ellipsis))).toList(),
+                        onChanged: (val) => setState(() { _selectedClientObj = val; _selectedBranch = null; _updateClientController(); }),
+                        decoration: _inputDecoration(LucideIcons.building2),
                       ),
                     ],
                   );
-                }
+
+                  final branchDropdown = (_selectedClientObj != null && _selectedClientObj!.branchAddresses.isNotEmpty)
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("SUCURSAL", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              hint: const Text("Selecc..."),
+                              value: _selectedBranch,
+                              items: _selectedClientObj!.branchAddresses.map((b) => DropdownMenuItem(value: b, child: Text(b, overflow: TextOverflow.ellipsis))).toList(),
+                              onChanged: (val) => setState(() { _selectedBranch = val; _updateClientController(); }),
+                              decoration: _inputDecoration(LucideIcons.store),
+                            ),
+                          ],
+                        )
+                      : null;
+
+                  final requesterDropdown = StreamBuilder<List<UserModel>>(
+                    stream: _userService.getUsersStream(),
+                    builder: (context, userSnapshot) {
+                      final users = userSnapshot.data ?? [];
+                      String? currentValue = widget.selectedRequester;
+                      bool valueExists = users.any((u) => u.name == currentValue);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("SOLICITADA POR", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            value: valueExists ? currentValue : null,
+                            isExpanded: true,
+                            icon: const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFF64748B)),
+                            style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                            items: users.map((u) => DropdownMenuItem(value: u.name, child: Text(u.name, overflow: TextOverflow.ellipsis))).toList(),
+                            onChanged: widget.onRequesterChanged,
+                            decoration: InputDecoration(
+                              hintText: "Seleccionar...",
+                              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
+                              prefixIcon: const Padding(padding: EdgeInsets.all(12), child: Icon(LucideIcons.userCheck, size: 20, color: Color(0xFF64748B))),
+                              filled: true, fillColor: const Color(0xFFF8FAFC),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2)),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+                  if (mobile) {
+                    return Column(
+                      children: [
+                        clientDropdown,
+                        if (branchDropdown != null) ...[
+                          const SizedBox(height: 16),
+                          branchDropdown,
+                        ],
+                        const SizedBox(height: 16),
+                        requesterDropdown,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: clientDropdown),
+                      if (branchDropdown != null) ...[
+                        const SizedBox(width: 16),
+                        Expanded(flex: 2, child: branchDropdown),
+                      ],
+                      const SizedBox(width: 16),
+                      Expanded(flex: 3, child: requesterDropdown),
+                    ],
+                  );
+                },
               ),
             ],
           ),
         ),
-        
+
         const SizedBox(height: 16),
 
         // --- SECCIÓN: COTIZACIÓN ---
         if (_showQuoteSection) ...[
-          // ✅ NUEVO: Ocultamos el botón amarillo si no tiene permiso
-          if (_showEditQuoteButton && canViewFinancials) ...[ 
+          if (_showEditQuoteButton && canViewFinancials) ...[
             Container(
               width: double.infinity,
               alignment: Alignment.centerRight,
@@ -314,11 +326,11 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
               child: ElevatedButton.icon(
                 onPressed: widget.onOpenQuote,
                 icon: const Icon(LucideIcons.calculator, size: 18),
-                label: const Text("Abrir Cotizador Completo"),
+                label: Text(mobile ? "Cotizador" : "Abrir Cotizador Completo"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEAB308),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 24, vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
@@ -329,201 +341,193 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
-                    if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)),
-                        child: Row(
+                // Header del resumen financiero
+                mobile
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
+                          if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700),
+                                  const SizedBox(width: 6),
+                                  Flexible(child: Text("Por: ${widget.quotedBy!}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900), overflow: TextOverflow.ellipsis)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
+                          if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)),
+                              child: Row(
+                                children: [
+                                  Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700),
+                                  const SizedBox(width: 8),
+                                  Text("Cotización elaborada por: ", style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
+                                  Text(widget.quotedBy!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                const SizedBox(height: 20),
+
+                // Precio de Venta y Costo
+                if (mobile) ...[
+                  // ── Precio de Venta ──
+                  const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
+                  const SizedBox(height: 12),
+                  _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState(() {}), obscure: !canViewFinancials),
+                  const SizedBox(height: 10),
+                  _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials),
+                  const SizedBox(height: 20),
+                  // ── Costo Estimado ──
+                  const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
+                  const SizedBox(height: 12),
+                  _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState(() {}), obscure: !canViewFinancials),
+                  const SizedBox(height: 10),
+                  _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials),
+                ] else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700),
-                            const SizedBox(width: 8),
-                            Text("Cotización elaborada por: ", style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
-                            Text(widget.quotedBy!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                            const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState(() {}), obscure: !canViewFinancials)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials)),
+                              ],
+                            ),
                           ],
                         ),
-                      )
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              // ✅ NUEVO: Pasamos el parámetro 'obscure'
-                              Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState((){}), obscure: !canViewFinancials)),
-                              const SizedBox(width: 12),
-                              Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials)),
-                            ],
-                          )
-                        ],
                       ),
-                    ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              // ✅ NUEVO: Pasamos el parámetro 'obscure'
-                              Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState((){}), obscure: !canViewFinancials)),
-                              const SizedBox(width: 12),
-                              Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials)),
-                            ],
-                          )
-                        ],
+                      const SizedBox(width: 32),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState(() {}), obscure: !canViewFinancials)),
+                                const SizedBox(width: 12),
+                                Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials)),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 16),
         ],
 
-        // --- SECCIÓN: ORDEN DE COMPRA (SOLO E4+) ---
+        // --- SECCIÓN: ORDEN DE COMPRA ---
         if (_showOCSection) ...[
-           _buildCard(
+          _buildCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                 // HEADER PERSONALIZADO CON LA CAMPANITA
-                 Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   children: [
-                     _buildSectionTitle("Datos de Orden de Compra", LucideIcons.shoppingBag),
-                     
-                     // --- CORRECCIÓN: BOTÓN SOLO VISIBLE EN E4 ---
-                     if (_showNotifyButton) 
-                       IconButton(
-                         onPressed: widget.onNotifyUsers,
-                         icon: const Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)),
-                         tooltip: "Notificar usuarios sobre O.C.",
-                         style: IconButton.styleFrom(
-                           backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1),
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                         ),
-                       )
-                     // ---------------------------------------------
-                   ],
-                 ),
-                 
-                 const SizedBox(height: 20),
-                 Row(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Expanded(
-                       flex: 3,
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           Row(
-                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                             children: [
-                               const Text("NÚMERO O.C.", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
-                               Row(
-                                 children: [
-                                   SizedBox(height: 20, width: 20, child: Checkbox(value: widget.isNoOc, onChanged: widget.onNoOcChanged, activeColor: const Color(0xFF7C3AED))),
-                                   const SizedBox(width: 6),
-                                   const Text("Trabajo sin O.C.", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-                                 ],
-                               )
-                             ],
-                           ),
-                           const SizedBox(height: 10),
-                           TextField(
-                             controller: widget.ocNumberController,
-                             enabled: !widget.isNoOc,
-                             decoration: InputDecoration(
-                               hintText: widget.isNoOc ? "No aplica" : "Ej: OC-2026-001",
-                               filled: true, fillColor: widget.isNoOc ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
-                               prefixIcon: const Padding(padding: EdgeInsets.all(12), child: Icon(LucideIcons.hash, size: 20, color: Color(0xFF64748B))),
-                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF7C3AED), width: 2)),
-                             ),
-                           )
-                         ],
-                       ),
-                     ),
-                     const SizedBox(width: 16),
-                     Expanded(
-                       flex: 2,
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           const Text("FECHA RECEPCIÓN O.C.", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
-                           const SizedBox(height: 10),
-                           InkWell(
-                             onTap: () async {
-                               DateTime? picked = await showDatePicker(context: context, initialDate: widget.ocReceptionDate ?? DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2100), builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: Color(0xFF7C3AED))), child: child!));
-                               if (picked != null) widget.onOcDateChanged(picked);
-                             },
-                             borderRadius: BorderRadius.circular(12),
-                             child: Container(
-                               padding: const EdgeInsets.all(14),
-                               decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
-                               child: Row(
-                                 children: [
-                                   Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFF7C3AED).withOpacity(0.1), borderRadius: BorderRadius.circular(6)), child: const Icon(LucideIcons.calendarCheck, size: 16, color: Color(0xFF7C3AED))),
-                                   const SizedBox(width: 12),
-                                   Expanded(child: Text(widget.ocReceptionDate != null ? DateFormat('dd MMM, yyyy').format(widget.ocReceptionDate!) : "Pendiente", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))))
-                                 ],
-                               ),
-                             ),
-                           ),
-                         ],
-                       ),
-                     )
-                   ],
-                 )
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: _buildSectionTitle("Datos de Orden de Compra", LucideIcons.shoppingBag)),
+                    if (_showNotifyButton)
+                      IconButton(
+                        onPressed: widget.onNotifyUsers,
+                        icon: const Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)),
+                        tooltip: "Notificar usuarios sobre O.C.",
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (mobile) ...[
+                  // OC Number
+                  _buildOCNumberField(),
+                  const SizedBox(height: 16),
+                  // OC Date
+                  _buildOCDateField(),
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: _buildOCNumberField()),
+                      const SizedBox(width: 16),
+                      Expanded(flex: 2, child: _buildOCDateField()),
+                    ],
+                  ),
               ],
             ),
-           ),
-           const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 16),
         ],
 
-        // --- CARD 2 & 3: Seguimiento y Descripción ---
+        // --- CARD: Seguimiento ---
         _buildCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildSectionTitle("Seguimiento", LucideIcons.clock),
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(flex: 2, child: _buildDatePicker()),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 2, child: _buildDaysCounter()),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 2, child: _buildPrioritySelector()),
-                ],
-              ),
+              if (mobile)
+                Column(
+                  children: [
+                    _buildDatePicker(),
+                    const SizedBox(height: 16),
+                    _buildDaysCounter(),
+                    const SizedBox(height: 16),
+                    _buildPrioritySelector(),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(flex: 2, child: _buildDatePicker()),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: _buildDaysCounter()),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: _buildPrioritySelector()),
+                  ],
+                ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        
+
         if (widget.extraSection != null) ...[
           widget.extraSection!,
           const SizedBox(height: 16),
         ],
-        
+
+        // --- CARD: Alcance del Proyecto ---
         _buildCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -531,13 +535,92 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSectionTitle("Alcance del Proyecto", LucideIcons.fileText),
+                  Expanded(child: _buildSectionTitle("Alcance del Proyecto", LucideIcons.fileText)),
                   _buildAIButton(),
                 ],
               ),
               const SizedBox(height: 16),
               _buildDescriptionField(),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOCNumberField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("NÚMERO O.C.", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
+            Row(
+              children: [
+                SizedBox(height: 20, width: 20, child: Checkbox(value: widget.isNoOc, onChanged: widget.onNoOcChanged, activeColor: const Color(0xFF7C3AED))),
+                const SizedBox(width: 6),
+                const Text("Trabajo sin O.C.", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: widget.ocNumberController,
+          enabled: !widget.isNoOc,
+          decoration: InputDecoration(
+            hintText: widget.isNoOc ? "No aplica" : "Ej: OC-2026-001",
+            filled: true,
+            fillColor: widget.isNoOc ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
+            prefixIcon: const Padding(padding: EdgeInsets.all(12), child: Icon(LucideIcons.hash, size: 20, color: Color(0xFF64748B))),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF7C3AED), width: 2)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOCDateField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("FECHA RECEPCIÓN O.C.", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B), letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        InkWell(
+          onTap: () async {
+            DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: widget.ocReceptionDate ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+              builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: const ColorScheme.light(primary: Color(0xFF7C3AED))), child: child!),
+            );
+            if (picked != null) widget.onOcDateChanged(picked);
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: const Color(0xFF7C3AED).withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                  child: const Icon(LucideIcons.calendarCheck, size: 16, color: Color(0xFF7C3AED)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.ocReceptionDate != null ? DateFormat('dd MMM, yyyy').format(widget.ocReceptionDate!) : "Pendiente",
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

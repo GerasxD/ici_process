@@ -106,28 +106,42 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Row( // <-- ROW PROTEGIDO
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(12),
+              Expanded( // <-- EVITA QUE EL TÍTULO HAGA OVERFLOW
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(LucideIcons.settings, color: Colors.white, size: 24),
                     ),
-                    child: const Icon(LucideIcons.settings, color: Colors.white, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Centro de Administración", style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), letterSpacing: -0.5)),
-                      Text("Gestión de usuarios, permisos y catálogos globales.", style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B))),
-                    ],
-                  ),
-                ],
+                    const SizedBox(width: 16),
+                    Expanded( // <-- PERMITE QUE LOS TEXTOS SE ADAPTEN O SE CORTEN
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Centro de Administración", 
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), letterSpacing: -0.5)
+                          ),
+                          Text(
+                            "Gestión de usuarios, permisos y catálogos globales.", 
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B))
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -154,9 +168,10 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
               tabs: const [
-                Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.users, size: 18), SizedBox(width: 8), Text("Usuarios")])),
-                Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.shieldCheck, size: 18), SizedBox(width: 8), Text("Roles y Permisos")])),
-                Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.banknote, size: 18), SizedBox(width: 8), Text("Salarios")])),
+                // LOS FLEXIBLE PROTEGEN LOS TEXTOS DENTRO DE LOS TABS SI LA PANTALLA ES PEQUEÑA
+                Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.users, size: 18), SizedBox(width: 8), Flexible(child: Text("Usuarios", overflow: TextOverflow.ellipsis))])),
+                Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.shieldCheck, size: 18), SizedBox(width: 8), Flexible(child: Text("Roles y Permisos", overflow: TextOverflow.ellipsis))])),
+                Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.banknote, size: 18), SizedBox(width: 8), Flexible(child: Text("Salarios", overflow: TextOverflow.ellipsis))])),
               ],
             ),
           ),
@@ -288,8 +303,11 @@ class _UsersTabState extends State<_UsersTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap( // <-- CAMBIO DE ROW A WRAP
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 16,
             children: [
               Text("Directorio de Usuarios", style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF334155))),
               ElevatedButton.icon(
@@ -346,7 +364,7 @@ class _UsersTabState extends State<_UsersTab> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
+                                Wrap(
                                   children: [
                                     Text(user.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: const Color(0xFF0F172A))),
                                     if (isMe) ...[
@@ -587,186 +605,190 @@ class _UserFormDialogState extends State<_UserFormDialog> {
               ),
 
               // ── CONTENIDO ────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              Flexible( // <-- 1. FLEXIBLE EVITA QUE LA COLUMNA SE DESBORDE
+                child: SingleChildScrollView( // <-- 2. PERMITE HACER SCROLL SI ES NECESARIO
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
 
-                    // Nombre completo
-                    _buildLabel("Nombre Completo"),
-                    const SizedBox(height: 8),
-                    _buildField(
-                      controller: _nameCtrl,
-                      hint: "Ej. Carlos Ramírez",
-                      icon: LucideIcons.user,
-                      validator: (v) => (v == null || v.isEmpty) ? "Campo obligatorio" : null,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Correo
-                    _buildLabel("Correo Electrónico"),
-                    const SizedBox(height: 8),
-                    _buildField(
-                      controller: _emailCtrl,
-                      hint: "usuario@empresa.com",
-                      icon: LucideIcons.mail,
-                      enabled: !isEditing,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return "Campo obligatorio";
-                        if (!v.contains('@')) return "Correo inválido";
-                        return null;
-                      },
-                    ),
-
-                    // Aviso si está deshabilitado
-                    if (isEditing) ...[
+                      // Nombre completo
+                      _buildLabel("Nombre Completo"),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(LucideIcons.info, size: 13, color: Colors.amber.shade700),
-                          const SizedBox(width: 6),
-                          Text(
-                            "El correo no puede modificarse. Usa Reset Password para cambiar contraseña.",
-                            style: GoogleFonts.inter(fontSize: 11, color: Colors.amber.shade800),
-                          ),
-                        ],
+                      _buildField(
+                        controller: _nameCtrl,
+                        hint: "Ej. Carlos Ramírez",
+                        icon: LucideIcons.user,
+                        validator: (v) => (v == null || v.isEmpty) ? "Campo obligatorio" : null,
                       ),
-                    ],
 
-                    // Contraseña (solo en creación)
-                    if (!isEditing) ...[
                       const SizedBox(height: 20),
-                      _buildLabel("Contraseña Inicial"),
+
+                      // Correo
+                      _buildLabel("Correo Electrónico"),
                       const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _passwordCtrl,
-                        obscureText: _obscurePassword,
+                      _buildField(
+                        controller: _emailCtrl,
+                        hint: "usuario@empresa.com",
+                        icon: LucideIcons.mail,
+                        enabled: !isEditing,
+                        keyboardType: TextInputType.emailAddress,
                         validator: (v) {
                           if (v == null || v.isEmpty) return "Campo obligatorio";
-                          if (v.length < 6) return "Mínimo 6 caracteres";
+                          if (!v.contains('@')) return "Correo inválido";
                           return null;
                         },
-                        style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B)),
-                        decoration: InputDecoration(
-                          hintText: "Mínimo 6 caracteres",
-                          hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
-                          prefixIcon: Icon(LucideIcons.lock, size: 18, color: Colors.grey.shade400),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
-                              size: 18,
-                              color: Colors.grey.shade400,
+                      ),
+
+                      // Aviso si está deshabilitado
+                      if (isEditing) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(LucideIcons.info, size: 13, color: Colors.amber.shade700),
+                            const SizedBox(width: 6),
+                            Expanded( // <-- Previene overflow si este texto se vuelve muy largo
+                              child: Text(
+                                "El correo no puede modificarse. Usa Reset Password para cambiar contraseña.",
+                                style: GoogleFonts.inter(fontSize: 11, color: Colors.amber.shade800),
+                              ),
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ],
+                        ),
+                      ],
+
+                      // Contraseña (solo en creación)
+                      if (!isEditing) ...[
+                        const SizedBox(height: 20),
+                        _buildLabel("Contraseña Inicial"),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          obscureText: _obscurePassword,
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return "Campo obligatorio";
+                            if (v.length < 6) return "Mínimo 6 caracteres";
+                            return null;
+                          },
+                          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B)),
+                          decoration: InputDecoration(
+                            hintText: "Mínimo 6 caracteres",
+                            hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                            prefixIcon: Icon(LucideIcons.lock, size: 18, color: Colors.grey.shade400),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                                size: 18,
+                                color: Colors.grey.shade400,
+                              ),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF8FAFC),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.red),
+                            ),
                           ),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.red),
-                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 24),
+
+                      // ── Selector de Rol ──────────────────────────────
+                      _buildLabel("Rol del Sistema"),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: UserRole.values.map((role) {
+                          final config = _getRoleConfig(role);
+                          final Color color = config['color'];
+                          final bool isSelected = _selectedRole == role;
+
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedRole = role),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected ? color : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected ? color : const Color(0xFFE2E8F0),
+                                  width: isSelected ? 2 : 1,
+                                ),
+                                boxShadow: isSelected
+                                    ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))]
+                                    : [],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    config['icon'],
+                                    size: 15,
+                                    color: isSelected ? Colors.white : color,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    config['label'],
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: isSelected ? Colors.white : const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+
+                      // Preview del rol seleccionado
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: roleColor.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: roleColor.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(roleConfig['icon'], size: 16, color: roleColor),
+                            const SizedBox(width: 10),
+                            Text(
+                              "Acceso asignado como: ",
+                              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
+                            ),
+                            Text(
+                              roleConfig['label'],
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: roleColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-
-                    const SizedBox(height: 24),
-
-                    // ── Selector de Rol ──────────────────────────────
-                    _buildLabel("Rol del Sistema"),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: UserRole.values.map((role) {
-                        final config = _getRoleConfig(role);
-                        final Color color = config['color'];
-                        final bool isSelected = _selectedRole == role;
-
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedRole = role),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isSelected ? color : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected ? color : const Color(0xFFE2E8F0),
-                                width: isSelected ? 2 : 1,
-                              ),
-                              boxShadow: isSelected
-                                  ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))]
-                                  : [],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  config['icon'],
-                                  size: 15,
-                                  color: isSelected ? Colors.white : color,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  config['label'],
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected ? Colors.white : const Color(0xFF475569),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                    // Preview del rol seleccionado
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: roleColor.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: roleColor.withOpacity(0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(roleConfig['icon'], size: 16, color: roleColor),
-                          const SizedBox(width: 10),
-                          Text(
-                            "Acceso asignado como: ",
-                            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
-                          ),
-                          Text(
-                            roleConfig['label'],
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: roleColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
 
@@ -911,7 +933,7 @@ class _RolesTab extends StatelessWidget {
   });
 
   String _translateRole(String role) {
-    switch(role.toLowerCase()) {
+    switch (role.toLowerCase()) {
       case 'superadmin': return 'Super Admin';
       case 'admin': return 'Administrador';
       case 'technician': return 'Técnico';
@@ -922,7 +944,30 @@ class _RolesTab extends StatelessWidget {
     }
   }
 
-  // Helper para actualizar permisos de forma segura
+  Color _roleColor(String role) {
+    switch (role.toLowerCase()) {
+      case 'superadmin': return const Color(0xFF312E81);
+      case 'admin': return const Color(0xFF1E40AF);
+      case 'manager': return const Color(0xFF0369A1);
+      case 'technician': return const Color(0xFF0D9488);
+      case 'purchasing': return const Color(0xFFB45309);
+      case 'accountant': return const Color(0xFF059669);
+      default: return const Color(0xFF64748B);
+    }
+  }
+
+  IconData _roleIcon(String role) {
+    switch (role.toLowerCase()) {
+      case 'superadmin': return LucideIcons.shieldAlert;
+      case 'admin': return LucideIcons.shield;
+      case 'manager': return LucideIcons.briefcase;
+      case 'technician': return LucideIcons.wrench;
+      case 'purchasing': return LucideIcons.shoppingCart;
+      case 'accountant': return LucideIcons.dollarSign;
+      default: return LucideIcons.user;
+    }
+  }
+
   void _togglePermission(List<String> currentPerms, String code, bool active) {
     final newPerms = List<String>.from(currentPerms);
     if (active) {
@@ -941,235 +986,446 @@ class _RolesTab extends StatelessWidget {
         final allPermissions = snapshot.data ?? {};
         final currentRolePerms = allPermissions[selectedRole] ?? [];
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- SIDEBAR DE ROLES (IGUAL QUE ANTES) ---
-            Container(
-              width: 280,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 720;
+
+            if (isWide) {
+              return _buildDesktopLayout(currentRolePerms);
+            } else {
+              return _buildMobileLayout(currentRolePerms);
+            }
+          },
+        );
+      },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  DESKTOP: Sidebar + Content (tu diseño original)
+  // ═══════════════════════════════════════════════════════════════
+  Widget _buildDesktopLayout(List<String> currentRolePerms) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 280,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Text("SELECCIONAR ROL",
+                  style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF94A3B8),
+                      letterSpacing: 1.0)),
+              const SizedBox(height: 16),
+              ...UserRole.values.map((roleEnum) {
+                final roleStr = roleEnum.toString().split('.').last;
+                final isSelected = roleStr == selectedRole;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () => onRoleChanged(roleStr),
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _translateRole(roleStr),
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: isSelected ? Colors.white : const Color(0xFF64748B),
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(LucideIcons.chevronRight, size: 16, color: Colors.white70),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Container(
+            color: const Color(0xFFF8FAFC),
+            child: _buildPermissionsContent(currentRolePerms, horizontalPadding: 40),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  MOBILE: Chips selector arriba + Content abajo
+  // ═══════════════════════════════════════════════════════════════
+  Widget _buildMobileLayout(List<String> currentRolePerms) {
+    final color = _roleColor(selectedRole);
+
+    return Column(
+      children: [
+        // ── Selector de rol horizontal ────────────────────────
+        Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                child: Row(
+                  children: [
+                    Icon(_roleIcon(selectedRole), size: 18, color: color),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Rol: ${_translateRole(selectedRole)}",
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Text("SELECCIONAR ROL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 1.0)),
-                  const SizedBox(height: 16),
-                  ...UserRole.values.map((roleEnum) {
+              SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  children: UserRole.values.map((roleEnum) {
                     final roleStr = roleEnum.toString().split('.').last;
                     final isSelected = roleStr == selectedRole;
+                    final rColor = _roleColor(roleStr);
+
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
                         onTap: () => onRoleChanged(roleStr),
-                        borderRadius: BorderRadius.circular(10),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
+                            color: isSelected ? rColor : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSelected ? rColor : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
+                            ),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
+                              Icon(
+                                _roleIcon(roleStr),
+                                size: 14,
+                                color: isSelected ? Colors.white : rColor,
+                              ),
+                              const SizedBox(width: 6),
                               Text(
                                 _translateRole(roleStr),
                                 style: GoogleFonts.inter(
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                  color: isSelected ? Colors.white : const Color(0xFF475569),
                                 ),
                               ),
-                              if (isSelected) const Icon(LucideIcons.chevronRight, size: 16, color: Colors.white70)
                             ],
                           ),
                         ),
                       ),
                     );
                   }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── Contenido de permisos ─────────────────────────────
+        Expanded(
+          child: Container(
+            color: const Color(0xFFF8FAFC),
+            child: _buildPermissionsContent(currentRolePerms, horizontalPadding: 16),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  CONTENIDO COMPARTIDO (permisos + tabla de etapas)
+  // ═══════════════════════════════════════════════════════════════
+  Widget _buildPermissionsContent(List<String> currentRolePerms, {double horizontalPadding = 40}) {
+    return ListView(
+      padding: EdgeInsets.all(horizontalPadding),
+      children: [
+        // Título
+        Row(
+          children: [
+            const Icon(LucideIcons.shieldCheck, size: 24, color: Color(0xFF0F172A)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Configuración de Permisos",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A))),
+                  Text("Rol: ${_translateRole(selectedRole)}",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
                 ],
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 24),
 
-            // --- CONTENIDO PRINCIPAL ---
-            Expanded(
-              child: Container(
-                color: const Color(0xFFF8FAFC),
-                child: ListView(
-                  padding: const EdgeInsets.all(40),
-                  children: [
-                    // TÍTULO
-                    Row(
-                      children: [
-                        const Icon(LucideIcons.shieldCheck, size: 28, color: Color(0xFF0F172A)),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Configuración de Permisos", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))),
-                            Text("Rol: ${_translateRole(selectedRole)}", style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF64748B))),
-                          ],
-                        ),
-                      ],
+        // ── Grupos de permisos (Switches) ─────────────────────
+        ...permissionGroups.entries.map((entry) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.01),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  child: Text(
+                    groupTitles[entry.key] ?? entry.key,
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF334155)),
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                ...entry.value.map((perm) {
+                  final isChecked = currentRolePerms.contains(perm);
+                  return SwitchListTile.adaptive(
+                    title: Text(
+                      permissionLabels[perm] ?? perm,
+                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF1E293B)),
                     ),
-                    const SizedBox(height: 32),
-                    
-                    // 1. GRUPOS DE PERMISOS GENERALES (SWITCHES)
-                    ...permissionGroups.entries.map((entry) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                              child: Text(
-                                groupTitles[entry.key] ?? entry.key, 
-                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF334155))
-                              ),
-                            ),
-                            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                            ...entry.value.map((perm) {
-                              final isChecked = currentRolePerms.contains(perm);
-                              return SwitchListTile.adaptive(
-                                title: Text(permissionLabels[perm] ?? perm, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B))),
-                                value: isChecked,
-                                activeColor: const Color(0xFF2563EB),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                                onChanged: (val) => _togglePermission(currentRolePerms, perm, val),
-                              );
-                            }).toList(),
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                    value: isChecked,
+                    activeColor: const Color(0xFF2563EB),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                    onChanged: (val) => _togglePermission(currentRolePerms, perm, val),
+                  );
+                }),
+                const SizedBox(height: 6),
+              ],
+            ),
+          );
+        }),
 
-                    // 2. NUEVA SECCIÓN: TABLA DE ETAPAS KANBAN (Diseño de la imagen)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            child: Row(
-                              children: [
-                                const Icon(LucideIcons.folderKanban, size: 18, color: Color(0xFF334155)),
-                                const SizedBox(width: 10),
-                                Text(
-                                  "ACCESO POR ETAPAS (FLUJO DE TRABAJO)", 
-                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF334155))
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                          
-                          // CABECERA DE LA TABLA
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            child: Row(
-                              children: [
-                                Expanded(flex: 3, child: Text("ETAPA", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8)))),
-                                Expanded(child: Center(child: Text("VISIBLE", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8))))),
-                                Expanded(child: Center(child: Text("EDITABLE", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8))))),
-                              ],
-                            ),
-                          ),
-                          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-                          // FILAS DE ETAPAS
-                          ...ProcessStage.values.map((stage) {
-                            final stageName = stage.toString().split('.').last;
-                            
-                            // Códigos de permiso: 'stage_view_E1', 'stage_edit_E1'
-                            final viewCode = 'stage_view_$stageName';
-                            final editCode = 'stage_edit_$stageName';
-
-                            final canView = currentRolePerms.contains(viewCode);
-                            final canEdit = currentRolePerms.contains(editCode);
-
-                            // Obtener info bonita de app_constants (titulo y color)
-                            final config = stageConfigs[stage]; 
-
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              decoration: const BoxDecoration(
-                                border: Border(bottom: BorderSide(color: Color(0xFFF8FAFC))),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Nombre de la Etapa con colorcito
-                                  Expanded(
-                                    flex: 3, 
-                                    child: Row(
-                                      children: [
-                                        Container(width: 8, height: 8, decoration: BoxDecoration(color: config?.textColor ?? Colors.grey, shape: BoxShape.circle)),
-                                        const SizedBox(width: 12),
-                                        Text(config?.title ?? stageName, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B))),
-                                      ],
-                                    )
-                                  ),
-                                  
-                                  // Checkbox Visible
-                                  Expanded(
-                                    child: Center(
-                                      child: Checkbox(
-                                        value: canView, 
-                                        activeColor: const Color(0xFF2563EB),
-                                        onChanged: (val) => _togglePermission(currentRolePerms, viewCode, val ?? false),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // Checkbox Editable
-                                  Expanded(
-                                    child: Center(
-                                      child: Checkbox(
-                                        value: canEdit, 
-                                        activeColor: const Color(0xFF16A34A), // Verde para editar
-                                        onChanged: (val) {
-                                          // Si activas editar, automáticamente activa ver
-                                          if (val == true && !canView) {
-                                            final tempPerms = List<String>.from(currentRolePerms)..add(viewCode);
-                                            _togglePermission(tempPerms, editCode, true);
-                                          } else {
-                                            _togglePermission(currentRolePerms, editCode, val ?? false);
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          const SizedBox(height: 16),
-                        ],
+        // ── Tabla de etapas ───────────────────────────────────
+        Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.01),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.folderKanban, size: 16, color: Color(0xFF334155)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "ACCESO POR ETAPAS",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF334155)),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
-        );
-      },
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+              // Cabecera
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                color: const Color(0xFFF8FAFC),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text("ETAPA",
+                          style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF94A3B8),
+                              letterSpacing: 0.5)),
+                    ),
+                    SizedBox(
+                      width: 56,
+                      child: Center(
+                        child: Text("VER",
+                            style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5)),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 56,
+                      child: Center(
+                        child: Text("EDIT",
+                            style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+              // Filas de etapas
+              ...ProcessStage.values.map((stage) {
+                final stageName = stage.toString().split('.').last;
+                final viewCode = 'stage_view_$stageName';
+                final editCode = 'stage_edit_$stageName';
+                final canView = currentRolePerms.contains(viewCode);
+                final canEdit = currentRolePerms.contains(editCode);
+                final config = stageConfigs[stage];
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Color(0xFFF8FAFC))),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: config?.textColor ?? Colors.grey,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                config?.title ?? stageName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: const Color(0xFF1E293B)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 56,
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: canView,
+                              activeColor: const Color(0xFF2563EB),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              onChanged: (val) =>
+                                  _togglePermission(currentRolePerms, viewCode, val ?? false),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 56,
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: canEdit,
+                              activeColor: const Color(0xFF16A34A),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              onChanged: (val) {
+                                if (val == true && !canView) {
+                                  final tempPerms = List<String>.from(currentRolePerms)
+                                    ..add(viewCode);
+                                  _togglePermission(tempPerms, editCode, true);
+                                } else {
+                                  _togglePermission(currentRolePerms, editCode, val ?? false);
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1232,8 +1488,11 @@ class _CatalogsTabState extends State<_CatalogsTab> {
                     // Header fijo
                     Container(
                       padding: const EdgeInsets.all(32),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Wrap( // <-- CAMBIO DE ROW A WRAP
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 16,
+                        runSpacing: 16,
                         children: [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1266,7 +1525,7 @@ class _CatalogsTabState extends State<_CatalogsTab> {
                           physics: const NeverScrollableScrollPhysics(), // Desactiva scroll interno
                           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                             maxCrossAxisExtent: 400, // Cards responsivos
-                            childAspectRatio: 2.8,
+                            mainAxisExtent: 130, // <-- REEMPLAZAMOS childAspectRatio POR ALTURA FIJA (130px)
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
                           ),

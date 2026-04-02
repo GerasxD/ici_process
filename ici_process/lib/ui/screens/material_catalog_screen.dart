@@ -24,6 +24,8 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   final _nameCtrl = TextEditingController();
   final _unitCtrl = TextEditingController();
   final _stockCtrl = TextEditingController(); // <--- 1. NUEVO CONTROLADOR DE STOCK
+  late Stream<List<MaterialItem>> _materialsStream;
+  late Stream<List<Provider>> _providersStream;
   
   // Lista temporal para guardar los precios antes de subir a Firebase
   List<PriceEntry> _tempPrices = [];
@@ -40,6 +42,14 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   final Color _accentColor = const Color(0xFF10B981);
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_materials');
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Inicializamos los streams una sola vez aquí
+    _materialsStream = _materialService.getMaterials();
+    _providersStream = _providerService.getProviders();
+  }
   
   @override
   void dispose() {
@@ -52,14 +62,13 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   // --- GUARDAR ---
   Future<void> _handleSave({String? docId}) async {
     if (!canEdit) return;
-    // 1. Validaciones básicas
+    
     if (_nameCtrl.text.isEmpty || _unitCtrl.text.isEmpty) {
       _showSnack("Nombre y Unidad son obligatorios", isSuccess: false);
       return;
     }
 
-    // 2. Validación de Stock
-    double stockValue = double.tryParse(_stockCtrl.text) ?? 0.0; // <--- LEER STOCK
+    double stockValue = double.tryParse(_stockCtrl.text) ?? 0.0;
 
     if (_tempPrices.isEmpty) {
       _showSnack("Advertencia: No has agregado ningún precio/proveedor", isSuccess: false);
@@ -68,26 +77,47 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
     setState(() => _isUploading = true);
     
     try {
-      // 3. Crear el objeto con el STOCK
-      final material = MaterialItem(
-        id: docId ?? '',
-        name: _nameCtrl.text.trim(),
-        unit: _unitCtrl.text.trim(),
-        stock: stockValue, // <--- 2. GUARDAR STOCK EN EL MODELO
-        prices: _tempPrices, 
-      );
-
-      // DEBUG
-      print("📦 Guardando Material: ${material.name} | Stock: ${material.stock}");
-
       if (docId == null) {
+        // ── CREAR NUEVO ──
+        final material = MaterialItem(
+          id: '',
+          name: _nameCtrl.text.trim(),
+          unit: _unitCtrl.text.trim(),
+          stock: stockValue, // Al crear, el stock inicial es el que se escribe
+          reservedStock: 0.0, // Al crear, obviamente no hay reservas
+          prices: _tempPrices, 
+        );
         await _materialService.addMaterial(material);
         _resetForm();
         _showSnack("Material registrado correctamente");
       } else {
-        await _materialService.updateMaterial(material);
-        if (mounted) Navigator.pop(context);
-        _showSnack("Material actualizado");
+        // ── ACTUALIZAR EXISTENTE ──
+        // ★ CAMBIO VITAL: En lugar de enviar un objeto completo y sobreescribir,
+        // vamos a hacer un "update" solo de los campos de catálogo (nombre, unidad, precios).
+        // Y SOLO actualizaremos el 'stock' si el usuario realmente lo modificó.
+        
+        // Primero, necesitamos obtener el material original para comparar
+        final originalItem = await _materialService.getMaterialById(docId);
+        
+        if (originalItem != null) {
+           Map<String, dynamic> updateData = {
+            'name': _nameCtrl.text.trim(),
+            'unit': _unitCtrl.text.trim(),
+            'prices': _tempPrices.map((e) => e.toMap()).toList(),
+          };
+
+          // ★ SOLO actualizamos el stock base si el administrador lo cambió manualmente 
+          // en el campo de texto. Si no lo tocó, respetamos el de la base de datos 
+          // (que podría estar cambiando por reservas en tiempo real).
+          if (stockValue != originalItem.stock) {
+             updateData['stock'] = stockValue;
+          }
+          // Nunca enviamos 'reservedStock' en un update de catálogo.
+
+          await _materialService.updateMaterialFields(docId, updateData);
+          if (mounted) Navigator.pop(context);
+          _showSnack("Material actualizado");
+        }
       }
     } catch (e) {
       print("❌ ERROR AL GUARDAR: $e");
@@ -128,7 +158,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
               const SizedBox(height: 40),
               
               StreamBuilder<List<MaterialItem>>(
-                stream: _materialService.getMaterials(),
+                stream: _materialsStream, 
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return Text("Error: ${snapshot.error}");
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -137,7 +167,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                   final materials = snapshot.data ?? [];
 
                   return StreamBuilder<List<Provider>>(
-                    stream: _providerService.getProviders(),
+                    stream: _providersStream,
                     builder: (context, providerSnap) {
                       final providers = providerSnap.data ?? [];
 

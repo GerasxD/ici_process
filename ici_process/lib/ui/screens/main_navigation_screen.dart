@@ -115,7 +115,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       fontWeight: FontWeight.bold)),
               actions: [
                 _buildNotificationBadge(),
-                const SizedBox(width: 16),
+                if (_selectedIndex == 0 && PermissionManager().can(widget.user, 'move_stage'))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: SizedBox(
+                      height: 36,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => ProcessModal(user: widget.user),
+                          );
+                        },
+                        icon: const Icon(LucideIcons.plus, size: 16, color: Colors.white),
+                        label: const Text("Nuevo", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             )
           : null,

@@ -21,13 +21,17 @@ class EventService {
   }
 
   // ── CREAR ───────────────────────────────────────────────
-  Future<void> createEvent(CalendarEvent event) async {
-    await _ref.add(event.toMap());
+  Future<String> createEvent(CalendarEvent event) async {
+    // Al usar .add(), Firebase nos devuelve la referencia del nuevo documento
+    final docRef = await _ref.add(event.toMap());
+    
+    // Retornamos el ID que Firebase generó automáticamente
+    return docRef.id; 
   }
 
   // ── ACTUALIZAR ──────────────────────────────────────────
   Future<void> updateEvent(CalendarEvent event) async {
-    await _ref.doc(event.id).update(event.toMap());
+    await _ref.doc(event.id).set(event.toMap(), SetOptions(merge: true));
   }
 
   // ── ELIMINAR ────────────────────────────────────────────

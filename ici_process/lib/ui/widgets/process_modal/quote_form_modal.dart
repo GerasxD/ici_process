@@ -332,80 +332,23 @@
     Widget build(BuildContext context) {
       if (_isLoading) return const Center(child: CircularProgressIndicator());
 
+      final screenWidth = MediaQuery.of(context).size.width;
+      final bool mobile = screenWidth < 800;
+
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         backgroundColor: _bgColor,
-        insetPadding: const EdgeInsets.all(20),
+        insetPadding: EdgeInsets.all(mobile ? 8 : 20),
         child: Container(
-          width: 1400,
-          height: 900,
+          width: mobile ? double.infinity : 1400,
+          height: mobile ? double.infinity : 900,
           child: Column(
             children: [
               _buildHeader(),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // COLUMNA IZQUIERDA: MATERIALES Y SERVICIOS
-                    Expanded(
-                      flex: 7,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSectionTitle("Insumos y Materiales", LucideIcons.package),
-                            const SizedBox(height: 16),
-                            _buildMaterialList(data.materials),
-                            const SizedBox(height: 32),
-                            
-                            _buildSectionTitle("Servicios Indirectos (Rentas)", LucideIcons.briefcase),
-                            const SizedBox(height: 16),
-                            _buildIndirectList(data.indirects),
-                            const SizedBox(height: 32),
-                            
-                            _buildSectionTitle("Especialidades", LucideIcons.wrench),
-                            const SizedBox(height: 16),
-                            _buildSpecialtiesList(data.specialties),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    // COLUMNA DERECHA: LOGÍSTICA, MO Y RESUMEN
-                    Expanded(
-                      flex: 5,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: _surfaceColor,
-                          border: Border(left: BorderSide(color: _borderColor)),
-                        ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildSectionTitle("Logística y Transporte", LucideIcons.truck),
-                              const SizedBox(height: 16),
-                              _buildVehiclesSection(),
-                              const SizedBox(height: 32),
-                              
-                              // Se eliminó el título externo para integrarlo en la tarjeta verde
-                              _buildLaborSection(),
-                              const SizedBox(height: 40),
-                              
-                              const Divider(),
-                              const SizedBox(height: 24),
-                              _buildProtectionConfig(),
-                              const SizedBox(height: 24),
-                              _buildSummaryCard(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  ],
-                ),
+                child: mobile
+                    ? _buildMobileBody()
+                    : _buildDesktopBody(),
               ),
               _buildFooter(),
             ],
@@ -413,6 +356,102 @@
         ),
       );
     }
+
+    Widget _buildDesktopBody() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 7,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionTitle("Insumos y Materiales", LucideIcons.package),
+                const SizedBox(height: 16),
+                _buildMaterialList(data.materials),
+                const SizedBox(height: 32),
+                _buildSectionTitle("Servicios Indirectos (Rentas)", LucideIcons.briefcase),
+                const SizedBox(height: 16),
+                _buildIndirectList(data.indirects),
+                const SizedBox(height: 32),
+                _buildSectionTitle("Especialidades", LucideIcons.wrench),
+                const SizedBox(height: 16),
+                _buildSpecialtiesList(data.specialties),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 5,
+          child: Container(
+            decoration: BoxDecoration(
+              color: _surfaceColor,
+              border: Border(left: BorderSide(color: _borderColor)),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle("Logística y Transporte", LucideIcons.truck),
+                  const SizedBox(height: 16),
+                  _buildVehiclesSection(),
+                  const SizedBox(height: 32),
+                  _buildLaborSection(),
+                  const SizedBox(height: 40),
+                  const Divider(),
+                  const SizedBox(height: 24),
+                  _buildProtectionConfig(),
+                  const SizedBox(height: 24),
+                  _buildSummaryCard(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileBody() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle("Insumos y Materiales", LucideIcons.package),
+          const SizedBox(height: 12),
+          _buildMaterialList(data.materials),
+          const SizedBox(height: 24),
+
+          _buildSectionTitle("Servicios Indirectos", LucideIcons.briefcase),
+          const SizedBox(height: 12),
+          _buildIndirectList(data.indirects),
+          const SizedBox(height: 24),
+
+          _buildSectionTitle("Especialidades", LucideIcons.wrench),
+          const SizedBox(height: 12),
+          _buildSpecialtiesList(data.specialties),
+          const SizedBox(height: 24),
+
+          _buildSectionTitle("Logística y Transporte", LucideIcons.truck),
+          const SizedBox(height: 12),
+          _buildVehiclesSection(),
+          const SizedBox(height: 24),
+
+          _buildLaborSection(),
+          const SizedBox(height: 24),
+
+          _buildProtectionConfig(),
+          const SizedBox(height: 24),
+          _buildSummaryCard(),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
 
     // --- NUEVO HELPER VISUAL PARA EL PROVEEDOR ---
     Widget _buildProviderBadge(String providerName, double price, VoidCallback onTap, {bool isService = false}) {
@@ -578,133 +617,223 @@
     }
 
     Widget _buildGenericList({
-      required List<QuoteItem> items,
-      required double total,
-      required String addButtonText,
-      required bool isService,
-      required Widget Function(int index, QuoteItem item) itemBuilder,
-    }) {
-      return Container(
-        decoration: BoxDecoration(
-          color: _surfaceColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _borderColor),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Column(
-          children: [
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (ctx, i) {
-                final item = items[i];
-                return Row(
+    required List<QuoteItem> items,
+    required double total,
+    required String addButtonText,
+    required bool isService,
+    required Widget Function(int index, QuoteItem item) itemBuilder,
+  }) {
+    final bool mobile = MediaQuery.of(context).size.width < 800;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _surfaceColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        children: [
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: mobile ? Divider(color: _borderColor) : const SizedBox(height: 4),
+            ),
+            itemBuilder: (ctx, i) {
+              final item = items[i];
+
+              if (mobile) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(flex: 5, child: itemBuilder(i, item)),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 80,
-                      child: TextFormField(
-                        initialValue: item.quantity.toString(),
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) => setState(() => item.quantity = double.tryParse(val) ?? 0),
-                        decoration: _inputDecoration("Cant.", isCenter: true),
-                        style: GoogleFonts.inter(fontSize: 13),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // CAMPO DE PRECIO CON BOTÓN DE BÚSQUEDA
-                    Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        key: Key(item.unitPrice.toString()),
-                        initialValue: item.unitPrice.toString(),
-                        keyboardType: TextInputType.number,
-                        onChanged: (val) => setState(() => item.unitPrice = double.tryParse(val) ?? 0),
-                        decoration: _inputDecoration("\$ PU").copyWith(
-                          suffixIcon: IconButton(
-                            icon: const Icon(LucideIcons.search, size: 14),
-                            onPressed: () => _showProviderSelectionDialog(item, isService),
-                            tooltip: "Ver proveedores",
-                          )
-                        ),
-                        style: GoogleFonts.inter(fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.redAccent),
-                      onPressed: () => setState(() => items.removeAt(i)),
-                      tooltip: "Eliminar fila",
-                    )
-                  ],
-                );
-              },
-            ),
-            
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: _bgColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11))),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => setState(() => items.add(QuoteItem(id: DateTime.now().toString()))),
-                    icon: Icon(LucideIcons.plusCircle, size: 16, color: _accentColor),
-                    label: Text(addButtonText, style: GoogleFonts.inter(color: _accentColor, fontWeight: FontWeight.w600)),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: _surfaceColor, borderRadius: BorderRadius.circular(6), border: Border.all(color: _borderColor)),
-                    child: Row(
-                      children: [
-                        Text("Subtotal: ", style: GoogleFonts.inter(fontSize: 12, color: _labelColor)),
-                        Text(currencyFormat.format(total), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _primaryColor)),
-                      ],
-                    ),
-                  )
-                ],
-              ),
-            )
-          ],
-        ),
-      );
-    }
-
-    // --- SECCIÓN VEHÍCULOS ---
-    Widget _buildVehiclesSection() {
-      return _buildSectionContainer(
-        child: Column(
-          children: [
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: data.vehicles.length,
-              separatorBuilder: (_, __) => const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider()),
-              itemBuilder: (ctx, i) {
-                final v = data.vehicles[i];
-                return Column(
-                  children: [
+                    // Fila 1: nombre + eliminar
                     Row(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _vehiclesDB.any((x) => x.id == v.vehicleId) ? v.vehicleId : null,
-                            isDense: true, isExpanded: true,
-                            items: _vehiclesDB.map((db) => DropdownMenuItem(value: db.id, child: Text("${db.model} (${db.kmPerLiter}km/l)", style: GoogleFonts.inter(fontSize: 13), overflow: TextOverflow.ellipsis))).toList(),
-                            onChanged: (val) => setState(() => v.vehicleId = val!),
-                            decoration: _inputDecoration("Seleccionar Vehículo"),
-                          ),
+                        Expanded(child: itemBuilder(i, item)),
+                        IconButton(
+                          icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.redAccent),
+                          onPressed: () => setState(() => items.removeAt(i)),
+                          tooltip: "Eliminar",
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                         ),
-                        IconButton(icon: const Icon(LucideIcons.x, size: 16, color: Colors.redAccent), onPressed: () => setState(() => data.vehicles.remove(v)))
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // Fila 2: cantidad + precio
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: item.quantity.toString(),
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) => setState(() => item.quantity = double.tryParse(val) ?? 0),
+                            decoration: _inputDecoration("Cantidad", isCenter: true),
+                            style: GoogleFonts.inter(fontSize: 13),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            key: Key(item.unitPrice.toString()),
+                            initialValue: item.unitPrice.toString(),
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) => setState(() => item.unitPrice = double.tryParse(val) ?? 0),
+                            decoration: _inputDecoration("\$ P.U.").copyWith(
+                              suffixIcon: IconButton(
+                                icon: const Icon(LucideIcons.search, size: 14),
+                                onPressed: () => _showProviderSelectionDialog(item, isService),
+                                tooltip: "Ver proveedores",
+                              ),
+                            ),
+                            style: GoogleFonts.inter(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              // Desktop: fila horizontal original
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: itemBuilder(i, item)),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 80,
+                    child: TextFormField(
+                      initialValue: item.quantity.toString(),
+                      keyboardType: TextInputType.number,
+                      onChanged: (val) => setState(() => item.quantity = double.tryParse(val) ?? 0),
+                      decoration: _inputDecoration("Cant.", isCenter: true),
+                      style: GoogleFonts.inter(fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      key: Key(item.unitPrice.toString()),
+                      initialValue: item.unitPrice.toString(),
+                      keyboardType: TextInputType.number,
+                      onChanged: (val) => setState(() => item.unitPrice = double.tryParse(val) ?? 0),
+                      decoration: _inputDecoration("\$ PU").copyWith(
+                        suffixIcon: IconButton(
+                          icon: const Icon(LucideIcons.search, size: 14),
+                          onPressed: () => _showProviderSelectionDialog(item, isService),
+                          tooltip: "Ver proveedores",
+                        ),
+                      ),
+                      style: GoogleFonts.inter(fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.redAccent),
+                    onPressed: () => setState(() => items.removeAt(i)),
+                    tooltip: "Eliminar fila",
+                  ),
+                ],
+              );
+            },
+          ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: _bgColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => items.add(QuoteItem(id: DateTime.now().toString()))),
+                    icon: Icon(LucideIcons.plusCircle, size: 16, color: _accentColor),
+                    label: Text(
+                      mobile ? "Agregar" : addButtonText,
+                      style: GoogleFonts.inter(color: _accentColor, fontWeight: FontWeight.w600, fontSize: mobile ? 12 : 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: _surfaceColor, borderRadius: BorderRadius.circular(6), border: Border.all(color: _borderColor)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!mobile) Text("Subtotal: ", style: GoogleFonts.inter(fontSize: 12, color: _labelColor)),
+                      Text(currencyFormat.format(total), style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _primaryColor)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+    // --- SECCIÓN VEHÍCULOS ---
+    Widget _buildVehiclesSection() {
+    final bool mobile = MediaQuery.of(context).size.width < 800;
+
+    return _buildSectionContainer(
+      child: Column(
+        children: [
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: data.vehicles.length,
+            separatorBuilder: (_, __) => const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider()),
+            itemBuilder: (ctx, i) {
+              final v = data.vehicles[i];
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _vehiclesDB.any((x) => x.id == v.vehicleId) ? v.vehicleId : null,
+                          isDense: true, isExpanded: true,
+                          items: _vehiclesDB.map((db) => DropdownMenuItem(
+                            value: db.id,
+                            child: Text(
+                              mobile ? db.model : "${db.model} (${db.kmPerLiter}km/l)",
+                              style: GoogleFonts.inter(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )).toList(),
+                          onChanged: (val) => setState(() => v.vehicleId = val!),
+                          decoration: _inputDecoration("Vehículo"),
+                        ),
+                      ),
+                      IconButton(icon: const Icon(LucideIcons.x, size: 16, color: Colors.redAccent), onPressed: () => setState(() => data.vehicles.remove(v))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (mobile)
+                    Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: _buildInput(null, "Días", initialValue: v.days.toString(), onChanged: (val) => setState(() => v.days = double.tryParse(val) ?? 0))),
+                            const SizedBox(width: 8),
+                            Expanded(child: _buildInput(null, "Km Total", initialValue: v.distance.toString(), onChanged: (val) => setState(() => v.distance = double.tryParse(val) ?? 0))),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildInput(null, "Casetas \$", initialValue: v.tolls.toString(), onChanged: (val) => setState(() => v.tolls = double.tryParse(val) ?? 0)),
+                      ],
+                    )
+                  else
                     Row(
                       children: [
                         Expanded(child: _buildInput(null, "Días", initialValue: v.days.toString(), onChanged: (val) => setState(() => v.days = double.tryParse(val) ?? 0))),
@@ -713,17 +842,17 @@
                         const SizedBox(width: 8),
                         Expanded(child: _buildInput(null, "Casetas \$", initialValue: v.tolls.toString(), onChanged: (val) => setState(() => v.tolls = double.tryParse(val) ?? 0))),
                       ],
-                    )
-                  ],
-                );
-              },
-            ),
-            if (data.vehicles.isNotEmpty) const SizedBox(height: 16),
-            _buildAddButton("Agregar Vehículo", () => setState(() => data.vehicles.add(VehicleQuote(id: DateTime.now().toString(), vehicleId: _vehiclesDB.isNotEmpty ? _vehiclesDB.first.id : ''))))
-          ],
-        ),
-      );
-    }
+                    ),
+                ],
+              );
+            },
+          ),
+          if (data.vehicles.isNotEmpty) const SizedBox(height: 16),
+          _buildAddButton("Agregar Vehículo", () => setState(() => data.vehicles.add(VehicleQuote(id: DateTime.now().toString(), vehicleId: _vehiclesDB.isNotEmpty ? _vehiclesDB.first.id : '')))),
+        ],
+      ),
+    );
+  }
 
     // --- ✅ SECCIÓN MANO DE OBRA (COMPLETA Y MEJORADA) ---
     Widget _buildLaborSection() {
@@ -1112,64 +1241,79 @@
     }
 
     Widget _buildHeader() {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-        decoration: BoxDecoration(
-          color: _surfaceColor,
-          border: Border(bottom: BorderSide(color: _borderColor)),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
+    final bool mobile = MediaQuery.of(context).size.width < 800;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 32, vertical: mobile ? 14 : 20),
+      decoration: BoxDecoration(
+        color: _surfaceColor,
+        border: Border(bottom: BorderSide(color: _borderColor)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: _accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            child: Icon(LucideIcons.calculator, color: _accentColor, size: mobile ? 18 : 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(LucideIcons.calculator, color: _accentColor, size: 20)),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Generador de Cotización", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: _labelColor)),
-                    Text(widget.process.title, style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: _primaryColor)),
-                  ],
-                )
+                Text("Cotizador", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: _labelColor)),
+                Text(
+                  widget.process.title,
+                  style: GoogleFonts.inter(fontSize: mobile ? 14 : 18, fontWeight: FontWeight.w800, color: _primaryColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
-            IconButton(onPressed: () => Navigator.pop(context), icon: Icon(LucideIcons.x, color: _labelColor))
-          ],
-        ),
-      );
-    }
+          ),
+          IconButton(onPressed: () => Navigator.pop(context), icon: Icon(LucideIcons.x, color: _labelColor)),
+        ],
+      ),
+    );
+  }
 
-    Widget _buildFooter() {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(color: _surfaceColor, border: Border(top: BorderSide(color: _borderColor))),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
+  Widget _buildFooter() {
+    final bool mobile = MediaQuery.of(context).size.width < 800;
+
+    return Container(
+      padding: EdgeInsets.all(mobile ? 12 : 24),
+      decoration: BoxDecoration(color: _surfaceColor, border: Border(top: BorderSide(color: _borderColor))),
+      child: Row(
+        children: [
+          if (!mobile)
             TextButton(
               onPressed: () => Navigator.pop(context),
               style: TextButton.styleFrom(foregroundColor: _labelColor, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20)),
               child: Text("Descartar cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
             ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: _handleSave,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0
-              ),
-              icon: const Icon(LucideIcons.save, size: 18),
-              label: Text("Guardar Cotización", style: GoogleFonts.inter(fontWeight: FontWeight.bold))
-            )
-          ],
-        ),
-      );
-    }
+          if (mobile)
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("Cancelar", style: GoogleFonts.inter(color: _labelColor, fontWeight: FontWeight.w600)),
+            ),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: _handleSave,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryColor,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: mobile ? 20 : 32, vertical: mobile ? 14 : 20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            icon: const Icon(LucideIcons.save, size: 18),
+            label: Text(mobile ? "Guardar" : "Guardar Cotización", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
     // --- HELPERS VISUALES ---
 
