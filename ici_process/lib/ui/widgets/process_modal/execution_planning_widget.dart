@@ -52,6 +52,8 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     const Color(0xFF2563EB), const Color(0xFF7C3AED), const Color(0xFF059669),
     const Color(0xFFEA580C), const Color(0xFF0891B2), const Color(0xFF475569),
   ];
+  
+  bool get _isMobile => MediaQuery.of(context).size.width < 700;
 
   @override
   void initState() {
@@ -295,7 +297,29 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
-  Widget _buildDatesSection() {
+ Widget _buildDatesSection() {
+    if (_isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("CRONOGRAMA", style: _labelStyle()),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _buildDateCard("Inicio", _startDate, () => _pickDate(true))),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Icon(LucideIcons.arrowRight, size: 16, color: Color(0xFFCBD5E1)),
+              ),
+              Expanded(child: _buildDateCard("Fin", _endDate, () => _pickDate(false))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildDaysSummaryCard(),
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -382,78 +406,154 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
   }
 
   Widget _buildResourcesSection() {
+    final techWidget = _buildResourceContainer(
+      title: "EQUIPO TÉCNICO",
+      icon: LucideIcons.users,
+      stream: _userService.getUsersStream(),
+      builder: (data) {
+        final techs = data.where((u) => u.role == UserRole.technician).toList();
+        return _buildSelectableList(
+          items: techs,
+          emptyIcon: LucideIcons.userX,
+          emptyMessage: "No hay técnicos",
+          itemBuilder: (tech) => _buildModernTile(
+            title: tech.name,
+            subtitle: "Técnico",
+            icon: LucideIcons.userCheck,
+            isSelected: _selectedTechIds.contains(tech.id),
+            onTap: () {
+              if (!widget.isEditable) return;
+              setState(() {
+                if (_selectedTechIds.contains(tech.id)) {
+                  _selectedTechIds.remove(tech.id);
+                  _techNames.remove(tech.id);
+                } else {
+                  _selectedTechIds.add(tech.id);
+                  _techNames[tech.id] = tech.name;
+                }
+              });
+              _notifyData();
+            },
+          ),
+        );
+      },
+    );
+
+    final toolWidget = _buildResourceContainer(
+      title: "HERRAMIENTAS",
+      icon: LucideIcons.wrench,
+      stream: _toolService.getTools(),
+      builder: (tools) {
+        return _buildSelectableList(
+          items: tools,
+          emptyIcon: LucideIcons.box,
+          emptyMessage: "Inventario vacío",
+          itemBuilder: (tool) => _buildModernTile(
+            title: tool.name,
+            subtitle: tool.brand,
+            icon: LucideIcons.hammer,
+            isSelected: _selectedToolIds.contains(tool.id),
+            onTap: () {
+              if (!widget.isEditable) return;
+              setState(() {
+                _selectedToolIds.contains(tool.id)
+                    ? _selectedToolIds.remove(tool.id)
+                    : _selectedToolIds.add(tool.id);
+              });
+              _notifyData();
+            },
+          ),
+        );
+      },
+    );
+
+    if (_isMobile) {
+      return Column(
+        children: [
+          techWidget,
+          const SizedBox(height: 16),
+          toolWidget,
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _buildResourceContainer(
-            title: "EQUIPO TÉCNICO",
-            icon: LucideIcons.users,
-            stream: _userService.getUsersStream(),
-            builder: (data) {
-              final techs = data.where((u) => u.role == UserRole.technician).toList();
-              return _buildSelectableList(
-                items: techs,
-                emptyIcon: LucideIcons.userX,
-                emptyMessage: "No hay técnicos",
-                itemBuilder: (tech) => _buildModernTile(
-                  title: tech.name,
-                  subtitle: "Técnico",
-                  icon: LucideIcons.userCheck,
-                  isSelected: _selectedTechIds.contains(tech.id),
-                  onTap: () {
-                    if (!widget.isEditable) return;
-                    setState(() {
-                      if (_selectedTechIds.contains(tech.id)) {
-                        _selectedTechIds.remove(tech.id);
-                        _techNames.remove(tech.id);
-                      } else {
-                        _selectedTechIds.add(tech.id);
-                        _techNames[tech.id] = tech.name;
-                      }
-                    });
-                    _notifyData();
-                  },
-                ),
-              );
-            },
-          ),
-        ),
+        Expanded(child: techWidget),
         const SizedBox(width: 20),
-        Expanded(
-          child: _buildResourceContainer(
-            title: "HERRAMIENTAS",
-            icon: LucideIcons.wrench,
-            stream: _toolService.getTools(),
-            builder: (tools) {
-              return _buildSelectableList(
-                items: tools,
-                emptyIcon: LucideIcons.box,
-                emptyMessage: "Inventario vacío",
-                itemBuilder: (tool) => _buildModernTile(
-                  title: tool.name,
-                  subtitle: tool.brand,
-                  icon: LucideIcons.hammer, 
-                  isSelected: _selectedToolIds.contains(tool.id),
-                  onTap: () {
-                    if (!widget.isEditable) return;
-                    setState(() {
-                      _selectedToolIds.contains(tool.id) 
-                          ? _selectedToolIds.remove(tool.id) 
-                          : _selectedToolIds.add(tool.id);
-                    });
-                    _notifyData();
-                  },
-                ),
-              );
-            },
-          ),
-        ),
+        Expanded(child: toolWidget),
       ],
     );
   }
 
   Widget _buildFooterActions() {
+    final colorRow = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: _colorPalette.map((color) => GestureDetector(
+        onTap: widget.isEditable ? () {
+          setState(() => _selectedColor = color);
+          _notifyData();
+        } : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          width: _selectedColor == color ? 28 : 22,
+          height: _selectedColor == color ? 28 : 22,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: _selectedColor == color ? 2 : 1),
+            boxShadow: [
+              if (_selectedColor == color)
+                BoxShadow(color: color.withOpacity(0.5), blurRadius: 6, offset: const Offset(0, 3))
+              else
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 3, offset: const Offset(0, 1))
+            ],
+          ),
+          child: _selectedColor == color
+              ? const Icon(LucideIcons.check, size: 12, color: Colors.white)
+              : null,
+        ),
+      )).toList(),
+    );
+
+    final actionButton = SizedBox(
+      height: 44,
+      child: ElevatedButton.icon(
+        onPressed: widget.isEditable && !_isScheduling ? _scheduleEvent : null,
+        icon: _isScheduling
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+            : Icon(_scheduledEventId != null ? LucideIcons.refreshCw : LucideIcons.calendarPlus, size: 18),
+        label: Text(
+          _scheduledEventId != null ? "Sincronizar" : "Guardar Evento",
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _selectedColor,
+          foregroundColor: Colors.white,
+          elevation: _isScheduling ? 0 : 2,
+          shadowColor: _selectedColor.withOpacity(0.5),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+
+    if (_isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("ETIQUETA", style: _labelStyle()),
+          const SizedBox(height: 10),
+          colorRow,
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: actionButton),
+        ],
+      );
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -463,59 +563,12 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           children: [
             Text("ETIQUETA", style: _labelStyle()),
             const SizedBox(height: 10),
-            Row(
-              children: _colorPalette.map((color) => GestureDetector(
-                onTap: widget.isEditable ? () {
-                  setState(() => _selectedColor = color);
-                  _notifyData();
-                } : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  margin: const EdgeInsets.only(right: 12),
-                  // Círculos de color ligeramente más pequeños
-                  width: _selectedColor == color ? 28 : 22,
-                  height: _selectedColor == color ? 28 : 22,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: _selectedColor == color ? 2 : 1),
-                    boxShadow: [
-                      if (_selectedColor == color)
-                        BoxShadow(color: color.withOpacity(0.5), blurRadius: 6, offset: const Offset(0, 3))
-                      else
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 3, offset: const Offset(0, 1))
-                    ],
-                  ),
-                  child: _selectedColor == color 
-                      ? const Icon(LucideIcons.check, size: 12, color: Colors.white) 
-                      : null,
-                ),
-              )).toList(),
-            ),
+            colorRow,
           ],
         ),
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          height: 44, // Botón más delgado para no verse tosco
-          child: ElevatedButton.icon(
-            onPressed: widget.isEditable && !_isScheduling ? _scheduleEvent : null,
-            icon: _isScheduling 
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : Icon(_scheduledEventId != null ? LucideIcons.refreshCw : LucideIcons.calendarPlus, size: 18),
-            label: Text(
-              _scheduledEventId != null ? "Sincronizar" : "Guardar Evento", 
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2)
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _selectedColor,
-              foregroundColor: Colors.white,
-              elevation: _isScheduling ? 0 : 2,
-              shadowColor: _selectedColor.withOpacity(0.5),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
+          child: actionButton,
         ),
       ],
     );

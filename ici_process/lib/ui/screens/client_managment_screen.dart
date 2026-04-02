@@ -36,6 +36,14 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   final Color _inputFill = const Color(0xFFF1F5F9); // Slate 100
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_clients');
+  late Stream<List<Client>> _clientsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Inicialízalo solo una vez
+    _clientsStream = _clientService.getClients();
+  }
 
   void _addBranchField() {
     setState(() => _branchControllers.add(TextEditingController()));
@@ -64,11 +72,25 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
       try {
         await _clientService.addClient(name, billing, branches);
         
+        // --- CORRECCIÓN AQUÍ ---
+        // 1. Guardamos la referencia de los controladores viejos
+        final oldBranchControllers = List<TextEditingController>.from(_branchControllers);
+        
+        // 2. Limpiamos los textos básicos
         _nameController.clear();
         _billingController.clear();
-        for (var c in _branchControllers) { c.dispose(); }
-        _branchControllers = [TextEditingController()];
         
+        // 3. Reasignamos la lista dentro de un setState para actualizar la UI
+        setState(() {
+          _branchControllers = [TextEditingController()];
+        });
+        
+        // 4. Hacemos dispose de los viejos de forma segura, ahora que ya no están en la UI
+        for (var c in oldBranchControllers) { 
+          c.dispose(); 
+        }
+        // ------------------------
+
         FocusScope.of(context).unfocus();
         if (mounted) {
           _showSnack("Cliente registrado correctamente", isSuccess: true);
@@ -82,7 +104,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
       _showSnack("Nombre y dirección son obligatorios", isSuccess: false);
     }
   }
-
+  
   void _showSnack(String msg, {bool isSuccess = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -120,7 +142,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                   _buildHeader(),
                   const SizedBox(height: 32),
                   StreamBuilder<List<Client>>(
-                    stream: _clientService.getClients(),
+                    stream: _clientsStream,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) return _buildErrorState(snapshot.error.toString());
                       if (snapshot.connectionState == ConnectionState.waiting) {

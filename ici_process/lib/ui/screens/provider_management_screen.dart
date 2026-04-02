@@ -24,6 +24,9 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
 
   final ProviderService _providerService = ProviderService();
   bool _isUploading = false;
+  
+  // SOLUCIÓN 1: Variable para almacenar el stream y evitar el "flickering" o recargas al abrir el teclado
+  late Stream<List<Provider>> _providersStream;
 
   // --- PALETA DE COLORES REFINADA ---
   final Color _bgPage = const Color(0xFFF8FAFC);
@@ -31,13 +34,18 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
   final Color _textPrimary = const Color(0xFF0F172A);
   final Color _textSecondary = const Color(0xFF64748B);
   final Color _borderColor = const Color(0xFFE2E8F0);
-  final Color _primaryBlue = const Color(0xFF2563EB); // Color principal de la app
+  final Color _primaryBlue = const Color(0xFF2563EB); 
   final Color _inputFill = const Color(0xFFF1F5F9);
-  
-  // Color distintivo para Proveedores (Indigo suave para diferenciar de Clientes azules)
   final Color _accentColor = const Color(0xFF6366F1); 
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_providers');
+
+  @override
+  void initState() {
+    super.initState();
+    // Se inicializa el stream solo una vez al cargar la pantalla
+    _providersStream = _providerService.getProviders();
+  }
 
   @override
   void dispose() {
@@ -100,7 +108,7 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
               _buildHeader(),
               const SizedBox(height: 40),
               StreamBuilder<List<Provider>>(
-                stream: _providerService.getProviders(),
+                stream: _providersStream, // Se usa la variable, no la función directa
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return _buildErrorState(snapshot.error.toString());
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -114,9 +122,7 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
                       children: [
                         Expanded(flex: 7, child: _buildList(providers)),
                         const SizedBox(width: 40),
-                        // 3. OCULTAR FORMULARIO EN DESKTOP
-                        if (canEdit) 
-                          Expanded(flex: 4, child: _buildForm()),
+                        if (canEdit) Expanded(flex: 4, child: _buildForm()),
                       ],
                     );
                   } else {
@@ -153,7 +159,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
             ],
             border: Border.all(color: _borderColor),
           ),
-          // ✅ NUEVO ICONO: BOXES (Representa inventario/suministros)
           child: Icon(LucideIcons.boxes, color: _accentColor, size: 32),
         ),
         const SizedBox(width: 20),
@@ -216,7 +221,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar con las iniciales
           Container(
             width: 48,
             height: 48,
@@ -232,8 +236,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
             ),
           ),
           const SizedBox(width: 20),
-          
-          // Información
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,8 +245,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
                   style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary),
                 ),
                 const SizedBox(height: 8),
-                
-                // Grid de información de contacto
                 Wrap(
                   spacing: 24,
                   runSpacing: 8,
@@ -257,8 +257,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
               ],
             ),
           ),
-
-          // Botones de acción mejorados
           if (canEdit)
             Row(
               children: [
@@ -280,7 +278,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
     );
   }
 
-  // Widget auxiliar para botones de acción suaves
   Widget _buildIconBtn({required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
@@ -333,10 +330,8 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          
           _buildSectionLabel("Datos de la Empresa"),
           _input(_nameCtrl, "Nombre Comercial", LucideIcons.building),
-          
           const SizedBox(height: 24),
           _buildSectionLabel("Datos de Contacto"),
           _input(_contactCtrl, "Nombre del Contacto", LucideIcons.user),
@@ -344,7 +339,6 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
           _input(_phoneCtrl, "Teléfono", LucideIcons.phone),
           const SizedBox(height: 12),
           _input(_emailCtrl, "Correo Electrónico", LucideIcons.mail),
-          
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
@@ -440,57 +434,78 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
     final cCtrl = TextEditingController(text: provider.contactName);
     final pCtrl = TextEditingController(text: provider.phone);
     final eCtrl = TextEditingController(text: provider.email);
+    
+    // SOLUCIÓN 3: Control local de estado para evitar clics múltiples al actualizar
+    bool isUpdating = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text("Editar Proveedor", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionLabel("Información"),
-            _input(nCtrl, "Nombre Empresa", LucideIcons.building),
-            const SizedBox(height: 16),
-            _input(cCtrl, "Contacto", LucideIcons.user),
-            const SizedBox(height: 12),
-            _input(pCtrl, "Teléfono", LucideIcons.phone),
-            const SizedBox(height: 12),
-            _input(eCtrl, "Correo", LucideIcons.mail),
-          ],
-        ),
-        actionsPadding: const EdgeInsets.all(20),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: _textSecondary),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await _providerService.updateProvider(Provider(
-                id: provider.id,
-                name: nCtrl.text,
-                contactName: cCtrl.text,
-                phone: pCtrl.text,
-                email: eCtrl.text,
-              ));
-              if (mounted) {
-                Navigator.pop(ctx);
-                _showSnack("Proveedor actualizado", isSuccess: true);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryBlue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              elevation: 0,
+      builder: (ctx) => StatefulBuilder( // StatefulBuilder permite usar setState dentro del diálogo
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text("Editar Proveedor", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            content: SizedBox(
+              width: 400, // Limita el ancho en pantallas grandes
+              // SOLUCIÓN 2: SingleChildScrollView evita el error "RenderFlex Overflow" al abrir el teclado
+              child: SingleChildScrollView( 
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel("Información"),
+                    _input(nCtrl, "Nombre Empresa", LucideIcons.building),
+                    const SizedBox(height: 16),
+                    _input(cCtrl, "Contacto", LucideIcons.user),
+                    const SizedBox(height: 12),
+                    _input(pCtrl, "Teléfono", LucideIcons.phone),
+                    const SizedBox(height: 12),
+                    _input(eCtrl, "Correo", LucideIcons.mail),
+                  ],
+                ),
+              ),
             ),
-            child: const Text("Guardar Cambios"),
-          )
-        ],
+            actionsPadding: const EdgeInsets.all(20),
+            actions: [
+              TextButton(
+                onPressed: isUpdating ? null : () => Navigator.pop(ctx),
+                style: TextButton.styleFrom(foregroundColor: _textSecondary),
+                child: const Text("Cancelar"),
+              ),
+              ElevatedButton(
+                onPressed: isUpdating ? null : () async {
+                  setStateDialog(() => isUpdating = true);
+                  try {
+                    await _providerService.updateProvider(Provider(
+                      id: provider.id,
+                      name: nCtrl.text.trim(),
+                      contactName: cCtrl.text.trim(),
+                      phone: pCtrl.text.trim(),
+                      email: eCtrl.text.trim(),
+                    ));
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      _showSnack("Proveedor actualizado", isSuccess: true);
+                    }
+                  } catch (e) {
+                    setStateDialog(() => isUpdating = false);
+                    if (mounted) _showSnack("Error: $e", isSuccess: false);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryBlue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                ),
+                child: isUpdating 
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text("Guardar Cambios"),
+              )
+            ],
+          );
+        }
       ),
     );
   }

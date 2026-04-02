@@ -4,6 +4,7 @@ import 'package:ici_process/services/user_service.dart';
 import 'package:ici_process/ui/widgets/process_modal/execution_status_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/logistics_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/quote_form_modal.dart';
+import 'package:ici_process/ui/widgets/process_modal/report_billing_section.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'general_info_section.dart';
@@ -37,6 +38,7 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // ── NUEVO: datos de logística ─────────────────────────────
   Map<String, dynamic>? _currentLogisticsData;
+  Map<String, dynamic>? _currentReportBillingData;
 
   String _priority = 'Media';
   String? _requestedBy;
@@ -76,6 +78,7 @@ class _ProcessModalState extends State<ProcessModal> {
       _isNoOc = widget.process!.skipClientPO;
       // ── Cargar datos de logística ─────────────────────────
       _currentLogisticsData = widget.process!.logisticsData;
+      _currentReportBillingData = widget.process!.reportBillingData;
 
       if (widget.process!.poDate != null && widget.process!.poDate!.isNotEmpty) {
         try {
@@ -953,6 +956,319 @@ class _ProcessModalState extends State<ProcessModal> {
         return; // Esto detiene el flujo y evita que pase a E5
       }
     }
+
+    // ── VALIDACIÓN E7: Archivos requeridos antes de Finalizar ──
+    if (widget.process!.stage == ProcessStage.E7) {
+      final photoFiles = (_currentReportBillingData?['photoReportFiles'] as List? ?? []);
+      final xmlFiles   = (_currentReportBillingData?['invoiceXmlFiles']  as List? ?? []);
+      final pdfFiles   = (_currentReportBillingData?['invoicePdfFiles']  as List? ?? []);
+
+      final bool missingPhoto = photoFiles.isEmpty;
+      final bool missingXml   = xmlFiles.isEmpty;
+      final bool missingPdf   = pdfFiles.isEmpty;
+
+      if (missingPhoto || missingXml || missingPdf) {
+        final List<Map<String, dynamic>> missingItems = [
+          if (missingPhoto) {
+            'label': 'Reporte Fotográfico (PDF)',
+            'icon': LucideIcons.camera,
+            'color': const Color(0xFF2563EB),
+          },
+          if (missingXml) {
+            'label': 'Factura XML (CFDI)',
+            'icon': LucideIcons.fileCode,
+            'color': const Color(0xFFEA580C),
+          },
+          if (missingPdf) {
+            'label': 'Factura PDF',
+            'icon': LucideIcons.fileText,
+            'color': const Color(0xFFDC2626),
+          },
+        ];
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 460,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── HEADER ──────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDC2626).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            LucideIcons.clipboardX,
+                            color: Color(0xFFDC2626),
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Documentos Incompletos",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "${missingItems.length} archivo${missingItems.length > 1 ? 's' : ''} requerido${missingItems.length > 1 ? 's' : ''} para finalizar",
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFFDC2626),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x,
+                              color: Color(0xFF94A3B8), size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── CONTENIDO ────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Tarjeta del proceso
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(LucideIcons.fileText,
+                                    size: 16, color: Color(0xFF64748B)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      widget.process?.title ?? "Sin título",
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      widget.process?.client ?? "",
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF64748B)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Label sección faltantes
+                        const Row(
+                          children: [
+                            Icon(LucideIcons.alertCircle,
+                                size: 14, color: Color(0xFFDC2626)),
+                            SizedBox(width: 8),
+                            Text(
+                              "ARCHIVOS PENDIENTES DE SUBIR",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFDC2626),
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Lista de archivos faltantes
+                        ...missingItems.map((item) => Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: const Color(0xFFFECACA)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: (item['color'] as Color)
+                                          .withOpacity(0.10),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      item['icon'] as IconData,
+                                      size: 15,
+                                      color: item['color'] as Color,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      item['label'] as String,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF991B1B),
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(LucideIcons.xCircle,
+                                      size: 16, color: Color(0xFFDC2626)),
+                                ],
+                              ),
+                            )),
+
+                        const SizedBox(height: 12),
+
+                        // Nota informativa
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFBAE6FD)
+                                    .withOpacity(0.5)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(LucideIcons.info,
+                                  size: 16, color: Color(0xFF0369A1)),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Sube los archivos faltantes en la sección \"Reporte de Servicio y Facturación\" para poder finalizar el proceso.",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF0C4A6E),
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── FOOTER ───────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(LucideIcons.upload, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              "Entendido, Subir Archivos para Finalizar",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        return; // Bloquea el avance
+      }
+    }
+    // ── FIN VALIDACIÓN E7 ──
 
     // ── Verificar materiales pendientes al avanzar desde E5 ──
     if (widget.process!.stage == ProcessStage.E5 && _currentLogisticsData != null) {
@@ -2770,6 +3086,7 @@ class _ProcessModalState extends State<ProcessModal> {
       // ── Incluir logisticsData y status calculado ──────────
       logisticsData: _currentLogisticsData,
       logisticsStatus: _resolveLogisticsStatus(),
+      reportBillingData: _currentReportBillingData,
     );
   }
 
@@ -3448,6 +3765,12 @@ class _ProcessModalState extends State<ProcessModal> {
       ProcessStage.X,
     ].contains(widget.process!.stage);
 
+     final bool showReportBilling = widget.process != null && [
+      ProcessStage.E7,
+      ProcessStage.E8,
+      ProcessStage.X,
+    ].contains(widget.process!.stage);
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -3517,6 +3840,18 @@ class _ProcessModalState extends State<ProcessModal> {
                                   ExecutionStatusSection(
                                     process: widget.process!,
                                     logisticsData: _currentLogisticsData,
+                                  ),
+                                ],
+                              if (showReportBilling) ...[
+                                  const SizedBox(height: 16),
+                                  ReportBillingSection(
+                                    process: widget.process!,
+                                    isEditable: widget.process!.stage == ProcessStage.E7 ? canEditData : false,
+                                    initialData: _currentReportBillingData,
+                                    currentUserName: widget.user.name,
+                                    onDataChanged: (data) {
+                                      _currentReportBillingData = data;
+                                    },
                                   ),
                                 ],
                               ],

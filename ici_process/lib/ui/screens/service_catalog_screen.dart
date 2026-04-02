@@ -26,6 +26,8 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
   
   List<ServicePriceEntry> _tempPrices = [];
   bool _isUploading = false;
+  late Stream<List<ServiceItem>> _servicesStream;
+  late Stream<List<Provider>> _providersStream;
 
   // --- PALETA DE COLORES (Tema Morado para Servicios) ---
   final Color _bgPage = const Color(0xFFF8FAFC);
@@ -40,6 +42,13 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
   final Color _accentColor = const Color(0xFF8B5CF6); 
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_materials');
+
+  @override
+  void initState() {
+    super.initState();
+    _servicesStream = _serviceRentService.getServices();
+    _providersStream = _providerService.getProviders();
+  }
 
   @override
   void dispose() {
@@ -111,7 +120,7 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
               const SizedBox(height: 40),
               
               StreamBuilder<List<ServiceItem>>(
-                stream: _serviceRentService.getServices(),
+                stream: _servicesStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return Text("Error: ${snapshot.error}");
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -120,7 +129,7 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                   final services = snapshot.data ?? [];
 
                   return StreamBuilder<List<Provider>>(
-                    stream: _providerService.getProviders(),
+                    stream: _providersStream,
                     builder: (context, providerSnap) {
                       final providers = providerSnap.data ?? [];
 

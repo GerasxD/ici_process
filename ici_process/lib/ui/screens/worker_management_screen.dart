@@ -18,6 +18,8 @@ class WorkerManagementScreen extends StatefulWidget {
 class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   final WorkerService _workerService = WorkerService();
 
+  late final Stream<List<Worker>> _workersStream;
+
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _nssCtrl = TextEditingController();
@@ -43,6 +45,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   final Color _accentColor = const Color(0xFF0D9488);
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_workers');
+
+  @override
+  void initState() {
+    super.initState();
+    _workersStream = _workerService.getWorkers();
+  }
 
   @override
   void dispose() {
@@ -124,7 +132,7 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
               _buildHeader(),
               const SizedBox(height: 40),
               StreamBuilder<List<Worker>>(
-                stream: _workerService.getWorkers(),
+                stream: _workersStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return _buildErrorState(snapshot.error.toString());
                   if (snapshot.connectionState == ConnectionState.waiting) {

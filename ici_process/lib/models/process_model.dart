@@ -22,6 +22,7 @@ class ProcessModel {
   final Map<String, dynamic>? quotationData;
   // ── NUEVO: datos completos de logística ─────────────────
   final Map<String, dynamic>? logisticsData;
+  final Map<String, dynamic>? reportBillingData;
 
   ProcessModel({
     required this.id,
@@ -43,6 +44,7 @@ class ProcessModel {
     required this.updatedAt,
     this.quotationData,
     this.logisticsData,
+    this.reportBillingData
   });
 
   factory ProcessModel.fromMap(Map<String, dynamic> data, String docId) {
@@ -78,6 +80,9 @@ class ProcessModel {
       logisticsData: data['logisticsData'] != null
           ? Map<String, dynamic>.from(data['logisticsData'])
           : null,
+      reportBillingData: data['reportBillingData'] != null
+          ? Map<String, dynamic>.from(data['reportBillingData'])
+          : null,
     );
   }
 
@@ -102,6 +107,7 @@ class ProcessModel {
       'quotationData': quotationData,
       // ── Guardar logisticsData en Firestore ───────────────
       'logisticsData': logisticsData,
+      'reportBillingData': reportBillingData,
     };
   }
 }

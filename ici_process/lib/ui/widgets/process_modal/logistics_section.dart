@@ -2254,25 +2254,34 @@
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-              child: Row(children: [
-                Expanded(
-                  child: _summaryItem("Material",
-                      widget.item.materialName)),
-                Expanded(
-                    child: _summaryItem(
-                        "Proveedor",
-                        widget.item.selectedProviderName ??
-                            "No seleccionado")),
-                _summaryItem(
-                    "Cantidad",
-                    "${_purchasedCtrl.text.isNotEmpty ? _purchasedCtrl.text : '0'} "
-                        "${widget.item.materialName}"),
-                _summaryItem(
-                    "Total",
-                    widget.currFmt.format(
-                        (double.tryParse(_purchasedCtrl.text) ?? 0) *
-                            widget.item.actualUnitPrice)),
-              ]),
+              child: MediaQuery.of(context).size.width < 700
+                  ? Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: _summaryItem("Material", widget.item.materialName)),
+                            const SizedBox(width: 12),
+                            Expanded(child: _summaryItem("Proveedor", widget.item.selectedProviderName ?? "No seleccionado")),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(child: _summaryItem("Cantidad", "${_purchasedCtrl.text.isNotEmpty ? _purchasedCtrl.text : '0'} ${widget.item.materialName}")),
+                            const SizedBox(width: 12),
+                            Expanded(child: _summaryItem("Total", widget.currFmt.format((double.tryParse(_purchasedCtrl.text) ?? 0) * widget.item.actualUnitPrice))),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: _summaryItem("Material", widget.item.materialName)),
+                        Expanded(child: _summaryItem("Proveedor", widget.item.selectedProviderName ?? "No seleccionado")),
+                        _summaryItem("Cantidad", "${_purchasedCtrl.text.isNotEmpty ? _purchasedCtrl.text : '0'} ${widget.item.materialName}"),
+                        _summaryItem("Total", widget.currFmt.format((double.tryParse(_purchasedCtrl.text) ?? 0) * widget.item.actualUnitPrice)),
+                      ],
+                    ),
             ),
   
             // Alerta de excedente
@@ -2318,40 +2327,59 @@
   
             const SizedBox(height: 16),
   
-            Row(children: [
-              TextButton(
-                onPressed: () =>
-                    setState(() {
-                      _isRegistering = false;
-                      _justificationCtrl.clear();
-                    }),
-                child: Text("Cancelar",
+            Row(
+              children: [
+                // Botón Secundario (Toma solo el espacio necesario)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _isRegistering = false;
+                    _justificationCtrl.clear();
+                  }),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  child: Text(
+                    "Cancelar",
                     style: GoogleFonts.inter(
-                        color: const Color(0xFF64748B))),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: _isSavingOrder ? null : _registerOrder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
+                      color: const Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-                icon: _isSavingOrder
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : const Icon(LucideIcons.checkCircle2, size: 16),
-                label: Text("Confirmar y Registrar",
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-              ),
-            ]),
+                
+                const SizedBox(width: 8), // Separación limpia
+                
+                // Botón Principal (Se expande para llenar el resto y el Call to Action destaca)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isSavingOrder ? null : _registerOrder,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    icon: _isSavingOrder
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Icon(LucideIcons.checkCircle2, size: 16),
+                    // FittedBox asegura que el texto largo no rompa el botón por dentro
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        "Confirmar y Registrar",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       );
@@ -2439,140 +2467,132 @@
       );
     }
   
-    Widget _buildOrderRow(PurchaseOrder order, bool isLast) {
-      final dateFmt = DateFormat('d/M/yyyy');
-  
-      return Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: order.hasExcess
-              ? const Color(0xFFFFF7ED)
-              : Colors.white,
-          border: isLast
-              ? null
-              : const Border(
-                  bottom: BorderSide(color: Color(0xFFF1F5F9))),
-          borderRadius: isLast
-              ? const BorderRadius.only(
-                  bottomLeft: Radius.circular(9),
-                  bottomRight: Radius.circular(9))
-              : null,
-        ),
-        child: Column(
-          children: [
-            Row(children: [
-              // Folio
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(5),
+     Widget _buildOrderRow(PurchaseOrder order, bool isLast) {
+    final dateFmt = DateFormat('d/M/yyyy');
+    final mobile = MediaQuery.of(context).size.width < 700;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: order.hasExcess ? const Color(0xFFFFF7ED) : Colors.white,
+        border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+        borderRadius: isLast
+            ? const BorderRadius.only(bottomLeft: Radius.circular(9), bottomRight: Radius.circular(9))
+            : null,
+      ),
+      child: Column(
+        children: [
+          if (mobile) ...[
+            // Fila 1: Folio + PDF
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(5)),
+                  child: Text(order.id, style: GoogleFonts.robotoMono(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF64748B))),
                 ),
-                child: Text(order.id,
-                    style: GoogleFonts.robotoMono(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF64748B),
-                )),
-              ),
-              const SizedBox(width: 8),
-              // Proveedor + fecha
-              Expanded(
-                child: Row(children: [
-                  Text(order.providerName,
-                      style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1E293B))),
-                  const SizedBox(width: 8),
-                  Text("| ${dateFmt.format(order.date)}",
-                      style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF94A3B8))),
-                ]),
-              ),
-              // Total
-              Text(
-                widget.currFmt.format(order.totalPrice),
-                style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF059669)),
-              ),
-              const SizedBox(width: 12),
-              // Botón PDF
-              Tooltip(
-                message: "Descargar Orden de Compra (PDF)",
-                child: InkWell(
-                  onTap: _isGeneratingPdf
-                      ? null
-                      : () => _downloadPdf(order),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: _isGeneratingPdf
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 1.5))
-                        : const Icon(LucideIcons.fileDown,
-                            size: 16, color: Color(0xFF475569)),
-                  ),
-                ),
-              ),
-            ]),
-  
-            // Excedente + justificación (si aplica)
-            if (order.hasExcess && order.justification != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: const Color(0xFFFCA5A5)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
                   children: [
-                    Row(children: [
-                      const Icon(LucideIcons.alertTriangle,
-                          size: 12, color: Color(0xFFEA580C)),
-                      const SizedBox(width: 6),
-                      Text(
-                        "Excedente: +${_fmtQty(order.quantity - order.quotedQuantity)} ${order.materialName}",
-                        style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFEA580C)),
-                      ),
-                    ]),
-                    const SizedBox(height: 4),
-                    Text(
-                      order.justification!,
-                      style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: const Color(0xFF7C2D12)),
-                    ),
+                    Text(dateFmt.format(order.date), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                    const SizedBox(width: 8),
+                    _buildPdfButton(order),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Fila 2: Proveedor + Total
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(order.providerName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)), overflow: TextOverflow.ellipsis),
+                ),
+                Text(widget.currFmt.format(order.totalPrice), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
+              ],
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(5)),
+                  child: Text(order.id, style: GoogleFonts.robotoMono(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF64748B))),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(order.providerName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B))),
+                      const SizedBox(width: 8),
+                      Text("| ${dateFmt.format(order.date)}", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                    ],
+                  ),
+                ),
+                Text(widget.currFmt.format(order.totalPrice), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
+                const SizedBox(width: 12),
+                _buildPdfButton(order),
+              ],
+            ),
           ],
+          // Excedente (igual en ambos)
+          if (order.hasExcess && order.justification != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.alertTriangle, size: 12, color: Color(0xFFEA580C)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          "Excedente: +${_fmtQty(order.quantity - order.quotedQuantity)} ${order.materialName}",
+                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFFEA580C)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(order.justification!, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF7C2D12))),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+   Widget _buildPdfButton(PurchaseOrder order) {
+    return Tooltip(
+      message: "Descargar PDF",
+      child: InkWell(
+        onTap: _isGeneratingPdf ? null : () => _downloadPdf(order),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: _isGeneratingPdf
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.5))
+              : const Icon(LucideIcons.fileDown, size: 16, color: Color(0xFF475569)),
         ),
-      );
-    }
+      ),
+    );
+  }
   
     // ── HELPERS UI ────────────────────────────────────────────
     Widget _buildChip(String label, String value, Color color) {

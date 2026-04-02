@@ -18,6 +18,9 @@ class VehicleManagementScreen extends StatefulWidget {
 class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   final VehicleService _vehicleService = VehicleService();
 
+  // 1. Declarar la variable para guardar (cachear) el Stream
+  late Stream<List<Vehicle>> _vehiclesStream;
+
   // Controladores
   final _modelCtrl = TextEditingController();
   final _kmLiterCtrl = TextEditingController();
@@ -36,6 +39,13 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   final Color _inputFill = const Color(0xFFF1F5F9);
 
   bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_vehicles');
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. Inicializar el Stream una sola vez cuando se crea la pantalla
+    _vehiclesStream = _vehicleService.getVehicles();
+  }
 
   @override
   void dispose() {
@@ -116,7 +126,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               const SizedBox(height: 40),
               
               StreamBuilder<List<Vehicle>>(
-                stream: _vehicleService.getVehicles(),
+                // 3. Usar la variable cacheada en lugar de llamar a la función
+                stream: _vehiclesStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return Text("Error: ${snapshot.error}");
                   if (snapshot.connectionState == ConnectionState.waiting) {

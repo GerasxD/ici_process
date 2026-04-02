@@ -30,6 +30,7 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
   bool _isLoadingPdf = false;
   DateTime? _realCompletionDate;
   bool _isCheckingEvent = true;
+  bool get _isMobile => MediaQuery.of(context).size.width < 700;
 
   // Datos extraídos del executionPlanning
   DateTime? _startDate;
@@ -287,7 +288,7 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
   }
 
   // ── HEADER ────────────────────────────────────────────────
-  Widget _buildHeader(String status, Color statusColor) {
+ Widget _buildHeader(String status, Color statusColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -295,122 +296,170 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFFDBA74)),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFC2410C).withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(LucideIcons.hardHat, color: Color(0xFFC2410C), size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              "Estatus de Ejecución",
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFFC2410C),
-              ),
-            ),
-          ),
-          // Badge de estatus
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: statusColor.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+      child: _isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(_getStatusIcon(), size: 14, color: statusColor),
-                const SizedBox(width: 6),
-                Text(
-                  status,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC2410C).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(LucideIcons.hardHat, color: Color(0xFFC2410C), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Estatus de Ejecución",
+                        style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: const Color(0xFFC2410C)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_getStatusIcon(), size: 14, color: statusColor),
+                      const SizedBox(width: 6),
+                      Text(status, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor)),
+                    ],
                   ),
                 ),
               ],
+            )
+          : Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC2410C).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(LucideIcons.hardHat, color: Color(0xFFC2410C), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Estatus de Ejecución",
+                    style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: const Color(0xFFC2410C)),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_getStatusIcon(), size: 14, color: statusColor),
+                      const SizedBox(width: 6),
+                      Text(status, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  // ── FECHAS ────────────────────────────────────────────────
+ Widget _buildDatesRow(Color statusColor) {
+    final startCard = _buildDateCard(
+      label: "INICIO PROGRAMADO",
+      date: _startDate,
+      icon: LucideIcons.calendarCheck,
+      accentColor: const Color(0xFF2563EB),
+    );
+
+    final endCard = _buildDateCard(
+      label: "FIN PROGRAMADO",
+      date: _endDate,
+      icon: LucideIcons.calendarClock,
+      accentColor: const Color(0xFFC2410C),
+    );
+
+    final daysCard = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.timer, size: 14, color: statusColor),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  _realCompletionDate != null ? "COMPLETADO" : "DÍAS RESTANTES",
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor.withOpacity(0.7),
+                    letterSpacing: 0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _realCompletionDate != null
+                ? "Terminado"
+                : _endDate != null
+                    ? "${_daysRemaining >= 0 ? _daysRemaining : 'Vencido ${-_daysRemaining}'} días"
+                    : "—",
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: statusColor,
             ),
           ),
         ],
       ),
     );
-  }
 
-  // ── FECHAS ────────────────────────────────────────────────
-  Widget _buildDatesRow(Color statusColor) {
+    if (_isMobile) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: startCard),
+              const SizedBox(width: 12),
+              Expanded(child: endCard),
+            ],
+          ),
+          const SizedBox(height: 12),
+          daysCard,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: _buildDateCard(
-            label: "INICIO PROGRAMADO",
-            date: _startDate,
-            icon: LucideIcons.calendarCheck,
-            accentColor: const Color(0xFF2563EB),
-          ),
-        ),
+        Expanded(child: startCard),
         const SizedBox(width: 16),
-        Expanded(
-          child: _buildDateCard(
-            label: "FIN PROGRAMADO",
-            date: _endDate,
-            icon: LucideIcons.calendarClock,
-            accentColor: const Color(0xFFC2410C),
-          ),
-        ),
+        Expanded(child: endCard),
         const SizedBox(width: 16),
-        // Días restantes o finalizados
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: statusColor.withOpacity(0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(LucideIcons.timer, size: 14, color: statusColor),
-                    const SizedBox(width: 6),
-                    Text(
-                      _realCompletionDate != null ? "COMPLETADO" : "DÍAS RESTANTES",
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: statusColor.withOpacity(0.7),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _realCompletionDate != null
-                      ? "Terminado"
-                      : _endDate != null
-                          ? "${_daysRemaining >= 0 ? _daysRemaining : 'Vencido ${-_daysRemaining}'} ${_daysRemaining >= 0 ? 'días' : 'días'}"
-                          : "—",
-                  style: GoogleFonts.inter(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: statusColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        Expanded(child: daysCard),
       ],
     );
   }
@@ -435,13 +484,16 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
             children: [
               Icon(icon, size: 14, color: accentColor),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF94A3B8),
-                  letterSpacing: 0.5,
+              Flexible(                         
+                child: Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis, 
                 ),
               ),
             ],
@@ -569,7 +621,7 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
   }
 
   // ── FECHA REAL DE TÉRMINO ─────────────────────────────────
-  Widget _buildCompletionSection() {
+ Widget _buildCompletionSection() {
     final isCompleted = _realCompletionDate != null;
 
     return Column(
@@ -592,13 +644,16 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              "FECHA REAL DE TÉRMINO",
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: isCompleted ? const Color(0xFF059669) : const Color(0xFF64748B),
-                letterSpacing: 0.6,
+            Flexible(
+              child: Text(
+                "FECHA REAL DE TÉRMINO",
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isCompleted ? const Color(0xFF059669) : const Color(0xFF64748B),
+                  letterSpacing: 0.6,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -615,73 +670,9 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
             ),
           ),
           child: isCompleted
-              ? Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF059669).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(LucideIcons.calendarCheck, size: 20, color: Color(0xFF059669)),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _dateFmt.format(_realCompletionDate!),
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF059669),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Servicio finalizado desde el calendario",
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: const Color(0xFF065F46),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Días que tomó
-                    if (_startDate != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF6EE7B7)),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              "${_realCompletionDate!.difference(_startDate!).inDays + 1}",
-                              style: GoogleFonts.inter(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                color: const Color(0xFF059669),
-                              ),
-                            ),
-                            Text(
-                              "días",
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF059669),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                )
+              ? _isMobile
+                  ? _buildCompletedMobile()
+                  : _buildCompletedDesktop()
               : Row(
                   children: [
                     const Icon(LucideIcons.info, size: 16, color: Color(0xFF94A3B8)),
@@ -703,22 +694,115 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
     );
   }
 
+  Widget _buildCompletedDesktop() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF059669).withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(LucideIcons.calendarCheck, size: 20, color: Color(0xFF059669)),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _dateFmt.format(_realCompletionDate!),
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF059669)),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "Servicio finalizado desde el calendario",
+                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF065F46), fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+        if (_startDate != null) _buildDaysBadge(),
+      ],
+    );
+  }
+
+  Widget _buildCompletedMobile() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF059669).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(LucideIcons.calendarCheck, size: 20, color: Color(0xFF059669)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _dateFmt.format(_realCompletionDate!),
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF059669)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "Finalizado desde el calendario",
+                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF065F46), fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+            if (_startDate != null) _buildDaysBadge(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDaysBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF6EE7B7)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            "${_realCompletionDate!.difference(_startDate!).inDays + 1}",
+            style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w900, color: const Color(0xFF059669)),
+          ),
+          Text(
+            "días",
+            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF059669)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── BOTÓN PDF ─────────────────────────────────────────────
-  Widget _buildPdfButton() {
+ Widget _buildPdfButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: _isLoadingPdf ? null : _generateWorkOrderPdf,
         icon: _isLoadingPdf
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-              )
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
             : const Icon(LucideIcons.printer, size: 18),
         label: Text(
-          _isLoadingPdf ? "Generando..." : "Imprimir Orden de Trabajo (PDF)",
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+          _isLoadingPdf
+              ? "Generando..."
+              : _isMobile
+                  ? "Orden de Trabajo (PDF)"
+                  : "Imprimir Orden de Trabajo (PDF)",
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: _isMobile ? 13 : 14),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF0F172A),
