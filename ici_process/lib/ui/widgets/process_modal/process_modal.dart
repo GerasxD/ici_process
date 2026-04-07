@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:ici_process/services/tool_service.dart';
 import 'package:ici_process/services/user_service.dart';
 import 'package:ici_process/ui/widgets/process_modal/execution_status_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/logistics_section.dart';
@@ -46,6 +47,7 @@ class _ProcessModalState extends State<ProcessModal> {
   List<CommentModel> _comments = [];
   final ProcessService _processService = ProcessService();
   final MaterialService _materialService = MaterialService();
+  final ToolService _toolService = ToolService();
 
   bool canEditData = false;
   bool canMoveStage = false;
@@ -679,6 +681,24 @@ class _ProcessModalState extends State<ProcessModal> {
         if (mounted) Navigator.pop(context);
       }
     }
+  }
+
+  List<String> _getPlannedToolIds() {
+    final planning = _currentLogisticsData?['executionPlanning'] 
+        as Map<String, dynamic>?;
+    return List<String>.from(planning?['toolIds'] ?? []);
+  }
+
+  Future<void> _setToolsInUse() async {
+    final ids = _getPlannedToolIds();
+    if (ids.isEmpty) return;
+    await _toolService.updateToolsStatus(ids, 'En Uso');
+  }
+
+  Future<void> _releaseTools() async {
+    final ids = _getPlannedToolIds();
+    if (ids.isEmpty) return;
+    await _toolService.updateToolsStatus(ids, 'Disponible');
   }
 
   // ── ADVANCE ───────────────────────────────────────────────
@@ -2608,6 +2628,12 @@ class _ProcessModalState extends State<ProcessModal> {
         );
       });
 
+      if (widget.process!.stage == ProcessStage.E5) {
+        await _setToolsInUse();
+        } else if (widget.process!.stage == ProcessStage.E6) {
+          await _releaseTools(); // E6 → E7
+        }
+
       final updated = _buildModelFromState(nextStage, historyEntry);
       await _processService.updateProcess(updated);
       if (mounted) Navigator.pop(context);
@@ -3004,6 +3030,7 @@ class _ProcessModalState extends State<ProcessModal> {
       // 2. Si retrocedemos DESDE Ejecución (E6) a Logística (E5), REEMBOLSAMOS el stock físico.
       if (widget.process!.stage == ProcessStage.E6 && prevStage == ProcessStage.E5) {
         await _refundStockDeductions();
+        await _releaseTools();
         wasRefunded = true; // ★ Marcamos que hubo reembolso
       }
 
@@ -3100,6 +3127,9 @@ class _ProcessModalState extends State<ProcessModal> {
       return;
     }
     try {
+      // ★ NUEVO: Procesar reservas pendientes antes de guardar
+      await _processPendingReservations();
+
       final bool isNew = widget.process == null;
       final entry = HistoryEntry(
         action: isNew ? "Solicitud Creada" : "Edición Manual",
@@ -3121,6 +3151,51 @@ class _ProcessModalState extends State<ProcessModal> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error al guardar: ${e.toString()}")),
         );
+      }
+    }
+  }
+
+  /// ★ NUEVO: Ejecuta las reservas reales en Firestore solo al momento de guardar
+  Future<void> _processPendingReservations() async {
+    if (_currentLogisticsData == null) return;
+
+    final items = _currentLogisticsData!['items'] as List? ?? [];
+    
+    for (int i = 0; i < items.length; i++) {
+      final rawItem = items[i];
+      if (rawItem is! Map) continue;
+      
+      final map = rawItem as Map<String, dynamic>;
+      final isPending = map['isPendingReservation'] ?? false;
+      
+      if (!isPending) continue;
+      
+      final materialId = map['materialId'] ?? '';
+      final desiredQty = (map['reservedStockQty'] ?? 0).toDouble();
+      
+      if (materialId.isEmpty || desiredQty <= 0) continue;
+
+      final actuallyReserved = await _materialService.reserveStock(
+        materialId, 
+        desiredQty,
+      );
+
+      if (actuallyReserved > 0) {
+        // ★ Éxito: actualizar con la cantidad real reservada
+        map['isStockReserved'] = true;
+        map['reservedStockQty'] = actuallyReserved;
+        map['stockQty'] = actuallyReserved;
+        map['isPendingReservation'] = false;
+      } else if (actuallyReserved == 0) {
+        // No había stock disponible, revertir marca local
+        map['isStockReserved'] = false;
+        map['reservedStockQty'] = 0;
+        map['isPendingReservation'] = false;
+      } else {
+        // Error de Firestore, revertir marca local
+        map['isStockReserved'] = false;
+        map['reservedStockQty'] = 0;
+        map['isPendingReservation'] = false;
       }
     }
   }
@@ -3823,35 +3898,59 @@ class _ProcessModalState extends State<ProcessModal> {
                           extraSection: showLogistics
                           ? Column(
                               children: [
-                                LogisticsSection(
-                                  process: widget.process!,
-                                  isEditable: widget.process!.stage == ProcessStage.E5 ? canEditData : false,
-                                  initialData: _currentLogisticsData,
-                                  canViewFinancials: canViewFinancials,
-                                  currentUserName: widget.user.name,
-                                  currentUserRole: widget.user.role,
-                                  onDataChanged: (data) {
-                                    _currentLogisticsData = data;
-                                  },
+                                // ── Logística ──────────────────────────
+                                _buildStageHighlight(
+                                  isActive: widget.process!.stage == ProcessStage.E5,
+                                  activeLabel: "ETAPA ACTUAL · Logística y Compras",
+                                  activeColor: const Color(0xFFB45309),
+                                  child: LogisticsSection(
+                                    process: widget.process!,
+                                    isEditable: widget.process!.stage == ProcessStage.E5 ? canEditData : false,
+                                    initialData: _currentLogisticsData,
+                                    canViewFinancials: canViewFinancials,
+                                    currentUserName: widget.user.name,
+                                    currentUserRole: widget.user.role,
+                                    onDataChanged: (data) {
+                                      _currentLogisticsData = data;
+                                    },
+                                  ),
                                 ),
-                                // Mostrar Estatus de Ejecución en E6 en adelante
+
+                                // ── Estatus de Ejecución ───────────────
                                 if (widget.process!.stage.index >= ProcessStage.E6.index) ...[
                                   const SizedBox(height: 16),
-                                  ExecutionStatusSection(
-                                    process: widget.process!,
-                                    logisticsData: _currentLogisticsData,
+                                  _buildStageHighlight(
+                                    isActive: widget.process!.stage == ProcessStage.E6,
+                                    activeLabel: "ETAPA ACTUAL · Ejecución en Sitio",
+                                    activeColor: const Color(0xFFC2410C),
+                                    child: ExecutionStatusSection(
+                                      process: widget.process!,
+                                      logisticsData: _currentLogisticsData,
+                                      isEditable: widget.process!.stage == ProcessStage.E6 ? canEditData : false,
+                                      onCompletionDateChanged: (date) {
+                                        _currentLogisticsData ??= {};
+                                        _currentLogisticsData!['realCompletionDate'] = date?.toIso8601String();
+                                      },
+                                    ),
                                   ),
                                 ],
-                              if (showReportBilling) ...[
+
+                                // ── Reporte y Facturación ──────────────
+                                if (showReportBilling) ...[
                                   const SizedBox(height: 16),
-                                  ReportBillingSection(
-                                    process: widget.process!,
-                                    isEditable: widget.process!.stage == ProcessStage.E7 ? canEditData : false,
-                                    initialData: _currentReportBillingData,
-                                    currentUserName: widget.user.name,
-                                    onDataChanged: (data) {
-                                      _currentReportBillingData = data;
-                                    },
+                                  _buildStageHighlight(
+                                    isActive: widget.process!.stage == ProcessStage.E7,
+                                    activeLabel: "ETAPA ACTUAL · Reporte y Facturación",
+                                    activeColor: const Color(0xFF16A34A),
+                                    child: ReportBillingSection(
+                                      process: widget.process!,
+                                      isEditable: widget.process!.stage == ProcessStage.E7 ? canEditData : false,
+                                      initialData: _currentReportBillingData,
+                                      currentUserName: widget.user.name,
+                                      onDataChanged: (data) {
+                                        _currentReportBillingData = data;
+                                      },
+                                    ),
                                   ),
                                 ],
                               ],
@@ -3870,6 +3969,86 @@ class _ProcessModalState extends State<ProcessModal> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStageHighlight({
+    required bool isActive,
+    required String activeLabel,
+    required Color activeColor,
+    required Widget child,
+  }) {
+    if (isActive) {
+      // ── SECCIÓN ACTIVA: resaltada con borde de color y badge ──
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Badge indicador
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: activeColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: activeColor.withOpacity(0.25)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: activeColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: activeColor.withOpacity(0.4),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  activeLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: activeColor,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Contenido con borde lateral
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: activeColor.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: activeColor.withOpacity(0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: child,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // ── SECCIÓN INACTIVA: opacidad reducida ──
+    return Opacity(
+      opacity: 0.55,
+      child: child,
     );
   }
 

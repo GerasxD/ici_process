@@ -440,40 +440,70 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
 
     final toolWidget = _buildResourceContainer(
-      title: "HERRAMIENTAS",
-      icon: LucideIcons.wrench,
-      stream: _toolService.getTools(),
-      builder: (tools) {
-        return _buildSelectableList(
-          items: tools,
-          emptyIcon: LucideIcons.box,
-          emptyMessage: "Inventario vacío",
-          itemBuilder: (tool) => _buildModernTile(
-            title: tool.name,
-            subtitle: tool.brand,
-            icon: LucideIcons.hammer,
-            isSelected: _selectedToolIds.contains(tool.id),
+    title: "HERRAMIENTAS",
+    icon: LucideIcons.wrench,
+    stream: _toolService.getTools(),
+    builder: (tools) {
+      // ── FILTRO: solo Disponibles + las ya seleccionadas para este proceso ──
+      final visibleTools = tools.where((tool) {
+        final isSelected = _selectedToolIds.contains(tool.id);
+        final isAvailable = tool.status == 'Disponible';
+        return isAvailable || isSelected; // Si ya estaba seleccionada, siempre mostrarla
+      }).toList();
+
+      if (visibleTools.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(LucideIcons.packageX, size: 32, color: Color(0xFFCBD5E1)),
+              const SizedBox(height: 8),
+              Text(
+                "Sin herramientas disponibles",
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return _buildSelectableList(
+        items: visibleTools,
+        emptyIcon: LucideIcons.box,
+        emptyMessage: "Inventario vacío",
+        itemBuilder: (tool) {
+          final isSelected = _selectedToolIds.contains(tool.id);
+          // Solo puede estar "en uso por otro" si es Disponible pero fue tomada
+          // En este filtro ya no llegan herramientas En Uso ajenas,
+          // pero sí pueden llegar seleccionadas que ahora estén En Uso (este proceso)
+          final isInUse = tool.status == 'En Uso' && !isSelected;
+
+          return _buildToolTile(
+            tool: tool,
+            isSelected: isSelected,
+            isInUse: isInUse,
             onTap: () {
-              if (!widget.isEditable) return;
+              if (!widget.isEditable || isInUse) return;
               setState(() {
-                _selectedToolIds.contains(tool.id)
+                isSelected
                     ? _selectedToolIds.remove(tool.id)
                     : _selectedToolIds.add(tool.id);
               });
               _notifyData();
             },
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    },
+  );
 
     if (_isMobile) {
       return Column(
-        children: [
-          techWidget,
-          const SizedBox(height: 16),
-          toolWidget,
-        ],
+        children: [techWidget, const SizedBox(height: 16), toolWidget],
       );
     }
 
@@ -763,6 +793,130 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
             else
               const Icon(LucideIcons.circle, color: Color(0xFFCBD5E1), size: 18),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolTile({
+    required dynamic tool,
+    required bool isSelected,
+    required bool isInUse,
+    required VoidCallback onTap,
+  }) {
+    // Colores según estado
+    final Color borderColor = isSelected
+        ? _selectedColor.withOpacity(0.5)
+        : isInUse
+            ? const Color(0xFFFECACA)
+            : const Color(0xFFE2E8F0);
+
+    final Color bgColor = isSelected
+        ? _selectedColor.withOpacity(0.08)
+        : isInUse
+            ? const Color(0xFFFFF1F2)
+            : Colors.white;
+
+    final Color iconBg = isSelected
+        ? _selectedColor
+        : isInUse
+            ? const Color(0xFFE11D48).withOpacity(0.1)
+            : const Color(0xFFF1F5F9);
+
+    final Color iconColor = isSelected
+        ? Colors.white
+        : isInUse
+            ? const Color(0xFFE11D48)
+            : const Color(0xFF64748B);
+
+    return Opacity(
+      opacity: isInUse ? 0.65 : 1.0,
+      child: InkWell(
+        onTap: isInUse ? null : onTap, // 🔒 Bloqueado si está en uso
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: borderColor,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(LucideIcons.hammer, size: 14, color: iconColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tool.name,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      tool.brand,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Badge de estado derecho ──────────────────
+              if (isSelected)
+                Icon(LucideIcons.checkCircle2, color: _selectedColor, size: 18)
+              else if (isInUse)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE11D48).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE11D48).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE11D48),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        "En Uso",
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFE11D48),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                const Icon(LucideIcons.circle, color: Color(0xFFCBD5E1), size: 18),
+            ],
+          ),
         ),
       ),
     );

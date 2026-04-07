@@ -11,6 +11,20 @@ class ToolService {
     });
   }
 
+  /// Cambia el estado de una lista de herramientas por su ID
+  Future<void> updateToolsStatus(List<String> toolIds, String newStatus) async {
+    if (toolIds.isEmpty) return;
+    
+    final batch = FirebaseFirestore.instance.batch();
+    
+    for (final id in toolIds) {
+      final ref = FirebaseFirestore.instance.collection('tools').doc(id);
+      batch.update(ref, {'status': newStatus});
+    }
+    
+    await batch.commit();
+  }
+
   // Agregar
   Future<void> addTool(ToolItem tool) async {
     await _toolsRef.add(tool.toMap());
