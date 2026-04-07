@@ -434,78 +434,160 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
     final cCtrl = TextEditingController(text: provider.contactName);
     final pCtrl = TextEditingController(text: provider.phone);
     final eCtrl = TextEditingController(text: provider.email);
-    
-    // SOLUCIÓN 3: Control local de estado para evitar clics múltiples al actualizar
     bool isUpdating = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder( // StatefulBuilder permite usar setState dentro del diálogo
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
         builder: (context, setStateDialog) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text("Editar Proveedor", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-            content: SizedBox(
-              width: 400, // Limita el ancho en pantallas grandes
-              // SOLUCIÓN 2: SingleChildScrollView evita el error "RenderFlex Overflow" al abrir el teclado
-              child: SingleChildScrollView( 
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionLabel("Información"),
-                    _input(nCtrl, "Nombre Empresa", LucideIcons.building),
-                    const SizedBox(height: 16),
-                    _input(cCtrl, "Contacto", LucideIcons.user),
-                    const SizedBox(height: 12),
-                    _input(pCtrl, "Teléfono", LucideIcons.phone),
-                    const SizedBox(height: 12),
-                    _input(eCtrl, "Correo", LucideIcons.mail),
-                  ],
-                ),
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 520,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [const Color(0xFF0F172A), const Color(0xFF1E293B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB45309),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [BoxShadow(color: const Color(0xFFB45309).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                          ),
+                          child: Center(
+                            child: Text(
+                              provider.name.isNotEmpty ? provider.name[0].toUpperCase() : 'P',
+                              style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Editar Proveedor", style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                              const SizedBox(height: 4),
+                              Text("Modifica los datos del proveedor", style: GoogleFonts.inter(color: Colors.white54, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: isUpdating ? null : () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Contenido
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("EMPRESA", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          _input(nCtrl, "Nombre Empresa", LucideIcons.building),
+                          const SizedBox(height: 20),
+                          Text("DATOS DE CONTACTO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          _input(cCtrl, "Nombre del Contacto", LucideIcons.user),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(child: _input(pCtrl, "Teléfono", LucideIcons.phone)),
+                              const SizedBox(width: 12),
+                              Expanded(child: _input(eCtrl, "Correo", LucideIcons.mail)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF1F5F9)))),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: isUpdating ? null : () => Navigator.pop(ctx),
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                            child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: isUpdating
+                                ? null
+                                : () async {
+                                    setStateDialog(() => isUpdating = true);
+                                    try {
+                                      await _providerService.updateProvider(Provider(
+                                        id: provider.id,
+                                        name: nCtrl.text.trim(),
+                                        contactName: cCtrl.text.trim(),
+                                        phone: pCtrl.text.trim(),
+                                        email: eCtrl.text.trim(),
+                                      ));
+                                      if (mounted) {
+                                        Navigator.pop(ctx);
+                                        _showSnack("Proveedor actualizado", isSuccess: true);
+                                      }
+                                    } catch (e) {
+                                      setStateDialog(() => isUpdating = false);
+                                      if (mounted) _showSnack("Error: $e", isSuccess: false);
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                            child: isUpdating
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(LucideIcons.save, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text("Guardar Cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            actionsPadding: const EdgeInsets.all(20),
-            actions: [
-              TextButton(
-                onPressed: isUpdating ? null : () => Navigator.pop(ctx),
-                style: TextButton.styleFrom(foregroundColor: _textSecondary),
-                child: const Text("Cancelar"),
-              ),
-              ElevatedButton(
-                onPressed: isUpdating ? null : () async {
-                  setStateDialog(() => isUpdating = true);
-                  try {
-                    await _providerService.updateProvider(Provider(
-                      id: provider.id,
-                      name: nCtrl.text.trim(),
-                      contactName: cCtrl.text.trim(),
-                      phone: pCtrl.text.trim(),
-                      email: eCtrl.text.trim(),
-                    ));
-                    if (mounted) {
-                      Navigator.pop(ctx);
-                      _showSnack("Proveedor actualizado", isSuccess: true);
-                    }
-                  } catch (e) {
-                    setStateDialog(() => isUpdating = false);
-                    if (mounted) _showSnack("Error: $e", isSuccess: false);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
-                ),
-                child: isUpdating 
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text("Guardar Cambios"),
-              )
-            ],
           );
-        }
+        },
       ),
     );
   }
@@ -513,38 +595,134 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
   void _confirmDelete(Provider provider) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(LucideIcons.alertTriangle, color: Color(0xFFDC2626)),
-            const SizedBox(width: 12),
-            Text("Eliminar Proveedor", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          ],
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: const Color(0xFFDC2626).withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(LucideIcons.trash2, color: Color(0xFFDC2626), size: 26),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Eliminar Proveedor", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), letterSpacing: -0.3)),
+                          const SizedBox(height: 4),
+                          Text("Se eliminará del directorio", style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(LucideIcons.x, color: Color(0xFF94A3B8), size: 20), splashRadius: 20),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(LucideIcons.boxes, size: 16, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(provider.name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                if (provider.contactName.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(provider.contactName, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFECACA))),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(LucideIcons.alertTriangle, size: 16, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text("El proveedor será eliminado permanentemente del directorio. Las órdenes de compra existentes no se verán afectadas.", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF991B1B), fontWeight: FontWeight.w500, height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                        child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _providerService.deleteProvider(provider.id);
+                          Navigator.pop(ctx);
+                          _showSnack("Proveedor eliminado correctamente");
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.trash2, size: 18),
+                            const SizedBox(width: 8),
+                            Text("Eliminar Proveedor", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        content: Text("¿Seguro que deseas eliminar a '${provider.name}'?\nEsta acción no se puede deshacer.", style: GoogleFonts.inter()),
-        actionsPadding: const EdgeInsets.all(20),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: _textSecondary),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _providerService.deleteProvider(provider.id);
-              Navigator.pop(ctx);
-              _showSnack("Proveedor eliminado");
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text("Sí, Eliminar"),
-          ),
-        ],
       ),
     );
   }

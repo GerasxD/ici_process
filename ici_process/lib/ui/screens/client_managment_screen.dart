@@ -4,6 +4,7 @@ import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:ici_process/models/client_model.dart';
 import 'package:ici_process/models/user_model.dart';
 import 'package:ici_process/services/client_service.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class ClientManagementScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -541,34 +542,134 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   void _confirmDelete(Client client) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
-            const SizedBox(width: 8),
-            Text("Eliminar Cliente", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          ],
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: const Color(0xFFDC2626).withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(LucideIcons.trash2, color: Color(0xFFDC2626), size: 26),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Eliminar Cliente", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), letterSpacing: -0.3)),
+                          const SizedBox(height: 4),
+                          Text("Se eliminará del directorio", style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(LucideIcons.x, color: Color(0xFF94A3B8), size: 20), splashRadius: 20),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(LucideIcons.building2, size: 16, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(client.name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                if (client.billingAddress.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(client.billingAddress, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFECACA))),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(LucideIcons.alertTriangle, size: 16, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text("El cliente será eliminado permanentemente del directorio. Los procesos asociados no se verán afectados.", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF991B1B), fontWeight: FontWeight.w500, height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                        child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _clientService.deleteClient(client.id);
+                          Navigator.pop(ctx);
+                          _showSnack("Cliente eliminado correctamente");
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.trash2, size: 18),
+                            const SizedBox(width: 8),
+                            Text("Eliminar Cliente", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        content: Text("¿Estás seguro de borrar a '${client.name}'?\nEsta acción no se puede deshacer.", style: GoogleFonts.inter()),
-        actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: _textSecondary),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () { _clientService.deleteClient(client.id); Navigator.pop(ctx); },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
-            ),
-            child: const Text("Sí, Eliminar"),
-          ),
-        ],
       ),
     );
   }
@@ -648,82 +749,184 @@ class _EditClientDialogState extends State<_EditClientDialog> {
     // Reutilizamos tu paleta de colores
     final Color _primaryBlue = const Color(0xFF2563EB);
     final Color _inputFill = const Color(0xFFF1F5F9); 
-    final Color _textPrimary = const Color(0xFF0F172A);
 
-    return AlertDialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text("Editar Cliente", style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)),
-      content: SizedBox(
-        width: 500, // Ancho fijo para desktop
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _label("Nombre Comercial"),
-              _field(_nameCtrl, Icons.business, _inputFill),
-              const SizedBox(height: 16),
-              _label("Dirección Fiscal"),
-              _field(_billingCtrl, Icons.map, _inputFill),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        width: 520,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [const Color(0xFF0F172A), const Color(0xFF1E293B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Row(
                 children: [
-                  _label("Sucursales"),
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: _primaryBlue,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [BoxShadow(color: _primaryBlue.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0].toUpperCase() : 'C',
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Editar Cliente", style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                        const SizedBox(height: 4),
+                        Text("Modifica los datos del cliente", style: GoogleFonts.inter(color: Colors.white54, fontSize: 13)),
+                      ],
+                    ),
+                  ),
                   IconButton(
-                    icon: Icon(Icons.add_circle, color: _primaryBlue),
-                    onPressed: () => setState(() => _branchCtrls.add(TextEditingController())),
-                    tooltip: "Agregar sucursal",
-                  )
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20),
+                    splashRadius: 20,
+                  ),
                 ],
               ),
-              ..._branchCtrls.asMap().entries.map((entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
+            ),
+
+            // Contenido
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _field(entry.value, Icons.storefront, _inputFill, isDense: true)),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.red, size: 20),
-                      onPressed: () {
-                        if (_branchCtrls.length > 1) {
-                          setState(() {
-                            _branchCtrls[entry.key].dispose();
-                            _branchCtrls.removeAt(entry.key);
-                          });
-                        }
-                      },
-                    )
+                    Text("NOMBRE COMERCIAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    _field(_nameCtrl, Icons.business, _inputFill),
+                    const SizedBox(height: 20),
+                    Text("DIRECCIÓN FISCAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    _field(_billingCtrl, Icons.map, _inputFill),
+                    const SizedBox(height: 24),
+
+                    // Sucursales header
+                    Row(
+                      children: [
+                        const Icon(LucideIcons.mapPin, size: 14, color: Color(0xFF94A3B8)),
+                        const SizedBox(width: 8),
+                        Text("SUCURSALES", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () => setState(() => _branchCtrls.add(TextEditingController())),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _primaryBlue.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: _primaryBlue.withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.plus, size: 14, color: _primaryBlue),
+                                const SizedBox(width: 6),
+                                Text("Agregar", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryBlue)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ..._branchCtrls.asMap().entries.map((entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(child: _field(entry.value, Icons.storefront, Colors.transparent, isDense: true)),
+                            if (_branchCtrls.length > 1)
+                              IconButton(
+                                icon: const Icon(LucideIcons.x, color: Color(0xFFEF4444), size: 16),
+                                splashRadius: 16,
+                                onPressed: () {
+                                  setState(() {
+                                    _branchCtrls[entry.key].dispose();
+                                    _branchCtrls.removeAt(entry.key);
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    )),
                   ],
                 ),
-              )),
-            ],
-          ),
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF1F5F9)))),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                      child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : _save,
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                      child: _isSaving
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(LucideIcons.save, size: 18),
+                                const SizedBox(width: 8),
+                                Text("Guardar Cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text("Cancelar", style: GoogleFonts.inter(color: Colors.grey)),
-        ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _save,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _primaryBlue,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          child: _isSaving 
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
-      ],
     );
   }
-
-  Widget _label(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text.toUpperCase(), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600])),
-  );
 
   Widget _field(TextEditingController ctrl, IconData icon, Color fill, {bool isDense = false}) {
     return TextField(

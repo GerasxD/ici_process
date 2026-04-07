@@ -130,10 +130,9 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // ── DELETE ────────────────────────────────────────────────
   Future<void> _handleDelete() async {
-    if (!canEditData) return;
-
     // ── ELIMINAR PERMANENTEMENTE (desde etapa X) ──────────
     if (widget.process?.stage == ProcessStage.X) {
+      if (!canEditData) return;
       final confirm = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -362,6 +361,12 @@ class _ProcessModalState extends State<ProcessModal> {
     }
     // ── DESCARTAR (mover a etapa X) ───────────────────────
     else {
+      if (!PermissionManager().can(widget.user, 'discard_process')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No tienes permiso para descartar procesos.")),
+        );
+        return;
+      }
       final confirm = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -3119,7 +3124,17 @@ class _ProcessModalState extends State<ProcessModal> {
 
   // ── SAVE ──────────────────────────────────────────────────
   Future<void> _save() async {
-    if (!canEditData) return;
+    final bool isNew = widget.process == null;
+  
+    // Validar permiso de creación
+    if (isNew && !PermissionManager().can(widget.user, 'create_process')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No tienes permiso para crear procesos.")),
+      );
+      return;
+    }
+    
+    if (!canEditData && !isNew) return;
     if (_titleController.text.isEmpty || _clientController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Título y Cliente son obligatorios")),
@@ -4131,7 +4146,7 @@ class _ProcessModalState extends State<ProcessModal> {
             if (widget.process != null && canMoveStage)
               Row(
                 children: [
-                  if (canEditData)
+                  if (canEditData || PermissionManager().can(widget.user, 'discard_process'))
                     IconButton(
                       onPressed: _handleDelete,
                       icon: Icon(

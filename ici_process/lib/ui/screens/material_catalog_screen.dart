@@ -467,131 +467,304 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   void _showEditDialog(MaterialItem item, List<Provider> providers) {
     _nameCtrl.text = item.name;
     _unitCtrl.text = item.unit;
-    _stockCtrl.text = item.stock.toString(); 
-    _tempPrices = List.from(item.prices); 
+    _stockCtrl.text = item.stock.toString();
+    _tempPrices = List.from(item.prices);
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text(
-              "Editar Material", 
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
-            ),
-            content: SizedBox(
-              width: 500,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Usamos el mismo estilo de "Label" que en el formulario principal
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                      child: Text("NOMBRE DEL MATERIAL", 
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 540,
+              constraints: const BoxConstraints(maxHeight: 650),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [const Color(0xFF0F172A), const Color(0xFF1E293B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    _input(_nameCtrl, "Ej. Cemento Cruz Azul", LucideIcons.package),
-                    
-                    const SizedBox(height: 16),
-                    
-                    Row(
+                    child: Row(
                       children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [BoxShadow(color: const Color(0xFF059669).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                          ),
+                          child: const Center(child: Icon(LucideIcons.box, color: Colors.white, size: 24)),
+                        ),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("UNIDAD", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _input(_unitCtrl, "Ej. Bulto", LucideIcons.ruler),
+                              Text("Editar Material", style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                              const SizedBox(height: 4),
+                              Text(item.name, style: GoogleFonts.inter(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                             ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () { _resetForm(); Navigator.pop(ctx); },
+                          icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Contenido
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("NOMBRE DEL MATERIAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          _input(_nameCtrl, "Ej. Cemento Cruz Azul", LucideIcons.package),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("UNIDAD", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                                    const SizedBox(height: 8),
+                                    _input(_unitCtrl, "Ej. Bulto", LucideIcons.ruler),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text("STOCK", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                                    const SizedBox(height: 8),
+                                    _input(_stockCtrl, "0.00", LucideIcons.layers, isNumber: true),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              const Icon(LucideIcons.dollarSign, size: 14, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 8),
+                              Text("LISTA DE PRECIOS", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _PriceManager(
+                            providers: providers,
+                            initialPrices: _tempPrices,
+                            onChanged: (updated) {
+                              setModalState(() => _tempPrices = updated);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF1F5F9)))),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () { _resetForm(); Navigator.pop(ctx); },
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                            child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("STOCK", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _input(_stockCtrl, "0.00", LucideIcons.layers, isNumber: true),
-                            ],
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                            child: _isUploading
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(LucideIcons.save, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text("Guardar Cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                                    ],
+                                  ),
                           ),
                         ),
                       ],
                     ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0, left: 2),
-                      child: Text("LISTA DE PRECIOS", 
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
-                    ),
-                    
-                    _PriceManager(
-                      providers: providers,
-                      initialPrices: _tempPrices,
-                      onChanged: (updated) {
-                        setModalState(() => _tempPrices = updated);
-                      },
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            actions: [
-              TextButton(
-                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
-                style: TextButton.styleFrom(foregroundColor: _textSecondary),
-                child: Text("Cancelar", style: GoogleFonts.inter()),
-              ),
-              ElevatedButton(
-                onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                child: _isUploading 
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-              )
-            ],
           );
-        }
+        },
       ),
     ).then((_) => _resetForm());
   }
 
   void _confirmDelete(MaterialItem item) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text("Eliminar"),
-      content: Text("¿Borrar '${item.name}'?"),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-          onPressed: () {
-            _materialService.deleteMaterial(item.id);
-            Navigator.pop(ctx);
-            _showSnack("Eliminado");
-          }, 
-          child: const Text("Eliminar")
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: const Color(0xFFDC2626).withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(LucideIcons.trash2, color: Color(0xFFDC2626), size: 26),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Eliminar Material", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), letterSpacing: -0.3)),
+                          const SizedBox(height: 4),
+                          Text("Se eliminará del inventario", style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(LucideIcons.x, color: Color(0xFF94A3B8), size: 20), splashRadius: 20),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(LucideIcons.box, size: 16, color: Color(0xFF64748B)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 2),
+                                Text("${item.unit} · Stock: ${item.stock}", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFECACA))),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(LucideIcons.alertTriangle, size: 16, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text("El material será eliminado permanentemente del catálogo junto con su registro de stock actual.", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF991B1B), fontWeight: FontWeight.w500, height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                        child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _materialService.deleteMaterial(item.id);
+                          Navigator.pop(ctx);
+                          _showSnack("Material eliminado correctamente");
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.trash2, size: 18),
+                            const SizedBox(width: 8),
+                            Text("Eliminar Material", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
-    ));
+      ),
+    );
   }
 
   // ACTUALICÉ EL HELPER INPUT PARA ACEPTAR TECLADO NUMÉRICO

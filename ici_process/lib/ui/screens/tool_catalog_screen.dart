@@ -22,8 +22,11 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
   final _nameCtrl = TextEditingController();
   final _brandCtrl = TextEditingController();
   final _serialCtrl = TextEditingController();
-  
+  final _searchCtrl = TextEditingController();
+
   String _selectedStatus = 'Disponible';
+  String _filterStatus = 'Todos';
+  String _searchQuery = '';
   bool _isUploading = false;
 
   final List<String> _statusOptions = [
@@ -33,7 +36,6 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     'Extraviada'
   ];
 
-  // Colores
   final Color _bgPage = const Color(0xFFF8FAFC);
   final Color _cardBg = Colors.white;
   final Color _textPrimary = const Color(0xFF0F172A);
@@ -48,8 +50,7 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
   @override
   void initState() {
     super.initState();
-    // Esto asegura que la conexión a Firebase se abra UNA SOLA VEZ
-    _toolsStream = _toolService.getTools(); 
+    _toolsStream = _toolService.getTools();
   }
 
   @override
@@ -57,25 +58,56 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     _nameCtrl.dispose();
     _brandCtrl.dispose();
     _serialCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'Disponible': return const Color(0xFF10B981); // Verde
-      case 'En Uso': return const Color(0xFF3B82F6);     // Azul
-      case 'Mantenimiento': return const Color(0xFFF59E0B); // Naranja
-      case 'Extraviada': return const Color(0xFFEF4444);    // Rojo
+      case 'Disponible': return const Color(0xFF10B981);
+      case 'En Uso': return const Color(0xFF3B82F6);
+      case 'Mantenimiento': return const Color(0xFFF59E0B);
+      case 'Extraviada': return const Color(0xFFEF4444);
       default: return _textSecondary;
     }
   }
 
-  // --- NUEVO: ACTUALIZACIÓN RÁPIDA DE ESTADO ---
-  Future<void> _quickUpdateStatus(ToolItem item, String newStatus) async {
-    if (item.status == newStatus) return; // No hacer nada si es el mismo
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'Disponible': return LucideIcons.checkCircle2;
+      case 'En Uso': return LucideIcons.activity;
+      case 'Mantenimiento': return LucideIcons.wrench;
+      case 'Extraviada': return LucideIcons.alertTriangle;
+      default: return LucideIcons.circle;
+    }
+  }
 
+  List<ToolItem> _applyFilters(List<ToolItem> tools) {
+    return tools.where((tool) {
+      final matchesStatus = _filterStatus == 'Todos' || tool.status == _filterStatus;
+      if (!matchesStatus) return false;
+
+      if (_searchQuery.isNotEmpty) {
+        final q = _searchQuery.toLowerCase();
+        return tool.name.toLowerCase().contains(q) ||
+            tool.brand.toLowerCase().contains(q) ||
+            tool.serialNumber.toLowerCase().contains(q);
+      }
+      return true;
+    }).toList();
+  }
+
+  Map<String, int> _countByStatus(List<ToolItem> tools) {
+    final counts = <String, int>{'Todos': tools.length};
+    for (var s in _statusOptions) {
+      counts[s] = tools.where((t) => t.status == s).length;
+    }
+    return counts;
+  }
+
+  Future<void> _quickUpdateStatus(ToolItem item, String newStatus) async {
+    if (item.status == newStatus) return;
     try {
-      // Creamos una copia del objeto con el nuevo estado
       final updatedTool = ToolItem(
         id: item.id,
         name: item.name,
@@ -83,14 +115,12 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
         serialNumber: item.serialNumber,
         status: newStatus,
       );
-
       await _toolService.updateTool(updatedTool);
       _showSnack("Estado actualizado a: $newStatus");
     } catch (e) {
       _showSnack("Error al actualizar estado", isSuccess: false);
     }
   }
-  // ---------------------------------------------
 
   Future<void> _handleSave({String? docId}) async {
     if (!canEdit) return;
@@ -100,7 +130,7 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     }
 
     setState(() => _isUploading = true);
-    
+
     try {
       final tool = ToolItem(
         id: docId ?? '',
@@ -155,7 +185,6 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
             children: [
               _buildHeader(),
               const SizedBox(height: 40),
-              
               StreamBuilder<List<ToolItem>>(
                 stream: _toolsStream,
                 builder: (context, snapshot) {
@@ -163,23 +192,32 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  final tools = snapshot.data ?? [];
+                  final allTools = snapshot.data ?? [];
+                  final filtered = _applyFilters(allTools);
+                  final counts = _countByStatus(allTools);
+
+                  final listSection = Column(
+                    children: [
+                      _buildSearchAndFilters(counts),
+                      const SizedBox(height: 20),
+                      _buildListResults(filtered, allTools.length),
+                    ],
+                  );
 
                   if (isDesktop) {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 7, child: _buildList(tools)),
+                        Expanded(flex: 7, child: listSection),
                         const SizedBox(width: 40),
-                        if (canEdit) 
-                           Expanded(flex: 4, child: _buildForm()),
+                        if (canEdit) Expanded(flex: 4, child: _buildForm()),
                       ],
                     );
                   } else {
                     return Column(
                       children: [
                         if (canEdit) ...[_buildForm(), const SizedBox(height: 40)],
-                        _buildList(tools),
+                        listSection,
                       ],
                     );
                   }
@@ -191,6 +229,8 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
       }),
     );
   }
+
+  // ── HEADER ───────────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
     return Row(
@@ -217,43 +257,213 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     );
   }
 
-  Widget _buildList(List<ToolItem> tools) {
-    if (tools.isEmpty) return const Center(child: Text("Sin herramientas registradas"));
-    
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: tools.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (_, index) => _buildCard(tools[index]),
+  // ── BÚSQUEDA + FILTROS ───────────────────────────────────────────────────
+
+  Widget _buildSearchAndFilters(Map<String, int> counts) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        children: [
+          // Barra de búsqueda
+          TextField(
+            controller: _searchCtrl,
+            onChanged: (val) => setState(() => _searchQuery = val),
+            style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+            decoration: InputDecoration(
+              hintText: "Buscar por nombre, marca o serie...",
+              hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8)),
+              prefixIcon: const Icon(LucideIcons.search, size: 18, color: Color(0xFF94A3B8)),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF94A3B8)),
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: _inputFill,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Filtros por estado
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['Todos', ..._statusOptions].map((status) {
+                final isActive = _filterStatus == status;
+                final count = counts[status] ?? 0;
+                final color = status == 'Todos' ? _primaryBlue : _getStatusColor(status);
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () => setState(() => _filterStatus = status),
+                    borderRadius: BorderRadius.circular(20),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isActive ? color.withOpacity(0.1) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isActive ? color.withOpacity(0.4) : _borderColor,
+                          width: isActive ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (status != 'Todos') ...[
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(
+                            status,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                              color: isActive ? color : _textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isActive ? color.withOpacity(0.15) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              "$count",
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isActive ? color : _textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // --- TARJETA DE HERRAMIENTA CON CAMBIO RÁPIDO ---
+  // ── RESULTADOS DE LA LISTA ───────────────────────────────────────────────
+
+  Widget _buildListResults(List<ToolItem> filtered, int totalCount) {
+    if (filtered.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                _searchQuery.isNotEmpty ? LucideIcons.searchX : LucideIcons.packageX,
+                size: 44,
+                color: const Color(0xFFCBD5E1),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? "Sin resultados para \"$_searchQuery\""
+                    : _filterStatus != 'Todos'
+                        ? "Sin herramientas en estado \"$_filterStatus\""
+                        : "Sin herramientas registradas",
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF94A3B8)),
+              ),
+              if (_searchQuery.isNotEmpty || _filterStatus != 'Todos') ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    setState(() {
+                      _searchQuery = '';
+                      _filterStatus = 'Todos';
+                    });
+                  },
+                  icon: Icon(LucideIcons.rotateCcw, size: 14, color: _primaryBlue),
+                  label: Text("Limpiar filtros", style: GoogleFonts.inter(fontSize: 13, color: _primaryBlue, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Contador de resultados
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            filtered.length == totalCount
+                ? "$totalCount herramienta${totalCount == 1 ? '' : 's'}"
+                : "${filtered.length} de $totalCount herramienta${totalCount == 1 ? '' : 's'}",
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: _textSecondary),
+          ),
+        ),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: filtered.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (_, index) => _buildCard(filtered[index]),
+        ),
+      ],
+    );
+  }
+
+  // ── TARJETA ──────────────────────────────────────────────────────────────
+
   Widget _buildCard(ToolItem item) {
     Color statusColor = _getStatusColor(item.status);
 
-    // Diseño del Badge (lo extraemos para reusarlo)
     Widget statusBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: statusColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withOpacity(0.3))
+        border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
           const SizedBox(width: 8),
-          Text(
-            item.status.toUpperCase(),
-            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
-          ),
+          Text(item.status.toUpperCase(), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
           if (canEdit) ...[
             const SizedBox(width: 4),
-            Icon(LucideIcons.chevronDown, size: 12, color: statusColor)
-          ]
+            Icon(LucideIcons.chevronDown, size: 12, color: statusColor),
+          ],
         ],
       ),
     );
@@ -277,19 +487,17 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
             child: Icon(LucideIcons.hammer, color: _accentColor, size: 24),
           ),
           const SizedBox(width: 20),
-          
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary)),
                 const SizedBox(height: 4),
-                Text("${item.brand}  •  Serie: ${item.serialNumber.isEmpty ? 'S/N' : item.serialNumber}", 
-                  style: GoogleFonts.inter(fontSize: 13, color: _textSecondary)),
-                
+                Text(
+                  "${item.brand}  •  Serie: ${item.serialNumber.isEmpty ? 'S/N' : item.serialNumber}",
+                  style: GoogleFonts.inter(fontSize: 13, color: _textSecondary),
+                ),
                 const SizedBox(height: 12),
-                
-                // --- AQUÍ ESTÁ LA MAGIA: POPUP MENU ---
                 if (canEdit)
                   PopupMenuButton<String>(
                     tooltip: "Cambiar estado rápidamente",
@@ -303,39 +511,33 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
                         value: status,
                         child: Row(
                           children: [
-                            Icon(LucideIcons.circle, size: 10, color: c),
+                            Icon(_getStatusIcon(status), size: 14, color: c),
                             const SizedBox(width: 10),
                             Text(status, style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: c)),
                           ],
                         ),
                       );
                     }).toList(),
-                    child: statusBadge, // Usamos el diseño del badge como botón
+                    child: statusBadge,
                   )
                 else
-                  statusBadge, // Si no puede editar, solo muestra el badge estático
-                // --------------------------------------
+                  statusBadge,
               ],
             ),
           ),
-
           if (canEdit)
             Row(
               children: [
-                IconButton(
-                  icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue),
-                  onPressed: () => _showEditDialog(item),
-                ),
-                IconButton(
-                  icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.red),
-                  onPressed: () => _confirmDelete(item),
-                ),
+                IconButton(icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue), onPressed: () => _showEditDialog(item)),
+                IconButton(icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.red), onPressed: () => _confirmDelete(item)),
               ],
-            )
+            ),
         ],
       ),
     );
   }
+
+  // ── FORMULARIO ───────────────────────────────────────────────────────────
 
   Widget _buildForm() {
     return Container(
@@ -359,7 +561,6 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
           const SizedBox(height: 24),
           _input(_nameCtrl, "Nombre de la Herramienta", LucideIcons.wrench),
           const SizedBox(height: 12),
-          
           Row(
             children: [
               Expanded(child: _input(_brandCtrl, "Marca", LucideIcons.tag)),
@@ -368,7 +569,6 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
             ],
           ),
           const SizedBox(height: 24),
-
           Text("ESTADO ACTUAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
           const SizedBox(height: 8),
           Container(
@@ -395,7 +595,6 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
@@ -407,9 +606,9 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: _isUploading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
-                : Text("Guardar Herramienta", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+              child: _isUploading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
+                  : Text("Guardar Herramienta", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ],
@@ -417,158 +616,286 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     );
   }
 
+  // ── DIALOGS ──────────────────────────────────────────────────────────────
+
   void _showEditDialog(ToolItem item) {
     _nameCtrl.text = item.name;
     _brandCtrl.text = item.brand;
     _serialCtrl.text = item.serialNumber;
-    
     String tempStatus = item.status;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text(
-              "Editar Herramienta", 
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
-            ),
-            content: SizedBox(
-              width: 500,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start, // Alineación a la izquierda
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                      child: Text("NOMBRE DE LA HERRAMIENTA", 
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 520,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [const Color(0xFF0F172A), const Color(0xFF1E293B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    _input(_nameCtrl, "Ej. Taladro Percutor", LucideIcons.wrench),
-                    
-                    const SizedBox(height: 16),
-                    
-                    Row(
+                    child: Row(
                       children: [
+                        Container(
+                          width: 52, height: 52,
+                          decoration: BoxDecoration(color: _accentColor, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]),
+                          child: const Center(child: Icon(LucideIcons.hammer, color: Colors.white, size: 24)),
+                        ),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("MARCA", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _input(_brandCtrl, "Ej. DeWalt", LucideIcons.tag),
+                              Text("Editar Herramienta", style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                              const SizedBox(height: 4),
+                              Text(item.name, style: GoogleFonts.inter(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                             ],
+                          ),
+                        ),
+                        IconButton(onPressed: () { _resetForm(); Navigator.pop(ctx); }, icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20), splashRadius: 20),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("NOMBRE DE LA HERRAMIENTA", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          _input(_nameCtrl, "Ej. Taladro Percutor", LucideIcons.wrench),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("MARCA", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                                  const SizedBox(height: 8),
+                                  _input(_brandCtrl, "Ej. DeWalt", LucideIcons.tag),
+                                ]),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("NO. SERIE", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                                  const SizedBox(height: 8),
+                                  _input(_serialCtrl, "Ej. SN-12345", LucideIcons.hash),
+                                ]),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Text("ESTADO ACTUAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(12)),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: tempStatus,
+                                isExpanded: true,
+                                icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
+                                items: _statusOptions.map((status) {
+                                  return DropdownMenuItem(value: status, child: Row(children: [
+                                    Container(width: 8, height: 8, decoration: BoxDecoration(color: _getStatusColor(status), shape: BoxShape.circle)),
+                                    const SizedBox(width: 10),
+                                    Text(status, style: GoogleFonts.inter(fontSize: 14, color: _textPrimary)),
+                                  ]));
+                                }).toList(),
+                                onChanged: (val) { setModalState(() => tempStatus = val!); _selectedStatus = val!; },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF1F5F9)))),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () { _resetForm(); Navigator.pop(ctx); },
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                            child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("NO. SERIE", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _input(_serialCtrl, "Ej. SN-12345", LucideIcons.hash),
-                            ],
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: _isUploading ? null : () { _selectedStatus = tempStatus; _handleSave(docId: item.id); },
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                            child: _isUploading
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                    const Icon(LucideIcons.save, size: 18), const SizedBox(width: 8),
+                                    Text("Guardar Cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                                  ]),
                           ),
                         ),
                       ],
                     ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0, left: 2),
-                      child: Text("ESTADO ACTUAL", 
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
-                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ).then((_) => _resetForm());
+  }
+
+  void _confirmDelete(ToolItem item) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(10)),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: tempStatus,
-                          isExpanded: true,
-                          icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
-                          items: _statusOptions.map((status) {
-                            return DropdownMenuItem(
-                              value: status,
-                              child: Row(
-                                children: [
-                                  Container(width: 8, height: 8, decoration: BoxDecoration(color: _getStatusColor(status), shape: BoxShape.circle)),
-                                  const SizedBox(width: 10),
-                                  Text(status, style: GoogleFonts.inter(fontSize: 14, color: _textPrimary)),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            // La lógica intacta
-                            setModalState(() => tempStatus = val!);
-                            _selectedStatus = val!;
-                          },
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: const Color(0xFFDC2626).withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(LucideIcons.trash2, color: Color(0xFFDC2626), size: 26),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Eliminar Herramienta", style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A), letterSpacing: -0.3)),
+                          const SizedBox(height: 4),
+                          Text("Se eliminará del inventario", style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(LucideIcons.x, color: Color(0xFF94A3B8), size: 20), splashRadius: 20),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: _accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                            child: Icon(LucideIcons.hammer, size: 16, color: _accentColor),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.name, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 2),
+                                Text("${item.brand} · Serie: ${item.serialNumber.isEmpty ? 'S/N' : item.serialNumber}", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFFECACA))),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(LucideIcons.alertTriangle, size: 16, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text("La herramienta será dada de baja permanentemente del catálogo de inventario.", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF991B1B), fontWeight: FontWeight.w500, height: 1.4)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                        child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _toolService.deleteTool(item.id);
+                          Navigator.pop(ctx);
+                          _showSnack("Herramienta dada de baja");
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.trash2, size: 18),
+                            const SizedBox(width: 8),
+                            Text("Eliminar Herramienta", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                          ],
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            actions: [
-              TextButton(
-                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
-                style: TextButton.styleFrom(foregroundColor: _textSecondary),
-                child: Text("Cancelar", style: GoogleFonts.inter()),
-              ),
-              ElevatedButton(
-                onPressed: _isUploading ? null : () {
-                  // La lógica intacta
-                  _selectedStatus = tempStatus; 
-                  _handleSave(docId: item.id);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                child: _isUploading 
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-              )
             ],
-          );
-        }
-      ),
-    ).then((_) => _resetForm());
-  }
-
-  void _confirmDelete(ToolItem item) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text("Eliminar"),
-      content: Text("¿Dar de baja '${item.name}'?"),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-          onPressed: () {
-            _toolService.deleteTool(item.id);
-            Navigator.pop(ctx);
-            _showSnack("Herramienta dada de baja");
-          }, 
-          child: const Text("Dar de Baja")
+          ),
         ),
-      ],
-    ));
+      ),
+    );
   }
 
   Widget _input(TextEditingController ctrl, String hint, IconData icon) {
@@ -577,7 +904,8 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
       decoration: InputDecoration(
         prefixIcon: Icon(icon, size: 18, color: Colors.grey),
         hintText: hint,
-        filled: true, fillColor: _inputFill,
+        filled: true,
+        fillColor: _inputFill,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
       ),
     );

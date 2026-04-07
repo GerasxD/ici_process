@@ -115,7 +115,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       fontWeight: FontWeight.bold)),
               actions: [
                 _buildNotificationBadge(),
-                if (_selectedIndex == 0 && PermissionManager().can(widget.user, 'move_stage'))
+                if (_selectedIndex == 0 && PermissionManager().can(widget.user, 'create_process'))
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: SizedBox(
@@ -332,7 +332,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
              const SizedBox(width: 24),
              // 3. PROTEGEMOS EL BOTÓN DE "NUEVO"
              // Solo mostramos el botón si tiene permiso de editar/mover en el tablero
-             if (PermissionManager().can(widget.user, 'move_stage')) 
+             if (PermissionManager().can(widget.user, 'create_process')) 
                 _buildQuickActionButton(),
           ],
         ],

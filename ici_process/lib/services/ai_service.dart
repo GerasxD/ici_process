@@ -1,9 +1,16 @@
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class AIService {
 
-  static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+   static String get _apiKey {
+    // 1. Intenta dart-define (web)
+    const envKey = String.fromEnvironment('GEMINI_API_KEY');
+    if (envKey.isNotEmpty) return envKey;
+
+    // 2. Fallback a .env (móvil)
+    return dotenv.env['GEMINI_API_KEY'] ?? '';
+  }
 
   static Future<String> generateDescription({
     required String title, 

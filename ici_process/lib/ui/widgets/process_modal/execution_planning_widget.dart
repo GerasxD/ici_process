@@ -40,7 +40,10 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
   DateTime? _endDate;
   Color _selectedColor = const Color(0xFF2563EB); // Azul principal
   final TextEditingController _justificationCtrl = TextEditingController();
-  
+
+  final TextEditingController _toolSearchCtrl = TextEditingController();
+  String _toolSearchQuery = '';
+    
   Set<String> _selectedTechIds = {};
   Map<String, String> _techNames = {};
   Set<String> _selectedToolIds = {};
@@ -85,6 +88,7 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
   @override
   void dispose() {
     _justificationCtrl.dispose();
+    _toolSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -439,67 +443,7 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       },
     );
 
-    final toolWidget = _buildResourceContainer(
-    title: "HERRAMIENTAS",
-    icon: LucideIcons.wrench,
-    stream: _toolService.getTools(),
-    builder: (tools) {
-      // ── FILTRO: solo Disponibles + las ya seleccionadas para este proceso ──
-      final visibleTools = tools.where((tool) {
-        final isSelected = _selectedToolIds.contains(tool.id);
-        final isAvailable = tool.status == 'Disponible';
-        return isAvailable || isSelected; // Si ya estaba seleccionada, siempre mostrarla
-      }).toList();
-
-      if (visibleTools.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(LucideIcons.packageX, size: 32, color: Color(0xFFCBD5E1)),
-              const SizedBox(height: 8),
-              Text(
-                "Sin herramientas disponibles",
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF94A3B8),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-
-      return _buildSelectableList(
-        items: visibleTools,
-        emptyIcon: LucideIcons.box,
-        emptyMessage: "Inventario vacío",
-        itemBuilder: (tool) {
-          final isSelected = _selectedToolIds.contains(tool.id);
-          // Solo puede estar "en uso por otro" si es Disponible pero fue tomada
-          // En este filtro ya no llegan herramientas En Uso ajenas,
-          // pero sí pueden llegar seleccionadas que ahora estén En Uso (este proceso)
-          final isInUse = tool.status == 'En Uso' && !isSelected;
-
-          return _buildToolTile(
-            tool: tool,
-            isSelected: isSelected,
-            isInUse: isInUse,
-            onTap: () {
-              if (!widget.isEditable || isInUse) return;
-              setState(() {
-                isSelected
-                    ? _selectedToolIds.remove(tool.id)
-                    : _selectedToolIds.add(tool.id);
-              });
-              _notifyData();
-            },
-          );
-        },
-      );
-    },
-  );
+    final toolWidget = _buildToolSelectionCard();
 
     if (_isMobile) {
       return Column(
@@ -514,6 +458,298 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         const SizedBox(width: 20),
         Expanded(child: toolWidget),
       ],
+    );
+  }
+
+  // ── HERRAMIENTAS: Card resumen + BottomSheet ──────────────────────────
+  Widget _buildToolSelectionCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(LucideIcons.wrench, size: 16, color: Color(0xFF475569)),
+            const SizedBox(width: 8),
+            Text("HERRAMIENTAS", style: _labelStyle()),
+          ],
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<dynamic>>(
+          stream: _toolService.getTools(),
+          builder: (ctx, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return Container(
+                height: 100,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+
+            final allTools = snap.data ?? [];
+            final selectedTools = allTools.where((t) => _selectedToolIds.contains(t.id)).toList();
+
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Chips de seleccionados
+                  if (selectedTools.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: selectedTools.map((tool) => _buildToolChip(tool)).toList(),
+                      ),
+                    ),
+
+                  if (selectedTools.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Center(
+                        child: Text(
+                          "Sin herramientas seleccionadas",
+                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ),
+
+                  // Botón para abrir selector
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: InkWell(
+                      onTap: widget.isEditable ? () => _openToolSelector(allTools) : null,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: _selectedColor.withOpacity(0.3), style: BorderStyle.solid),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(LucideIcons.plus, size: 16, color: _selectedColor),
+                            const SizedBox(width: 8),
+                            Text(
+                              selectedTools.isEmpty ? "Seleccionar herramientas" : "Agregar o quitar herramientas",
+                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _selectedColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToolChip(dynamic tool) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: _selectedColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _selectedColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.hammer, size: 12, color: _selectedColor),
+          const SizedBox(width: 6),
+          Text(
+            tool.name,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _selectedColor),
+          ),
+          if (widget.isEditable) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () {
+                setState(() => _selectedToolIds.remove(tool.id));
+                _notifyData();
+              },
+              child: Icon(LucideIcons.x, size: 14, color: _selectedColor.withOpacity(0.6)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _openToolSelector(List<dynamic> allTools) {
+    _toolSearchCtrl.clear();
+    _toolSearchQuery = '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            final visibleTools = allTools.where((tool) {
+              final isSelected = _selectedToolIds.contains(tool.id);
+              final isAvailable = tool.status == 'Disponible';
+              if (!isAvailable && !isSelected) return false;
+
+              if (_toolSearchQuery.isNotEmpty) {
+                final q = _toolSearchQuery.toLowerCase();
+                final matchName = tool.name.toString().toLowerCase().contains(q);
+                final matchBrand = tool.brand.toString().toLowerCase().contains(q);
+                return matchName || matchBrand;
+              }
+              return true;
+            }).toList();
+
+            // Ordenar: seleccionados primero
+            visibleTools.sort((a, b) {
+              final aSelected = _selectedToolIds.contains(a.id) ? 0 : 1;
+              final bSelected = _selectedToolIds.contains(b.id) ? 0 : 1;
+              return aSelected.compareTo(bSelected);
+            });
+
+            final selectedCount = _selectedToolIds.length;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Seleccionar Herramientas",
+                              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "$selectedCount seleccionada${selectedCount == 1 ? '' : 's'}",
+                              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text("Listo", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _selectedColor)),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Barra de búsqueda
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: TextField(
+                      controller: _toolSearchCtrl,
+                      onChanged: (val) => setSheetState(() => _toolSearchQuery = val),
+                      style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A)),
+                      decoration: InputDecoration(
+                        hintText: "Buscar por nombre o marca...",
+                        hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8)),
+                        prefixIcon: const Icon(LucideIcons.search, size: 18, color: Color(0xFF94A3B8)),
+                        suffixIcon: _toolSearchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF94A3B8)),
+                                onPressed: () {
+                                  _toolSearchCtrl.clear();
+                                  setSheetState(() => _toolSearchQuery = '');
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _selectedColor, width: 1.5)),
+                      ),
+                    ),
+                  ),
+
+                  // Lista
+                  Expanded(
+                    child: visibleTools.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(LucideIcons.searchX, size: 36, color: Color(0xFFCBD5E1)),
+                                const SizedBox(height: 10),
+                                Text("Sin resultados", style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: visibleTools.length,
+                            itemBuilder: (_, i) {
+                              final tool = visibleTools[i];
+                              final isSelected = _selectedToolIds.contains(tool.id);
+                              final isInUse = tool.status == 'En Uso' && !isSelected;
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _buildToolTile(
+                                  tool: tool,
+                                  isSelected: isSelected,
+                                  isInUse: isInUse,
+                                  onTap: () {
+                                    if (!widget.isEditable || isInUse) return;
+                                    setState(() {
+                                      isSelected
+                                          ? _selectedToolIds.remove(tool.id)
+                                          : _selectedToolIds.add(tool.id);
+                                    });
+                                    setSheetState(() {});
+                                    _notifyData();
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

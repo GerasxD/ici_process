@@ -12,7 +12,8 @@ class VehicleManagementScreen extends StatefulWidget {
   const VehicleManagementScreen({super.key, required this.currentUser});
 
   @override
-  State<VehicleManagementScreen> createState() => _VehicleManagementScreenState();
+  State<VehicleManagementScreen> createState() =>
+      _VehicleManagementScreenState();
 }
 
 class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
@@ -26,7 +27,7 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   final _kmLiterCtrl = TextEditingController();
   final _costKmCtrl = TextEditingController();
   final _gasPriceCtrl = TextEditingController();
-  
+
   bool _isUploading = false;
 
   // Estilos
@@ -38,7 +39,8 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   final Color _primaryBlue = const Color(0xFF2563EB);
   final Color _inputFill = const Color(0xFFF1F5F9);
 
-  bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_vehicles');
+  bool get canEdit =>
+      PermissionManager().can(widget.currentUser, 'edit_vehicles');
 
   @override
   void initState() {
@@ -63,13 +65,18 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       return;
     }
     // Validar que los campos numéricos no estén vacíos (pueden ser 0, pero no vacíos)
-    if (_kmLiterCtrl.text.isEmpty || _costKmCtrl.text.isEmpty || _gasPriceCtrl.text.isEmpty) {
-      _showSnack("Todos los campos numéricos son obligatorios", isSuccess: false);
+    if (_kmLiterCtrl.text.isEmpty ||
+        _costKmCtrl.text.isEmpty ||
+        _gasPriceCtrl.text.isEmpty) {
+      _showSnack(
+        "Todos los campos numéricos son obligatorios",
+        isSuccess: false,
+      );
       return;
     }
 
     setState(() => _isUploading = true);
-    
+
     try {
       final vehicle = Vehicle(
         id: docId ?? '',
@@ -104,62 +111,74 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
   }
 
   void _showSnack(String msg, {bool isSuccess = true}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
-      backgroundColor: isSuccess ? const Color(0xFF059669) : const Color(0xFFDC2626),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: isSuccess
+            ? const Color(0xFF059669)
+            : const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgPage,
-      body: LayoutBuilder(builder: (context, constraints) {
-        bool isDesktop = constraints.maxWidth > 1000;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
-          child: Column(
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 40),
-              
-              StreamBuilder<List<Vehicle>>(
-                // 3. Usar la variable cacheada en lugar de llamar a la función
-                stream: _vehiclesStream,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) return Text("Error: ${snapshot.error}");
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final vehicles = snapshot.data ?? [];
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          bool isDesktop = constraints.maxWidth > 1000;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+            child: Column(
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 40),
 
-                  if (isDesktop) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 7, child: _buildList(vehicles)),
-                        const SizedBox(width: 40),
-                        // 3. OCULTAR FORMULARIO (DESKTOP)
-                        if (canEdit) 
-                          Expanded(flex: 4, child: _buildForm()),
-                      ],
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        if (canEdit) ...[_buildForm(), const SizedBox(height: 40)],
-                        _buildList(vehicles),
-                      ],
-                    );
-                  }
-                },
-              )
-            ],
-          ),
-        );
-      }),
+                StreamBuilder<List<Vehicle>>(
+                  // 3. Usar la variable cacheada en lugar de llamar a la función
+                  stream: _vehiclesStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError)
+                      return Text("Error: ${snapshot.error}");
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final vehicles = snapshot.data ?? [];
+
+                    if (isDesktop) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 7, child: _buildList(vehicles)),
+                          const SizedBox(width: 40),
+                          // 3. OCULTAR FORMULARIO (DESKTOP)
+                          if (canEdit) Expanded(flex: 4, child: _buildForm()),
+                        ],
+                      );
+                    } else {
+                      return Column(
+                        children: [
+                          if (canEdit) ...[
+                            _buildForm(),
+                            const SizedBox(height: 40),
+                          ],
+                          _buildList(vehicles),
+                        ],
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -171,7 +190,13 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: _primaryBlue.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+            boxShadow: [
+              BoxShadow(
+                color: _primaryBlue.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
             border: Border.all(color: _borderColor),
           ),
           child: Icon(LucideIcons.truck, color: _primaryBlue, size: 32),
@@ -180,8 +205,19 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Gestión de Vehículos", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
-            Text("Administra tu flota y costos operativos.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
+            Text(
+              "Gestión de Vehículos",
+              style: GoogleFonts.inter(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: _textPrimary,
+                letterSpacing: -0.5,
+              ),
+            ),
+            Text(
+              "Administra tu flota y costos operativos.",
+              style: GoogleFonts.inter(fontSize: 15, color: _textSecondary),
+            ),
           ],
         ),
       ],
@@ -190,8 +226,9 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
   // --- LISTADO ---
   Widget _buildList(List<Vehicle> vehicles) {
-    if (vehicles.isEmpty) return const Center(child: Text("Sin vehículos registrados"));
-    
+    if (vehicles.isEmpty)
+      return const Center(child: Text("Sin vehículos registrados"));
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -208,7 +245,13 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -222,31 +265,59 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Center(
-              child: Icon(LucideIcons.truck, color: Color(0xFF2563EB), size: 32), // Icono azul
+              child: Icon(
+                LucideIcons.truck,
+                color: Color(0xFF2563EB),
+                size: 32,
+              ), // Icono azul
             ),
           ),
           const SizedBox(width: 24),
-          
+
           // Información del Vehículo
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("MODELO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+                Text(
+                  "MODELO",
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _textSecondary,
+                    letterSpacing: 0.8,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(item.model, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 18, color: _textPrimary)),
+                Text(
+                  item.model,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: _textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 const SizedBox(height: 16),
-                
+
                 // Fila de Datos Numéricos
                 Row(
                   children: [
-                    _buildDataColumn("KM/L", item.kmPerLiter.toStringAsFixed(1)),
+                    _buildDataColumn(
+                      "KM/L",
+                      item.kmPerLiter.toStringAsFixed(1),
+                    ),
                     const SizedBox(width: 32),
-                    _buildDataColumn("COST/KM", "\$${item.costPerKm.toStringAsFixed(2)}"),
+                    _buildDataColumn(
+                      "COST/KM",
+                      "\$${item.costPerKm.toStringAsFixed(2)}",
+                    ),
                     const SizedBox(width: 32),
-                    _buildDataColumn("\$/L GAS", "\$${item.gasPrice.toStringAsFixed(2)}"),
+                    _buildDataColumn(
+                      "\$/L GAS",
+                      "\$${item.gasPrice.toStringAsFixed(2)}",
+                    ),
                   ],
                 ),
               ],
@@ -258,15 +329,23 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
             Column(
               children: [
                 IconButton(
-                  icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue),
+                  icon: const Icon(
+                    LucideIcons.edit3,
+                    size: 20,
+                    color: Colors.blue,
+                  ),
                   onPressed: () => _showEditDialog(item),
                 ),
                 IconButton(
-                  icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.red),
+                  icon: const Icon(
+                    LucideIcons.trash2,
+                    size: 20,
+                    color: Colors.red,
+                  ),
                   onPressed: () => _confirmDelete(item),
                 ),
               ],
-            )
+            ),
         ],
       ),
     );
@@ -276,9 +355,24 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: _textSecondary,
+            letterSpacing: 0.8,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(value, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: _textPrimary)),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: _textPrimary,
+          ),
+        ),
       ],
     );
   }
@@ -291,31 +385,65 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
         color: _cardBg,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.1), shape: BoxShape.circle), child: Icon(LucideIcons.plus, color: _primaryBlue, size: 20)),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _primaryBlue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(LucideIcons.plus, color: _primaryBlue, size: 20),
+              ),
               const SizedBox(width: 12),
-              Text("Nuevo Vehículo", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: _textPrimary)),
+              Text(
+                "Nuevo Vehículo",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: _textPrimary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 24),
-          
+
           _input(_modelCtrl, "Modelo del Vehículo", LucideIcons.truck),
           const SizedBox(height: 16),
-          
+
           // Inputs numéricos en fila
           Row(
             children: [
-              Expanded(child: _numericInput(_kmLiterCtrl, "KM/L", LucideIcons.gauge)),
+              Expanded(
+                child: _numericInput(_kmLiterCtrl, "KM/L", LucideIcons.gauge),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _numericInput(_costKmCtrl, "Cost/KM", LucideIcons.dollarSign)),
+              Expanded(
+                child: _numericInput(
+                  _costKmCtrl,
+                  "Cost/KM",
+                  LucideIcons.dollarSign,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _numericInput(_gasPriceCtrl, "\$/L Gas", LucideIcons.fuel)),
+              Expanded(
+                child: _numericInput(
+                  _gasPriceCtrl,
+                  "\$/L Gas",
+                  LucideIcons.fuel,
+                ),
+              ),
             ],
           ),
 
@@ -328,11 +456,23 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
                 backgroundColor: _primaryBlue,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: _isUploading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
-                : Text("Guardar Vehículo", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+              child: _isUploading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
+                  : Text(
+                      "Guardar Vehículo",
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -349,124 +489,381 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text(
-              "Editar Vehículo", 
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: _textPrimary)
-            ),
-            content: SizedBox(
-              width: 500,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start, // Alineación a la izquierda
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                      child: Text("MODELO DEL VEHÍCULO", 
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 520,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [const Color(0xFF0F172A), const Color(0xFF1E293B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    // Cambié el icono de zanahoria (carrot) por el de camión (truck) 🚚
-                    _input(_modelCtrl, "Ej. Nissan NP300", LucideIcons.truck),
-                    
-                    const SizedBox(height: 16),
-                    
-                    Row(
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 52, height: 52,
+                          decoration: BoxDecoration(color: const Color(0xFF0369A1), borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: const Color(0xFF0369A1).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]),
+                          child: const Center(child: Icon(LucideIcons.truck, color: Colors.white, size: 24)),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Editar Vehículo", style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                              const SizedBox(height: 4),
+                              Text(item.model, style: GoogleFonts.inter(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        IconButton(onPressed: () { _resetForm(); Navigator.pop(ctx); }, icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20), splashRadius: 20),
+                      ],
+                    ),
+                  ),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("MODELO DEL VEHÍCULO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          _input(_modelCtrl, "Ej. Nissan NP300", LucideIcons.truck),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              const Icon(LucideIcons.gauge, size: 14, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 8),
+                              Text("RENDIMIENTO Y COSTOS", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("KM/L", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
+                                  const SizedBox(height: 6),
+                                  _numericInput(_kmLiterCtrl, "0.0", LucideIcons.gauge),
+                                ]),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("COSTO/KM", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
+                                  const SizedBox(height: 6),
+                                  _numericInput(_costKmCtrl, "0.0", LucideIcons.dollarSign),
+                                ]),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("\$/L GAS", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
+                                  const SizedBox(height: 6),
+                                  _numericInput(_gasPriceCtrl, "0.0", LucideIcons.fuel),
+                                ]),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF1F5F9)))),
+                    child: Row(
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("KM/L", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _numericInput(_kmLiterCtrl, "0.0", LucideIcons.gauge),
-                            ],
+                          child: TextButton(
+                            onPressed: () { _resetForm(); Navigator.pop(ctx); },
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                            child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("COSTO/KM", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _numericInput(_costKmCtrl, "0.0", LucideIcons.dollarSign),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6.0, left: 2),
-                                child: Text("\$/L GAS", 
-                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
-                              ),
-                              _numericInput(_gasPriceCtrl, "0.0", LucideIcons.fuel),
-                            ],
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                            child: _isUploading
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                    const Icon(LucideIcons.save, size: 18), const SizedBox(width: 8),
+                                    Text("Guardar Cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                                  ]),
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            actions: [
-              TextButton(
-                onPressed: () { _resetForm(); Navigator.pop(ctx); }, 
-                style: TextButton.styleFrom(foregroundColor: _textSecondary),
-                child: Text("Cancelar", style: GoogleFonts.inter()),
-              ),
-              ElevatedButton(
-                onPressed: _isUploading ? null : () => _handleSave(docId: item.id),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                child: _isUploading 
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text("Guardar Cambios", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-              )
-            ],
           );
-        }
+        },
       ),
     ).then((_) => _resetForm());
   }
 
   void _confirmDelete(Vehicle item) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text("Eliminar"),
-      content: Text("¿Borrar el vehículo '${item.model}'?"),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-          onPressed: () {
-            _vehicleService.deleteVehicle(item.id);
-            Navigator.pop(ctx);
-            _showSnack("Eliminado");
-          }, 
-          child: const Text("Eliminar")
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 40,
+                offset: const Offset(0, 20),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        LucideIcons.trash2,
+                        color: Color(0xFFDC2626),
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Eliminar Vehículo",
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Esta acción no se puede deshacer",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(
+                        LucideIcons.x,
+                        color: Color(0xFF94A3B8),
+                        size: 20,
+                      ),
+                      splashRadius: 20,
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              LucideIcons.truck,
+                              size: 16,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.model,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.model,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            LucideIcons.alertTriangle,
+                            size: 16,
+                            color: Color(0xFFDC2626),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "El vehículo será eliminado permanentemente del inventario junto con su historial.",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF991B1B),
+                                fontWeight: FontWeight.w500,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: Text(
+                          "Cancelar",
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _vehicleService.deleteVehicle(item.id);
+                          Navigator.pop(ctx);
+                          _showSnack("Vehículo eliminado correctamente");
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.trash2, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Eliminar Vehículo",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
-    ));
+      ),
+    );
   }
 
   // --- HELPERS UI ---
@@ -476,8 +873,12 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       decoration: InputDecoration(
         prefixIcon: Icon(icon, size: 18, color: Colors.grey),
         hintText: hint,
-        filled: true, fillColor: _inputFill,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        filled: true,
+        fillColor: _inputFill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }
@@ -488,13 +889,19 @@ class _VehicleManagementScreenState extends State<VehicleManagementScreen> {
       controller: ctrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')), // Solo números y un punto
+        FilteringTextInputFormatter.allow(
+          RegExp(r'^\d+\.?\d{0,2}'),
+        ), // Solo números y un punto
       ],
       decoration: InputDecoration(
         prefixIcon: Icon(icon, size: 18, color: Colors.grey),
         hintText: hint,
-        filled: true, fillColor: _inputFill,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        filled: true,
+        fillColor: _inputFill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }

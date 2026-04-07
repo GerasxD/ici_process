@@ -32,7 +32,15 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   bool _isUploading = false;
 
   final List<String> _bloodTypes = [
-    '', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-',
+    '',
+    'A+',
+    'A-',
+    'B+',
+    'B-',
+    'AB+',
+    'AB-',
+    'O+',
+    'O-',
   ];
 
   final Color _bgPage = const Color(0xFFF8FAFC);
@@ -44,7 +52,8 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   final Color _inputFill = const Color(0xFFF1F5F9);
   final Color _accentColor = const Color(0xFF0D9488);
 
-  bool get canEdit => PermissionManager().can(widget.currentUser, 'edit_workers');
+  bool get canEdit =>
+      PermissionManager().can(widget.currentUser, 'edit_workers');
 
   @override
   void initState() {
@@ -110,59 +119,72 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   }
 
   void _showSnack(String msg, {bool isSuccess = true}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
-      backgroundColor: isSuccess ? const Color(0xFF059669) : const Color(0xFFDC2626),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: isSuccess
+            ? const Color(0xFF059669)
+            : const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgPage,
-      body: LayoutBuilder(builder: (context, constraints) {
-        bool isDesktop = constraints.maxWidth > 1000;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 40),
-              StreamBuilder<List<Worker>>(
-                stream: _workersStream,
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) return _buildErrorState(snapshot.error.toString());
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final workers = snapshot.data ?? [];
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          bool isDesktop = constraints.maxWidth > 1000;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 40),
+                StreamBuilder<List<Worker>>(
+                  stream: _workersStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError)
+                      return _buildErrorState(snapshot.error.toString());
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final workers = snapshot.data ?? [];
 
-                  if (isDesktop) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 7, child: _buildList(workers)),
-                        const SizedBox(width: 40),
-                        if (canEdit) Expanded(flex: 4, child: _buildForm()),
-                      ],
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        if (canEdit) ...[_buildForm(), const SizedBox(height: 40)],
-                        _buildList(workers),
-                      ],
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      }),
+                    if (isDesktop) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 7, child: _buildList(workers)),
+                          const SizedBox(width: 40),
+                          if (canEdit) Expanded(flex: 4, child: _buildForm()),
+                        ],
+                      );
+                    } else {
+                      return Column(
+                        children: [
+                          if (canEdit) ...[
+                            _buildForm(),
+                            const SizedBox(height: 40),
+                          ],
+                          _buildList(workers),
+                        ],
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -174,7 +196,13 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+            boxShadow: [
+              BoxShadow(
+                color: _accentColor.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
             border: Border.all(color: _borderColor),
           ),
           child: Icon(LucideIcons.hardHat, color: _accentColor, size: 32),
@@ -184,9 +212,20 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Personal y Trabajadores", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
+              Text(
+                "Personal y Trabajadores",
+                style: GoogleFonts.inter(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _textPrimary,
+                  letterSpacing: -0.5,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text("Gestiona los datos del equipo técnico y operativo.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
+              Text(
+                "Gestiona los datos del equipo técnico y operativo.",
+                style: GoogleFonts.inter(fontSize: 15, color: _textSecondary),
+              ),
             ],
           ),
         ),
@@ -202,7 +241,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
       children: [
         Text(
           "DIRECTORIO DE PERSONAL (${workers.length})",
-          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 1),
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: _textSecondary,
+            letterSpacing: 1,
+          ),
         ),
         const SizedBox(height: 16),
         ListView.separated(
@@ -218,14 +262,23 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
 
   Widget _buildCard(Worker worker) {
     final dateFmt = DateFormat('dd/MM/yyyy');
-    final bool hasExtraData = worker.nss.isNotEmpty || worker.curp.isNotEmpty || worker.bloodType.isNotEmpty;
+    final bool hasExtraData =
+        worker.nss.isNotEmpty ||
+        worker.curp.isNotEmpty ||
+        worker.bloodType.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -241,19 +294,35 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
             ),
             child: Center(
               child: Text(
-                worker.name.isNotEmpty ? worker.name.substring(0, 1).toUpperCase() : 'T',
-                style: GoogleFonts.inter(color: _accentColor, fontWeight: FontWeight.w700, fontSize: 20),
+                worker.name.isNotEmpty
+                    ? worker.name.substring(0, 1).toUpperCase()
+                    : 'T',
+                style: GoogleFonts.inter(
+                  color: _accentColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                ),
               ),
             ),
           ),
           title: Row(
             children: [
               Expanded(
-                child: Text(worker.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary)),
+                child: Text(
+                  worker.name,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: _textPrimary,
+                  ),
+                ),
               ),
               if (!hasExtraData)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF3C7),
                     borderRadius: BorderRadius.circular(6),
@@ -262,9 +331,20 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(LucideIcons.alertCircle, size: 11, color: Color(0xFFB45309)),
+                      const Icon(
+                        LucideIcons.alertCircle,
+                        size: 11,
+                        color: Color(0xFFB45309),
+                      ),
                       const SizedBox(width: 4),
-                      Text("Completar datos", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFFB45309))),
+                      Text(
+                        "Completar datos",
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFB45309),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -278,33 +358,67 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                   Icon(LucideIcons.mail, size: 13, color: _textSecondary),
                   const SizedBox(width: 4),
                   Expanded(
-                    child: Text(worker.email, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 13, color: _textSecondary)),
+                    child: Text(
+                      worker.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: _textSecondary,
+                      ),
+                    ),
                   ),
                 ],
                 if (worker.bloodType.isNotEmpty) ...[
                   const SizedBox(width: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFDC2626).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.2)),
+                      border: Border.all(
+                        color: const Color(0xFFDC2626).withOpacity(0.2),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(LucideIcons.droplets, size: 11, color: Color(0xFFDC2626)),
+                        const Icon(
+                          LucideIcons.droplets,
+                          size: 11,
+                          color: Color(0xFFDC2626),
+                        ),
                         const SizedBox(width: 4),
-                        Text(worker.bloodType, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFFDC2626))),
+                        Text(
+                          worker.bloodType,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
                 if (worker.startDate != null) ...[
                   const SizedBox(width: 12),
-                  Icon(LucideIcons.calendarCheck, size: 12, color: _textSecondary),
+                  Icon(
+                    LucideIcons.calendarCheck,
+                    size: 12,
+                    color: _textSecondary,
+                  ),
                   const SizedBox(width: 4),
-                  Text(dateFmt.format(worker.startDate!), style: GoogleFonts.inter(fontSize: 12, color: _textSecondary)),
+                  Text(
+                    dateFmt.format(worker.startDate!),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: _textSecondary,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -313,9 +427,17 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (canEdit) ...[
-                _buildIconBtn(icon: LucideIcons.edit3, color: Colors.blue, onTap: () => _showEditDialog(worker)),
+                _buildIconBtn(
+                  icon: LucideIcons.edit3,
+                  color: Colors.blue,
+                  onTap: () => _showEditDialog(worker),
+                ),
                 const SizedBox(width: 8),
-                _buildIconBtn(icon: LucideIcons.trash2, color: Colors.red, onTap: () => _confirmDelete(worker)),
+                _buildIconBtn(
+                  icon: LucideIcons.trash2,
+                  color: Colors.red,
+                  onTap: () => _confirmDelete(worker),
+                ),
               ],
             ],
           ),
@@ -333,9 +455,21 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(LucideIcons.clipboard, size: 16, color: _textSecondary),
+                      Icon(
+                        LucideIcons.clipboard,
+                        size: 16,
+                        color: _textSecondary,
+                      ),
                       const SizedBox(width: 8),
-                      Text("DATOS PERSONALES", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+                      Text(
+                        "DATOS PERSONALES",
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _textSecondary,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -343,11 +477,32 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                     spacing: 32,
                     runSpacing: 16,
                     children: [
-                      _buildInfoField("NSS (Seguro Social)", worker.nss.isNotEmpty ? worker.nss : "No registrado"),
-                      _buildInfoField("CURP", worker.curp.isNotEmpty ? worker.curp : "No registrado"),
-                      _buildInfoField("Tipo de Sangre", worker.bloodType.isNotEmpty ? worker.bloodType : "No registrado"),
-                      _buildInfoField("Fecha de Ingreso", worker.startDate != null ? dateFmt.format(worker.startDate!) : "No registrada"),
-                      _buildInfoField("Correo Electrónico", worker.email.isNotEmpty ? worker.email : "No registrado"),
+                      _buildInfoField(
+                        "NSS (Seguro Social)",
+                        worker.nss.isNotEmpty ? worker.nss : "No registrado",
+                      ),
+                      _buildInfoField(
+                        "CURP",
+                        worker.curp.isNotEmpty ? worker.curp : "No registrado",
+                      ),
+                      _buildInfoField(
+                        "Tipo de Sangre",
+                        worker.bloodType.isNotEmpty
+                            ? worker.bloodType
+                            : "No registrado",
+                      ),
+                      _buildInfoField(
+                        "Fecha de Ingreso",
+                        worker.startDate != null
+                            ? dateFmt.format(worker.startDate!)
+                            : "No registrada",
+                      ),
+                      _buildInfoField(
+                        "Correo Electrónico",
+                        worker.email.isNotEmpty
+                            ? worker.email
+                            : "No registrado",
+                      ),
                     ],
                   ),
 
@@ -364,17 +519,33 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                             color: const Color(0xFFFF6B35).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(LucideIcons.phoneCall, size: 16, color: Color(0xFFFF6B35)),
+                          child: const Icon(
+                            LucideIcons.phoneCall,
+                            size: 16,
+                            color: Color(0xFFFF6B35),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("CONTACTO DE EMERGENCIA", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                            Text(
+                              "CONTACTO DE EMERGENCIA",
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _textSecondary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                             const SizedBox(height: 2),
                             Text(
                               worker.emergencyPhone,
-                              style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFFFF6B35)),
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFFF6B35),
+                              ),
                             ),
                           ],
                         ),
@@ -392,15 +563,34 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                             color: const Color(0xFFFF6B35).withOpacity(0.08),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Icon(LucideIcons.phoneCall, size: 16, color: const Color(0xFFFF6B35).withOpacity(0.4)),
+                          child: Icon(
+                            LucideIcons.phoneCall,
+                            size: 16,
+                            color: const Color(0xFFFF6B35).withOpacity(0.4),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("CONTACTO DE EMERGENCIA", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                            Text(
+                              "CONTACTO DE EMERGENCIA",
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _textSecondary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                            Text("No registrado", style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), fontStyle: FontStyle.italic)),
+                            Text(
+                              "No registrado",
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF94A3B8),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -420,9 +610,24 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("DIRECCIÓN PARTICULAR", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+                              Text(
+                                "DIRECCIÓN PARTICULAR",
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: _textSecondary,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                               const SizedBox(height: 4),
-                              Text(worker.address, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary, height: 1.4)),
+                              Text(
+                                worker.address,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: _textPrimary,
+                                  height: 1.4,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -445,7 +650,15 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.5)),
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: _textSecondary,
+              letterSpacing: 0.5,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
@@ -461,13 +674,20 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
     );
   }
 
-  Widget _buildIconBtn({required IconData icon, required Color color, required VoidCallback onTap}) {
+  Widget _buildIconBtn({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Icon(icon, size: 18, color: color),
       ),
     );
@@ -480,7 +700,13 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
         color: _cardBg,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -489,11 +715,25 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.1), shape: BoxShape.circle),
-                child: Icon(LucideIcons.userPlus, color: _primaryBlue, size: 20),
+                decoration: BoxDecoration(
+                  color: _primaryBlue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  LucideIcons.userPlus,
+                  color: _primaryBlue,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
-              Text("Registrar Trabajador", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: _textPrimary)),
+              Text(
+                "Registrar Trabajador",
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: _textPrimary,
+                ),
+              ),
             ],
           ),
 
@@ -503,16 +743,26 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFFF0F9FF),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+              border: Border.all(
+                color: const Color(0xFFBAE6FD).withOpacity(0.5),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(LucideIcons.info, size: 14, color: Color(0xFF0369A1)),
+                const Icon(
+                  LucideIcons.info,
+                  size: 14,
+                  color: Color(0xFF0369A1),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     "Los técnicos creados desde Administración → Usuarios también aparecen aquí automáticamente.",
-                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF0C4A6E), fontWeight: FontWeight.w500),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: const Color(0xFF0C4A6E),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -548,7 +798,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
 
           const SizedBox(height: 24),
           _buildSectionLabel("Domicilio"),
-          _input(_addressCtrl, "Dirección particular completa", LucideIcons.mapPin, maxLines: 2),
+          _input(
+            _addressCtrl,
+            "Dirección particular completa",
+            LucideIcons.mapPin,
+            maxLines: 2,
+          ),
 
           const SizedBox(height: 32),
           SizedBox(
@@ -559,12 +814,27 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
                 backgroundColor: _primaryBlue,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
               child: _isUploading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text("Registrar Trabajador", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      "Registrar Trabajador",
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -587,15 +857,31 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
         decoration: InputDecoration(
           prefixIcon: Padding(
             padding: const EdgeInsets.all(12),
-            child: const Icon(LucideIcons.phoneCall, size: 20, color: Color(0xFFFF6B35)),
+            child: const Icon(
+              LucideIcons.phoneCall,
+              size: 20,
+              color: Color(0xFFFF6B35),
+            ),
           ),
           hintText: "Número de emergencia (ej. 449 123 4567)",
-          hintStyle: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 13),
+          hintStyle: GoogleFonts.inter(
+            color: Colors.grey.shade400,
+            fontSize: 13,
+          ),
           filled: true,
           fillColor: Colors.transparent,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 16,
+            horizontal: 16,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Color(0xFFFF6B35), width: 1.5),
@@ -608,22 +894,39 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   Widget _buildBloodTypeDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: _inputFill,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _selectedBloodType,
           isExpanded: true,
-          icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
+          icon: const Icon(
+            LucideIcons.chevronDown,
+            size: 18,
+            color: Colors.grey,
+          ),
           items: _bloodTypes.map((type) {
             return DropdownMenuItem(
               value: type,
               child: Row(
                 children: [
                   if (type.isNotEmpty) ...[
-                    Icon(LucideIcons.droplets, size: 14, color: const Color(0xFFDC2626).withOpacity(0.7)),
+                    Icon(
+                      LucideIcons.droplets,
+                      size: 14,
+                      color: const Color(0xFFDC2626).withOpacity(0.7),
+                    ),
                     const SizedBox(width: 8),
                   ],
-                  Text(type.isEmpty ? "Tipo de Sangre" : type, style: GoogleFonts.inter(fontSize: 14, color: type.isEmpty ? Colors.grey : _textPrimary)),
+                  Text(
+                    type.isEmpty ? "Tipo de Sangre" : type,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: type.isEmpty ? Colors.grey : _textPrimary,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -643,7 +946,9 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
           firstDate: DateTime(2000),
           lastDate: DateTime.now(),
           builder: (context, child) => Theme(
-            data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _accentColor)),
+            data: ThemeData.light().copyWith(
+              colorScheme: ColorScheme.light(primary: _accentColor),
+            ),
             child: child!,
           ),
         );
@@ -652,15 +957,29 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: _inputFill,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Row(
           children: [
-            Icon(LucideIcons.calendarCheck, size: 18, color: Colors.grey.shade400),
+            Icon(
+              LucideIcons.calendarCheck,
+              size: 18,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                _selectedStartDate != null ? DateFormat('dd/MM/yyyy').format(_selectedStartDate!) : "Fecha de Ingreso",
-                style: GoogleFonts.inter(fontSize: 14, color: _selectedStartDate != null ? _textPrimary : Colors.grey.shade400),
+                _selectedStartDate != null
+                    ? DateFormat('dd/MM/yyyy').format(_selectedStartDate!)
+                    : "Fecha de Ingreso",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: _selectedStartDate != null
+                      ? _textPrimary
+                      : Colors.grey.shade400,
+                ),
               ),
             ),
           ],
@@ -672,25 +991,53 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   Widget _buildSectionLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Text(label.toUpperCase(), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: _textSecondary,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 
-  Widget _input(TextEditingController ctrl, String hint, IconData icon, {int maxLines = 1}) {
+  Widget _input(
+    TextEditingController ctrl,
+    String hint,
+    IconData icon, {
+    int maxLines = 1,
+  }) {
     return TextField(
       controller: ctrl,
       maxLines: maxLines,
       style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
       decoration: InputDecoration(
-        prefixIcon: Padding(padding: const EdgeInsets.all(12), child: Icon(icon, size: 20, color: Colors.grey.shade400)),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(icon, size: 20, color: Colors.grey.shade400),
+        ),
         hintText: hint,
         hintStyle: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 13),
         filled: true,
         fillColor: _inputFill,
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _primaryBlue, width: 1.5),
+        ),
       ),
     );
   }
@@ -707,347 +1054,303 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
     DateTime? tempStartDate = worker.startDate;
     bool isSaving = false;
 
-    // Función para descargar todos los controladores de forma segura
     void disposeControllers() {
-      // ignore: invalid_use_of_protected_member
-      if (!editNssCtrl.hasListeners) editNssCtrl.dispose();
-      // ignore: invalid_use_of_protected_member
-      if (!editCurpCtrl.hasListeners) editCurpCtrl.dispose();
-      // ignore: invalid_use_of_protected_member
-      if (!editAddressCtrl.hasListeners) editAddressCtrl.dispose();
-      // ignore: invalid_use_of_protected_member
-      if (!editEmailCtrl.hasListeners) editEmailCtrl.dispose();
-      // ignore: invalid_use_of_protected_member
-      if (!editEmergencyPhoneCtrl.hasListeners) editEmergencyPhoneCtrl.dispose();
+      editNssCtrl.dispose();
+      editCurpCtrl.dispose();
+      editAddressCtrl.dispose();
+      editEmailCtrl.dispose();
+      editEmergencyPhoneCtrl.dispose();
     }
 
     showDialog(
       context: context,
-      barrierDismissible: false, // Evita cerrar tocando fuera para controlar el dispose
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
-          return WillPopScope(
-            onWillPop: () async {
-              // Descargar controladores cuando se cierra con el botón de atrás
-              disposeControllers();
-              return true;
-            },
-            child: AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Row(
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 540,
+              constraints: const BoxConstraints(maxHeight: 700),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, 20))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Header
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
                     decoration: BoxDecoration(
-                      color: _accentColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      gradient: LinearGradient(colors: [const Color(0xFF0F172A), const Color(0xFF1E293B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    child: Icon(LucideIcons.userCog, color: _accentColor, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(
-                          "Editar Datos",
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.bold,
-                            color: _textPrimary,
-                            fontSize: 17,
+                        Container(
+                          width: 52, height: 52,
+                          decoration: BoxDecoration(
+                            color: _accentColor,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                          ),
+                          child: Center(
+                            child: Text(
+                              worker.name.isNotEmpty ? worker.name[0].toUpperCase() : 'T',
+                              style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                            ),
                           ),
                         ),
-                        Text(
-                          worker.name,
-                          style: GoogleFonts.inter(fontSize: 13, color: _textSecondary),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Editar Trabajador", style: GoogleFonts.inter(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                              const SizedBox(height: 4),
+                              Text(worker.name, style: GoogleFonts.inter(color: Colors.white54, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () { disposeControllers(); Navigator.pop(ctx); },
+                          icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Contenido
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Correo
+                          Text("CORREO ELECTRÓNICO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: editEmailCtrl,
+                            style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(LucideIcons.mail, size: 18, color: Colors.grey.shade400),
+                              hintText: "correo@empresa.com",
+                              hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                              filled: true, fillColor: _inputFill,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Documentos
+                          Row(children: [
+                            const Icon(LucideIcons.fileText, size: 14, color: Color(0xFF94A3B8)),
+                            const SizedBox(width: 8),
+                            Text("DOCUMENTOS OFICIALES", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          ]),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: editNssCtrl,
+                            style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(LucideIcons.shieldCheck, size: 18, color: Colors.grey.shade400),
+                              hintText: "NSS (Seguro Social)",
+                              hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                              filled: true, fillColor: _inputFill,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: editCurpCtrl,
+                            textCapitalization: TextCapitalization.characters,
+                            style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(LucideIcons.fingerprint, size: 18, color: Colors.grey.shade400),
+                              hintText: "CURP",
+                              hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                              filled: true, fillColor: _inputFill,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Médica y laboral
+                          Row(children: [
+                            const Icon(LucideIcons.heartPulse, size: 14, color: Color(0xFF94A3B8)),
+                            const SizedBox(width: 8),
+                            Text("INFORMACIÓN MÉDICA Y LABORAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          ]),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(12)),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _bloodTypes.contains(tempBloodType) ? tempBloodType : '',
+                                      isExpanded: true,
+                                      icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
+                                      items: _bloodTypes.map((type) => DropdownMenuItem(
+                                        value: type,
+                                        child: Text(type.isEmpty ? "Tipo de sangre" : type, style: GoogleFonts.inter(fontSize: 14, color: type.isEmpty ? Colors.grey : _textPrimary)),
+                                      )).toList(),
+                                      onChanged: (val) => setModalState(() => tempBloodType = val ?? ''),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () async {
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: tempStartDate ?? DateTime.now(),
+                                      firstDate: DateTime(2000),
+                                      lastDate: DateTime.now(),
+                                      builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _accentColor)), child: child!),
+                                    );
+                                    if (picked != null) setModalState(() => tempStartDate = picked);
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(12)),
+                                    child: Row(children: [
+                                      Icon(LucideIcons.calendarCheck, size: 18, color: Colors.grey.shade400),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          tempStartDate != null ? DateFormat('dd/MM/yyyy').format(tempStartDate!) : "Fecha de Ingreso",
+                                          style: GoogleFonts.inter(fontSize: 13, color: tempStartDate != null ? _textPrimary : Colors.grey.shade400),
+                                        ),
+                                      ),
+                                    ]),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Emergencia
+                          Row(children: [
+                            const Icon(LucideIcons.phoneCall, size: 14, color: Color(0xFFEA580C)),
+                            const SizedBox(width: 8),
+                            Text("CONTACTO DE EMERGENCIA", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFFEA580C), letterSpacing: 0.8)),
+                          ]),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFEA580C).withOpacity(0.3))),
+                            child: TextField(
+                              controller: editEmergencyPhoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(LucideIcons.phoneCall, size: 18, color: Color(0xFFEA580C)),
+                                hintText: "Número de emergencia",
+                                hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                                filled: true, fillColor: Colors.transparent,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFEA580C), width: 1.5)),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Domicilio
+                          Text("DOMICILIO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: editAddressCtrl,
+                            maxLines: 2,
+                            style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(LucideIcons.mapPin, size: 18, color: Colors.grey.shade400),
+                              hintText: "Dirección particular",
+                              hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+                              filled: true, fillColor: _inputFill,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF1F5F9)))),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () { disposeControllers(); Navigator.pop(ctx); },
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFE2E8F0)))),
+                            child: Text("Cancelar", style: GoogleFonts.inter(color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: isSaving
+                                ? null
+                                : () async {
+                                    setModalState(() => isSaving = true);
+                                    try {
+                                      final updated = Worker(
+                                        id: worker.id,
+                                        name: worker.name,
+                                        email: editEmailCtrl.text.trim(),
+                                        nss: editNssCtrl.text.trim(),
+                                        curp: editCurpCtrl.text.trim().toUpperCase(),
+                                        bloodType: tempBloodType,
+                                        startDate: tempStartDate,
+                                        address: editAddressCtrl.text.trim(),
+                                        emergencyPhone: editEmergencyPhoneCtrl.text.trim(),
+                                      );
+                                      await _workerService.updateWorkerDetails(updated);
+                                      disposeControllers();
+                                      if (ctx.mounted) Navigator.pop(ctx);
+                                      _showSnack("Datos actualizados correctamente");
+                                    } catch (e) {
+                                      _showSnack("Error: $e", isSuccess: false);
+                                    } finally {
+                                      if (ctx.mounted) setModalState(() => isSaving = false);
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                            child: isSaving
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                    const Icon(LucideIcons.save, size: 18), const SizedBox(width: 8),
+                                    Text("Guardar Cambios", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                                  ]),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              content: SizedBox(
-                width: 520,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionLabel("Correo Electrónico"),
-                      TextField(
-                        controller: editEmailCtrl,
-                        style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
-                        decoration: InputDecoration(
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(LucideIcons.mail, size: 20, color: Colors.grey.shade400),
-                          ),
-                          hintText: "correo@empresa.com",
-                          filled: true,
-                          fillColor: _inputFill,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: _primaryBlue, width: 1.5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel("Documentos Oficiales"),
-                      TextField(
-                        controller: editNssCtrl,
-                        style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
-                        decoration: InputDecoration(
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(LucideIcons.shieldCheck, size: 20, color: Colors.grey.shade400),
-                          ),
-                          hintText: "NSS (Seguro Social)",
-                          filled: true,
-                          fillColor: _inputFill,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: _primaryBlue, width: 1.5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: editCurpCtrl,
-                        textCapitalization: TextCapitalization.characters,
-                        style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
-                        decoration: InputDecoration(
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(LucideIcons.fingerprint, size: 20, color: Colors.grey.shade400),
-                          ),
-                          hintText: "CURP",
-                          filled: true,
-                          fillColor: _inputFill,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: _primaryBlue, width: 1.5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel("Información Médica y Laboral"),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _inputFill,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _bloodTypes.contains(tempBloodType) ? tempBloodType : '',
-                                  isExpanded: true,
-                                  icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
-                                  items: _bloodTypes.map((type) {
-                                    return DropdownMenuItem(
-                                      value: type,
-                                      child: Text(
-                                        type.isEmpty ? "Sin especificar" : type,
-                                        style: GoogleFonts.inter(
-                                          fontSize: 14,
-                                          color: type.isEmpty ? Colors.grey : _textPrimary,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) => setModalState(() => tempBloodType = val ?? ''),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: tempStartDate ?? DateTime.now(),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime.now(),
-                                  builder: (context, child) => Theme(
-                                    data: ThemeData.light().copyWith(
-                                      colorScheme: ColorScheme.light(primary: _accentColor),
-                                    ),
-                                    child: child!,
-                                  ),
-                                );
-                                if (picked != null) {
-                                  setModalState(() => tempStartDate = picked);
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                decoration: BoxDecoration(
-                                  color: _inputFill,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(LucideIcons.calendarCheck, size: 18, color: Colors.grey.shade400),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        tempStartDate != null
-                                            ? DateFormat('dd/MM/yyyy').format(tempStartDate!)
-                                            : "Fecha de Ingreso",
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          color: tempStartDate != null ? _textPrimary : Colors.grey.shade400,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel("Contacto de Emergencia"),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _inputFill,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFFF6B35).withOpacity(0.3)),
-                        ),
-                        child: TextField(
-                          controller: editEmergencyPhoneCtrl,
-                          keyboardType: TextInputType.phone,
-                          style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
-                          decoration: InputDecoration(
-                            prefixIcon: const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: Icon(LucideIcons.phoneCall, size: 20, color: Color(0xFFFF6B35)),
-                            ),
-                            hintText: "Número de emergencia",
-                            hintStyle: GoogleFonts.inter(color: Colors.grey.shade400, fontSize: 13),
-                            filled: true,
-                            fillColor: Colors.transparent,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFFF6B35), width: 1.5),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel("Domicilio"),
-                      TextField(
-                        controller: editAddressCtrl,
-                        maxLines: 2,
-                        style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
-                        decoration: InputDecoration(
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(LucideIcons.mapPin, size: 20, color: Colors.grey.shade400),
-                          ),
-                          hintText: "Dirección particular",
-                          filled: true,
-                          fillColor: _inputFill,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: _primaryBlue, width: 1.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actionsPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    // Descargar controladores antes de cerrar
-                    disposeControllers();
-                    Navigator.pop(ctx);
-                  },
-                  style: TextButton.styleFrom(foregroundColor: _textSecondary),
-                  child: Text("Cancelar", style: GoogleFonts.inter()),
-                ),
-                ElevatedButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          setModalState(() => isSaving = true);
-                          try {
-                            final updated = Worker(
-                              id: worker.id,
-                              name: worker.name,
-                              email: editEmailCtrl.text.trim(),
-                              nss: editNssCtrl.text.trim(),
-                              curp: editCurpCtrl.text.trim().toUpperCase(),
-                              bloodType: tempBloodType,
-                              startDate: tempStartDate,
-                              address: editAddressCtrl.text.trim(),
-                              emergencyPhone: editEmergencyPhoneCtrl.text.trim(),
-                            );
-                            await _workerService.updateWorkerDetails(updated);
-                            
-                            // Descargar controladores después de guardar exitosamente
-                            disposeControllers();
-                            
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            _showSnack("Datos actualizados correctamente");
-                          } catch (e) {
-                            _showSnack("Error: $e", isSuccess: false);
-                          } finally {
-                            if (ctx.mounted) setModalState(() => isSaving = false);
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryBlue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  child: isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : Text(
-                          "Guardar Cambios",
-                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ],
             ),
           );
         },
@@ -1058,65 +1361,279 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
   void _confirmDelete(Worker worker) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(LucideIcons.alertTriangle, color: Color(0xFFDC2626)),
-            const SizedBox(width: 12),
-            Text("Eliminar Trabajador", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("¿Seguro que deseas eliminar a '${worker.name}'?", style: GoogleFonts.inter()),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFECACA)),
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 40,
+                offset: const Offset(0, 20),
               ),
-              child: Row(
-                children: [
-                  const Icon(LucideIcons.alertTriangle, size: 14, color: Color(0xFFDC2626)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Si este trabajador tiene cuenta de acceso al sistema, también perderá su acceso.",
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF991B1B)),
-                    ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        LucideIcons.trash2,
+                        color: Color(0xFFDC2626),
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Eliminar Trabajador",
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Se dará de baja del sistema",
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(
+                        LucideIcons.x,
+                        color: Color(0xFF94A3B8),
+                        size: 20,
+                      ),
+                      splashRadius: 20,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text(
+                                worker.name.isNotEmpty
+                                    ? worker.name[0].toUpperCase()
+                                    : 'T',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  worker.name,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            LucideIcons.alertTriangle,
+                            size: 16,
+                            color: Color(0xFFDC2626),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "El trabajador será eliminado permanentemente del registro de personal.",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF991B1B),
+                                fontWeight: FontWeight.w500,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFFED7AA).withOpacity(0.5),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            LucideIcons.info,
+                            size: 16,
+                            color: Color(0xFFB45309),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Si este trabajador tiene cuenta de acceso al sistema, también perderá su acceso de forma inmediata.",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF92400E),
+                                fontWeight: FontWeight.w500,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: Text(
+                          "Cancelar",
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _workerService.deleteWorker(worker.id);
+                          Navigator.pop(ctx);
+                          _showSnack("Trabajador eliminado correctamente");
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.trash2, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Eliminar Trabajador",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        actionsPadding: const EdgeInsets.all(20),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: _textSecondary),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _workerService.deleteWorker(worker.id);
-              Navigator.pop(ctx);
-              _showSnack("Trabajador eliminado");
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text("Sí, Eliminar"),
-          ),
-        ],
       ),
     );
   }
@@ -1128,9 +1645,19 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
         children: [
           Icon(LucideIcons.userX, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          Text("No hay trabajadores registrados", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: _textSecondary)),
+          Text(
+            "No hay trabajadores registrados",
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _textSecondary,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text("Los usuarios de tipo Técnico aparecerán aquí automáticamente.", style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade400)),
+          Text(
+            "Los usuarios de tipo Técnico aparecerán aquí automáticamente.",
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade400),
+          ),
         ],
       ),
     );
@@ -1148,10 +1675,26 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(LucideIcons.alertTriangle, color: Color(0xFFDC2626), size: 32),
+            const Icon(
+              LucideIcons.alertTriangle,
+              color: Color(0xFFDC2626),
+              size: 32,
+            ),
             const SizedBox(height: 12),
-            Text("Error de conexión", style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF991B1B))),
-            Text(error, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFB91C1C))),
+            Text(
+              "Error de conexión",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF991B1B),
+              ),
+            ),
+            Text(
+              error,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: const Color(0xFFB91C1C),
+              ),
+            ),
           ],
         ),
       ),
