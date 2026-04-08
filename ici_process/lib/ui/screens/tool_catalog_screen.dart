@@ -448,21 +448,21 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
     Color statusColor = _getStatusColor(item.status);
 
     Widget statusBadge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
+        color: statusColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: statusColor.withOpacity(0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Text(item.status.toUpperCase(), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
+          Icon(_getStatusIcon(item.status), size: 12, color: statusColor),
+          const SizedBox(width: 6),
+          Text(item.status.toUpperCase(), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor, letterSpacing: 0.3)),
           if (canEdit) ...[
             const SizedBox(width: 4),
-            Icon(LucideIcons.chevronDown, size: 12, color: statusColor),
+            Icon(LucideIcons.chevronDown, size: 12, color: statusColor.withOpacity(0.6)),
           ],
         ],
       ),
@@ -477,138 +477,318 @@ class _ToolCatalogScreenState extends State<ToolCatalogScreen> {
         border: Border.all(color: _borderColor),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: _accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-            child: Icon(LucideIcons.hammer, color: _accentColor, size: 24),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary)),
-                const SizedBox(height: 4),
-                Text(
-                  "${item.brand}  •  Serie: ${item.serialNumber.isEmpty ? 'S/N' : item.serialNumber}",
-                  style: GoogleFonts.inter(fontSize: 13, color: _textSecondary),
+          // Fila superior
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icono
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_accentColor.withOpacity(0.1), _accentColor.withOpacity(0.05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _accentColor.withOpacity(0.15)),
                 ),
-                const SizedBox(height: 12),
-                if (canEdit)
-                  PopupMenuButton<String>(
-                    tooltip: "Cambiar estado rápidamente",
-                    offset: const Offset(0, 30),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    initialValue: item.status,
-                    onSelected: (newStatus) => _quickUpdateStatus(item, newStatus),
-                    itemBuilder: (context) => _statusOptions.map((status) {
-                      Color c = _getStatusColor(status);
-                      return PopupMenuItem(
-                        value: status,
+                child: Icon(LucideIcons.hammer, color: _accentColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: _textPrimary)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        // Badge marca
+                        if (item.brand.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(LucideIcons.tag, size: 10, color: Color(0xFF94A3B8)),
+                                const SizedBox(width: 4),
+                                Text(item.brand, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _textSecondary)),
+                              ],
+                            ),
+                          ),
+                        if (item.brand.isNotEmpty) const SizedBox(width: 8),
+                        // Badge serie
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _accentColor.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _accentColor.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.hash, size: 10, color: _accentColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                item.serialNumber.isEmpty ? 'S/N' : item.serialNumber,
+                                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _accentColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Acciones
+              if (canEdit)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildActionIcon(LucideIcons.edit3, const Color(0xFF2563EB), () => _showEditDialog(item)),
+                    const SizedBox(width: 4),
+                    _buildActionIcon(LucideIcons.trash2, const Color(0xFFEF4444), () => _confirmDelete(item)),
+                  ],
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          const SizedBox(height: 16),
+
+          // Fila inferior: Estado
+          Row(
+            children: [
+              if (canEdit)
+                PopupMenuButton<String>(
+                  tooltip: "Cambiar estado",
+                  offset: const Offset(0, 30),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  initialValue: item.status,
+                  onSelected: (newStatus) => _quickUpdateStatus(item, newStatus),
+                  itemBuilder: (context) => _statusOptions.map((status) {
+                    Color c = _getStatusColor(status);
+                    bool isActive = status == item.status;
+                    return PopupMenuItem(
+                      value: status,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
-                            Icon(_getStatusIcon(status), size: 14, color: c),
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: c.withOpacity(isActive ? 0.15 : 0.06),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(_getStatusIcon(status), size: 13, color: c),
+                            ),
                             const SizedBox(width: 10),
-                            Text(status, style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: c)),
+                            Text(status, style: GoogleFonts.inter(fontWeight: isActive ? FontWeight.w700 : FontWeight.w500, fontSize: 13, color: isActive ? c : _textPrimary)),
+                            if (isActive) ...[
+                              const Spacer(),
+                              Icon(LucideIcons.check, size: 14, color: c),
+                            ],
                           ],
                         ),
-                      );
-                    }).toList(),
-                    child: statusBadge,
-                  )
-                else
-                  statusBadge,
-              ],
-            ),
+                      ),
+                    );
+                  }).toList(),
+                  child: statusBadge,
+                )
+              else
+                statusBadge,
+            ],
           ),
-          if (canEdit)
-            Row(
-              children: [
-                IconButton(icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue), onPressed: () => _showEditDialog(item)),
-                IconButton(icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.red), onPressed: () => _confirmDelete(item)),
-              ],
-            ),
         ],
       ),
     );
   }
 
-  // ── FORMULARIO ───────────────────────────────────────────────────────────
+  Widget _buildActionIcon(IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    );
+  }
 
-  Widget _buildForm() {
+  // ── FORMULARIO ───────────────────────────────────────────────────────────
+    Widget _buildForm() {
     return Container(
-      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderColor.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.1), shape: BoxShape.circle), child: Icon(LucideIcons.plus, color: _primaryBlue, size: 20)),
-              const SizedBox(width: 12),
-              Text("Alta de Herramienta", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: _textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _input(_nameCtrl, "Nombre de la Herramienta", LucideIcons.wrench),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _input(_brandCtrl, "Marca", LucideIcons.tag)),
-              const SizedBox(width: 12),
-              Expanded(child: _input(_serialCtrl, "No. Serie", LucideIcons.hash)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Text("ESTADO ACTUAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
-          const SizedBox(height: 8),
+
+          // ── Header ───────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(color: _inputFill, borderRadius: BorderRadius.circular(10)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedStatus,
-                isExpanded: true,
-                icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
-                items: _statusOptions.map((status) {
-                  return DropdownMenuItem(
-                    value: status,
-                    child: Row(
-                      children: [
-                        Container(width: 8, height: 8, decoration: BoxDecoration(color: _getStatusColor(status), shape: BoxShape.circle)),
-                        const SizedBox(width: 10),
-                        Text(status, style: GoogleFonts.inter(fontSize: 14, color: _textPrimary)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _selectedStatus = val!),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_primaryBlue.withOpacity(0.08), _primaryBlue.withOpacity(0.02)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(bottom: BorderSide(color: _borderColor.withOpacity(0.5))),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(LucideIcons.wrench, color: _primaryBlue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Alta de Herramienta",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17, color: _textPrimary)),
+                    const SizedBox(height: 2),
+                    Text("Completa los datos de la herramienta",
+                        style: GoogleFonts.inter(fontSize: 12, color: _textSecondary, fontWeight: FontWeight.w400)),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : () => _handleSave(docId: null),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isUploading
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
-                  : Text("Guardar Herramienta", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+
+          // ── Cuerpo ───────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                // Sección: Identificación
+                Row(children: [
+                  Icon(LucideIcons.wrench, size: 14, color: _textSecondary),
+                  const SizedBox(width: 6),
+                  Text("IDENTIFICACIÓN", style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+                ]),
+                const SizedBox(height: 12),
+                _input(_nameCtrl, "Nombre de la Herramienta", LucideIcons.wrench),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _input(_brandCtrl, "Marca", LucideIcons.tag)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _input(_serialCtrl, "No. Serie", LucideIcons.hash)),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+                Divider(color: _borderColor, thickness: 1, height: 1),
+                const SizedBox(height: 20),
+
+                // Sección: Estado actual
+                Row(children: [
+                  Icon(LucideIcons.clipboardCheck, size: 14, color: _textSecondary),
+                  const SizedBox(width: 6),
+                  Text("ESTADO ACTUAL", style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+                ]),
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _inputFill,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _borderColor.withOpacity(0.6)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedStatus,
+                      isExpanded: true,
+                      icon: const Icon(LucideIcons.chevronDown, size: 18, color: Colors.grey),
+                      items: _statusOptions.map((status) {
+                        return DropdownMenuItem(
+                          value: status,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8, height: 8,
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(status),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(status, style: GoogleFonts.inter(fontSize: 14, color: _textPrimary)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) => setState(() => _selectedStatus = val!),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Botón principal
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : () => _handleSave(docId: null),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _primaryBlue.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ).copyWith(
+                      overlayColor: WidgetStateProperty.all(Colors.white.withOpacity(0.1)),
+                    ),
+                    child: _isUploading
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(LucideIcons.checkCircle, size: 18),
+                              const SizedBox(width: 8),
+                              Text("Guardar Herramienta",
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, letterSpacing: 0.2)),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

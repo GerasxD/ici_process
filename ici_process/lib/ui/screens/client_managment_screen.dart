@@ -23,6 +23,9 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _billingController = TextEditingController();
   List<TextEditingController> _branchControllers = [TextEditingController()];
+
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
   
   final ClientService _clientService = ClientService();
   bool _isUploading = false;
@@ -57,6 +60,15 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
         _branchControllers.removeAt(index);
       });
     }
+  }
+
+  List<Client> _applyFilter(List<Client> clients) {
+    if (_searchQuery.isEmpty) return clients;
+    final q = _searchQuery.toLowerCase();
+    return clients.where((c) =>
+      c.name.toLowerCase().contains(q) ||
+      c.billingAddress.toLowerCase().contains(q)
+    ).toList();
   }
 
   Future<void> _handleAdd() async {
@@ -150,24 +162,31 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      final clients = snapshot.data ?? [];
+                      final allClients = snapshot.data ?? [];
+                      final filtered = _applyFilter(allClients);
+
+                      final listSection = Column(
+                        children: [
+                          _buildSearchBar(allClients.length),
+                          const SizedBox(height: 20),
+                          _buildListResults(filtered, allClients.length),
+                        ],
+                      );
 
                       if (isDesktop) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(flex: 7, child: _buildClientList(clients)),
+                            Expanded(flex: 7, child: listSection),
                             const SizedBox(width: 32),
-                            // 3. SOLO MOSTRAMOS EL FORMULARIO SI TIENE PERMISO 'edit_clients'
-                            if (canEdit) 
-                              Expanded(flex: 4, child: _buildAddForm()),
+                            if (canEdit) Expanded(flex: 4, child: _buildAddForm()),
                           ],
                         );
                       } else {
                         return Column(
                           children: [
                             if (canEdit) ...[_buildAddForm(), const SizedBox(height: 32)],
-                            _buildClientList(clients),
+                            listSection,
                           ],
                         );
                       }
@@ -186,39 +205,23 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: _primaryBlue.withOpacity(0.15), blurRadius: 16, offset: const Offset(0, 6))],
+            border: Border.all(color: _borderColor),
           ),
-          child: Icon(Icons.people_alt_rounded, color: _primaryBlue, size: 28),
+          child: Icon(LucideIcons.building2, color: _primaryBlue, size: 30),
         ),
-        const SizedBox(width: 16),
-        
-        // --- CORRECCIÓN: Usamos Expanded ---
-        Expanded( 
+        const SizedBox(width: 20),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Gestión de Clientes",
-                style: GoogleFonts.inter(
-                  fontSize: 24, 
-                  fontWeight: FontWeight.bold, 
-                  color: _textPrimary, 
-                  letterSpacing: -0.5
-                ),
-                // Asegura que si es muy largo, baje de línea
-                softWrap: true, 
-              ),
-              Text(
-                "Administra tu cartera, datos fiscales y sucursales.",
-                style: GoogleFonts.inter(fontSize: 14, color: _textSecondary),
-                softWrap: true,
-                maxLines: 2, // Limite opcional para mantener el diseño limpio
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text("Gestión de Clientes", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
+              const SizedBox(height: 4),
+              Text("Administra tu cartera, datos fiscales y sucursales.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
             ],
           ),
         ),
@@ -226,102 +229,227 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     );
   }
 
-  Widget _buildClientList(List<Client> clients) {
-    if (clients.isEmpty) return _buildEmptyState();
+  Widget _buildSearchBar(int totalCount) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (val) => setState(() => _searchQuery = val),
+              style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+              decoration: InputDecoration(
+                hintText: "Buscar por nombre o dirección fiscal...",
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8)),
+                prefixIcon: const Icon(LucideIcons.search, size: 18, color: Color(0xFF94A3B8)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF94A3B8)),
+                        onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); },
+                      )
+                    : null,
+                filled: true,
+                fillColor: _inputFill,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _primaryBlue.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _primaryBlue.withOpacity(0.2)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.building2, size: 16, color: _primaryBlue),
+                const SizedBox(width: 8),
+                Text("$totalCount", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: _primaryBlue)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListResults(List<Client> filtered, int totalCount) {
+    if (filtered.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                _searchQuery.isNotEmpty ? LucideIcons.searchX : LucideIcons.building2,
+                size: 44,
+                color: const Color(0xFFCBD5E1),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? "Sin resultados para \"$_searchQuery\""
+                    : "Sin clientes registrados",
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF94A3B8)),
+              ),
+              if (_searchQuery.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); },
+                  icon: Icon(LucideIcons.rotateCcw, size: 14, color: _primaryBlue),
+                  label: Text("Limpiar búsqueda", style: GoogleFonts.inter(fontSize: 13, color: _primaryBlue, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("CLIENTES REGISTRADOS (${clients.length})", 
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 1.0)),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            filtered.length == totalCount
+                ? "$totalCount cliente${totalCount == 1 ? '' : 's'}"
+                : "${filtered.length} de $totalCount cliente${totalCount == 1 ? '' : 's'}",
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: _textSecondary),
+          ),
         ),
-        const SizedBox(height: 16),
         ListView.separated(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: clients.length,
+          itemCount: filtered.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final client = clients[index];
-            return _buildClientCard(client);
-          },
+          itemBuilder: (_, index) => _buildClientCard(filtered[index]),
         ),
       ],
     );
   }
 
   Widget _buildClientCard(Client client) {
+    final initials = client.name.isNotEmpty
+        ? client.name.trim().split(' ').take(2).map((w) => w[0].toUpperCase()).join()
+        : 'C';
+
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          leading: CircleAvatar(
-            backgroundColor: _primaryBlue.withOpacity(0.1),
-            child: Text(
-              client.name.isNotEmpty ? client.name[0].toUpperCase() : 'C',
-              style: GoogleFonts.inter(color: _primaryBlue, fontWeight: FontWeight.bold),
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_primaryBlue.withOpacity(0.1), _primaryBlue.withOpacity(0.05)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _primaryBlue.withOpacity(0.15)),
+            ),
+            child: Center(
+              child: Text(initials, style: GoogleFonts.inter(color: _primaryBlue, fontWeight: FontWeight.w800, fontSize: 15)),
             ),
           ),
-          title: Text(client.name, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: _textPrimary, fontSize: 15)),
+          title: Text(client.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 15)),
           subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4.0),
+            padding: const EdgeInsets.only(top: 6),
             child: Row(
               children: [
-                Icon(Icons.receipt_long_rounded, size: 14, color: _textSecondary),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    client.billingAddress, 
-                    maxLines: 1, 
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(fontSize: 13, color: _textSecondary),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(LucideIcons.mapPin, size: 10, color: Color(0xFF94A3B8)),
+                      const SizedBox(width: 4),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 200),
+                        child: Text(
+                          client.billingAddress,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: _textSecondary),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                if (client.branchAddresses.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: _primaryBlue.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _primaryBlue.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.store, size: 10, color: _primaryBlue),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${client.branchAddresses.length} sucursal${client.branchAddresses.length == 1 ? '' : 'es'}",
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _primaryBlue),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           trailing: Row(
-            mainAxisSize: MainAxisSize.min, // Importante para que no ocupe todo el ancho
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // BOTÓN EDITAR (Visible para todos o solo admins, como prefieras)
-              if (canEdit) 
-                IconButton(
-                  icon: Icon(Icons.edit_rounded, size: 20, color: Colors.blue[300]),
-                  tooltip: "Editar Cliente",
-                  onPressed: () async {
-                    // Abrir el modal de edición
-                    final bool? updated = await showDialog(
-                      context: context,
-                      builder: (_) => _EditClientDialog(client: client, service: _clientService),
-                    );
-                    
-                    if (updated == true && mounted) {
-                      _showSnack("Datos actualizados correctamente", isSuccess: true);
-                    }
-                  },
-                ),
-              
-              // BOTÓN BORRAR
-              if (canEdit) 
-                IconButton(
-                  icon: Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red[300]),
-                  onPressed: () => _confirmDelete(client),
-                  tooltip: "Eliminar Cliente",
-                )
-              else 
-                const Icon(Icons.expand_more_rounded),
+              if (canEdit) ...[
+                _buildActionIcon(LucideIcons.edit3, const Color(0xFF2563EB), () async {
+                  final bool? updated = await showDialog(
+                    context: context,
+                    builder: (_) => _EditClientDialog(client: client, service: _clientService),
+                  );
+                  if (updated == true && mounted) {
+                    _showSnack("Datos actualizados correctamente", isSuccess: true);
+                  }
+                }),
+                const SizedBox(width: 4),
+                _buildActionIcon(LucideIcons.trash2, const Color(0xFFEF4444), () => _confirmDelete(client)),
+                const SizedBox(width: 8),
+              ],
+              const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFFCBD5E1)),
             ],
           ),
           children: [
@@ -330,143 +458,342 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: _bgPage,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _borderColor),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Dirección fiscal
                   Row(
                     children: [
-                      Icon(Icons.store_rounded, size: 16, color: _textSecondary),
+                      const Icon(LucideIcons.receipt, size: 14, color: Color(0xFF94A3B8)),
                       const SizedBox(width: 8),
-                      Text("SUCURSALES REGISTRADAS", 
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary)),
+                      Text("DIRECCIÓN FISCAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  if (client.branchAddresses.isEmpty)
-                    Text("Sin sucursales registradas.", style: GoogleFonts.inter(fontSize: 13, color: _textSecondary, fontStyle: FontStyle.italic)),
-                  
-                  ...client.branchAddresses.map((b) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 8),
+                  Text(client.billingAddress, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary, height: 1.4)),
+
+                  if (client.branchAddresses.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(height: 1, color: _borderColor),
+                    const SizedBox(height: 16),
+
+                    Row(
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2.0),
-                          child: Icon(Icons.circle, size: 6, color: _primaryBlue),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(b, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary))),
+                        const Icon(LucideIcons.store, size: 14, color: Color(0xFF94A3B8)),
+                        const SizedBox(width: 8),
+                        Text("SUCURSALES (${client.branchAddresses.length})", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
                       ],
                     ),
-                  )),
+                    const SizedBox(height: 10),
+                    ...client.branchAddresses.map((b) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _borderColor),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 6, height: 6,
+                              decoration: BoxDecoration(color: _primaryBlue, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(b, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary))),
+                          ],
+                        ),
+                      ),
+                    )),
+                  ],
+
+                  if (client.branchAddresses.isEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _borderColor, style: BorderStyle.solid),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(LucideIcons.store, size: 14, color: Color(0xFFCBD5E1)),
+                          const SizedBox(width: 8),
+                          Text("Sin sucursales registradas", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontStyle: FontStyle.italic)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 
+
+  Widget _buildActionIcon(IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    );
+  }
+
   Widget _buildAddForm() {
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderColor.withOpacity(0.6)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.add_business_rounded, color: _primaryBlue, size: 22),
-              const SizedBox(width: 10),
-              Text("Nuevo Registro", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: _textPrimary)),
-            ],
+          // ── Header con acento visual ──────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_primaryBlue.withOpacity(0.08), _primaryBlue.withOpacity(0.02)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(bottom: BorderSide(color: _borderColor.withOpacity(0.5))),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.add_business_rounded, color: _primaryBlue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Nuevo Registro",
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17, color: _textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Completa los datos del cliente",
+                      style: GoogleFonts.inter(fontSize: 12, color: _textSecondary, fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          
-          _buildInputLabel("Nombre Comercial / Razón Social"),
-          _buildModernTextField(_nameController, "Ej. Grupo Modelo S.A. de C.V.", Icons.business),
-          
-          const SizedBox(height: 16),
-          _buildInputLabel("Dirección Fiscal"),
-          _buildModernTextField(_billingController, "Calle, Número, Colonia, CP...", Icons.map),
-          
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildInputLabel("Sucursales Operativas"),
-              InkWell(
-                onTap: _addBranchField,
-                borderRadius: BorderRadius.circular(20),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Row(
-                    children: [
-                      Icon(Icons.add_circle, size: 16, color: _primaryBlue),
-                      const SizedBox(width: 4),
-                      Text("Agregar", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: _primaryBlue)),
-                    ],
+
+          // ── Cuerpo del formulario ─────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                // Sección: Información general
+                _buildSectionLabel("Información General", Icons.info_outline_rounded),
+                const SizedBox(height: 12),
+
+                _buildInputLabel("Nombre Comercial / Razón Social"),
+                const SizedBox(height: 6),
+                _buildModernTextField(_nameController, "Ej. Grupo Modelo S.A. de C.V.", Icons.business_outlined),
+
+                const SizedBox(height: 16),
+                _buildInputLabel("Dirección Fiscal"),
+                const SizedBox(height: 6),
+                _buildModernTextField(_billingController, "Calle, Número, Colonia, CP...", Icons.location_on_outlined),
+
+                const SizedBox(height: 28),
+                _buildDivider(),
+                const SizedBox(height: 24),
+
+                // Sección: Sucursales
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: _buildSectionLabel("Sucursales Operativas", Icons.storefront_outlined),
+                    ),
+                    _buildAddBranchButton(),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                ..._branchControllers.asMap().entries.map((entry) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        // Indicador numérico
+                        Container(
+                          width: 28,
+                          height: 28,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(
+                            color: _primaryBlue.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "${entry.key + 1}",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _primaryBlue,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildModernTextField(
+                            entry.value,
+                            "Nombre o dirección de sucursal",
+                            Icons.storefront_outlined,
+                            isDense: true,
+                          ),
+                        ),
+                        if (_branchControllers.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Material(
+                              color: const Color(0xFFEF4444).withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                onTap: () => _removeBranchField(entry.key),
+                                borderRadius: BorderRadius.circular(8),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(7),
+                                  child: Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 16),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
+                const SizedBox(height: 32),
+
+                // Botón principal
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : _handleAdd,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _primaryBlue.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ).copyWith(
+                      overlayColor: WidgetStateProperty.all(Colors.white.withOpacity(0.1)),
+                    ),
+                    child: _isUploading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.check_circle_outline_rounded, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Registrar Cliente",
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, letterSpacing: 0.2),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          
-          ..._branchControllers.asMap().entries.map((entry) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildModernTextField(entry.value, "Nombre o Dirección de sucursal", Icons.storefront_outlined, isDense: true),
-                  ),
-                  if (_branchControllers.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: IconButton(
-                        icon: const Icon(Icons.remove_circle_outline_rounded, color: Color(0xFFEF4444)),
-                        onPressed: () => _removeBranchField(entry.key),
-                        tooltip: "Quitar fila",
-                      ),
-                    )
-                ],
-              ),
-            );
-          }).toList(),
-          
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : _handleAdd,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: _isUploading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Text("Registrar Cliente", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+// ── Helpers de apoyo ──────────────────────────────────────────
+
+Widget _buildSectionLabel(String label, IconData icon) {
+  return Row(
+    children: [
+      Icon(icon, size: 14, color: _textSecondary),
+      const SizedBox(width: 6),
+      Text(
+        label.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: _textSecondary,
+          letterSpacing: 0.8,
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildDivider() {
+  return Row(
+    children: [
+      Expanded(child: Divider(color: _borderColor, thickness: 1, height: 1)),
+    ],
+  );
+}
+
+Widget _buildAddBranchButton() {
+  return Material(
+    color: _primaryBlue.withOpacity(0.07),
+    borderRadius: BorderRadius.circular(8),
+    child: InkWell(
+      onTap: _addBranchField,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          children: [
+            Icon(Icons.add_rounded, size: 15, color: _primaryBlue),
+            const SizedBox(width: 4),
+            Text(
+              "Agregar",
+              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryBlue),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
   // --- WIDGETS AUXILIARES DE DISEÑO ---
 
@@ -494,24 +821,6 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10), 
           borderSide: BorderSide(color: _primaryBlue, width: 1.5),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.folder_off_outlined, size: 60, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-            Text("No hay clientes registrados", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: _textSecondary)),
-            const SizedBox(height: 8),
-            Text("Utiliza el formulario para añadir tu primer cliente.", style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade400)),
-          ],
         ),
       ),
     );

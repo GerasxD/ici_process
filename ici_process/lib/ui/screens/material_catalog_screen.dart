@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/core/utils/permission_manager.dart';
@@ -26,6 +28,10 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   final _stockCtrl = TextEditingController(); // <--- 1. NUEVO CONTROLADOR DE STOCK
   late Stream<List<MaterialItem>> _materialsStream;
   late Stream<List<Provider>> _providersStream;
+
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  String _filterStock = 'Todos'; // Todos, Con Stock, Sin Stock, Apartado
   
   // Lista temporal para guardar los precios antes de subir a Firebase
   List<PriceEntry> _tempPrices = [];
@@ -56,6 +62,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
     _nameCtrl.dispose();
     _unitCtrl.dispose();
     _stockCtrl.dispose(); // <--- NO OLVIDAR EL DISPOSE
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -144,6 +151,33 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
     ));
   }
 
+  List<MaterialItem> _applyFilters(List<MaterialItem> materials) {
+    return materials.where((m) {
+      // Filtro de stock
+      if (_filterStock == 'Con Stock' && m.stock <= 0) return false;
+      if (_filterStock == 'Sin Stock' && m.stock > 0) return false;
+      if (_filterStock == 'Apartado' && m.reservedStock <= 0) return false;
+
+      // Filtro de búsqueda
+      if (_searchQuery.isNotEmpty) {
+        final q = _searchQuery.toLowerCase();
+        return m.name.toLowerCase().contains(q) ||
+            m.unit.toLowerCase().contains(q) ||
+            m.prices.any((p) => p.providerName.toLowerCase().contains(q));
+      }
+      return true;
+    }).toList();
+  }
+
+  Map<String, int> _countByStock(List<MaterialItem> materials) {
+    return {
+      'Todos': materials.length,
+      'Con Stock': materials.where((m) => m.stock > 0).length,
+      'Sin Stock': materials.where((m) => m.stock <= 0).length,
+      'Apartado': materials.where((m) => m.reservedStock > 0).length,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,41 +192,50 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
               const SizedBox(height: 40),
               
               StreamBuilder<List<MaterialItem>>(
-                stream: _materialsStream, 
+                stream: _materialsStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) return Text("Error: ${snapshot.error}");
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  final materials = snapshot.data ?? [];
+                  final allMaterials = snapshot.data ?? [];
+                  final filtered = _applyFilters(allMaterials);
+                  final counts = _countByStock(allMaterials);
 
                   return StreamBuilder<List<Provider>>(
                     stream: _providersStream,
                     builder: (context, providerSnap) {
                       final providers = providerSnap.data ?? [];
 
+                      final listSection = Column(
+                        children: [
+                          _buildSearchAndFilters(counts),
+                          const SizedBox(height: 20),
+                          _buildListResults(filtered, allMaterials.length, providers),
+                        ],
+                      );
+
                       if (isDesktop) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(flex: 7, child: _buildList(materials, providers)),
+                            Expanded(flex: 7, child: listSection),
                             const SizedBox(width: 40),
-                            if (canEdit) 
-                               Expanded(flex: 4, child: _buildForm(providers)),
+                            if (canEdit) Expanded(flex: 4, child: _buildForm(providers)),
                           ],
                         );
                       } else {
                         return Column(
                           children: [
                             if (canEdit) ...[_buildForm(providers), const SizedBox(height: 40)],
-                            _buildList(materials, providers),
+                            listSection,
                           ],
                         );
                       }
-                    }
+                    },
                   );
                 },
-              )
+              ),
             ],
           ),
         );
@@ -204,49 +247,42 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.15), blurRadius: 16, offset: const Offset(0, 6))],
             border: Border.all(color: _borderColor),
           ),
-          child: Icon(LucideIcons.packageSearch, color: _accentColor, size: 32),
+          child: Icon(LucideIcons.packageSearch, color: _accentColor, size: 30),
         ),
         const SizedBox(width: 20),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Catálogo de Materiales", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
-            Text("Gestiona precios, inventario y proveedores.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Catálogo de Materiales", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
+              const SizedBox(height: 4),
+              Text("Gestiona precios, inventario y proveedores.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  // --- LISTADO ---
-  Widget _buildList(List<MaterialItem> materials, List<Provider> providers) {
-    if (materials.isEmpty) return const Center(child: Text("Sin materiales registrados"));
-    
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: materials.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (_, index) => _buildCard(materials[index], providers),
-    );
-  }
 
-  Widget _buildCard(MaterialItem item, List<Provider> providers) {
-    double minPrice = item.prices.isEmpty ? 0 : item.prices.map((e) => e.price).reduce((a, b) => a < b ? a : b);
-    double maxPrice = item.prices.isEmpty ? 0 : item.prices.map((e) => e.price).reduce((a, b) => a > b ? a : b);
-    String priceDisplay = item.prices.isEmpty 
-        ? "Sin cotizar" 
-        : (minPrice == maxPrice ? "\$${minPrice.toStringAsFixed(2)}" : "\$${minPrice.toStringAsFixed(2)} - \$${maxPrice.toStringAsFixed(2)}");
+  Widget _buildSearchAndFilters(Map<String, int> counts) {
+    final filterOptions = ['Todos', 'Con Stock', 'Sin Stock', 'Apartado'];
 
-    // Lógica visual para Stock (Si es 0 sale en rojo, si no, en azul/verde)
-    bool lowStock = item.stock <= 0;
+    Color _getFilterColor(String filter) {
+      switch (filter) {
+        case 'Con Stock': return const Color(0xFF059669);
+        case 'Sin Stock': return const Color(0xFFEF4444);
+        case 'Apartado': return const Color(0xFFD97706);
+        default: return _primaryBlue;
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -258,209 +294,530 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
       ),
       child: Column(
         children: [
+          // Barra de búsqueda
+          TextField(
+            controller: _searchCtrl,
+            onChanged: (val) => setState(() => _searchQuery = val),
+            style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+            decoration: InputDecoration(
+              hintText: "Buscar por nombre, unidad o proveedor...",
+              hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8)),
+              prefixIcon: const Icon(LucideIcons.search, size: 18, color: Color(0xFF94A3B8)),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF94A3B8)),
+                      onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); },
+                    )
+                  : null,
+              filled: true,
+              fillColor: _inputFill,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Filtros
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: filterOptions.map((filter) {
+                final isActive = _filterStock == filter;
+                final count = counts[filter] ?? 0;
+                final color = _getFilterColor(filter);
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () => setState(() => _filterStock = filter),
+                    borderRadius: BorderRadius.circular(20),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isActive ? color.withOpacity(0.1) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isActive ? color.withOpacity(0.4) : _borderColor,
+                          width: isActive ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (filter != 'Todos') ...[
+                            Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                            const SizedBox(width: 8),
+                          ],
+                          Text(filter, style: GoogleFonts.inter(fontSize: 12, fontWeight: isActive ? FontWeight.w700 : FontWeight.w500, color: isActive ? color : _textSecondary)),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isActive ? color.withOpacity(0.15) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text("$count", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: isActive ? color : _textSecondary)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- LISTADO ---
+  Widget _buildListResults(List<MaterialItem> filtered, int totalCount, List<Provider> providers) {
+    if (filtered.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                _searchQuery.isNotEmpty ? LucideIcons.searchX : LucideIcons.packageX,
+                size: 44,
+                color: const Color(0xFFCBD5E1),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? "Sin resultados para \"$_searchQuery\""
+                    : _filterStock != 'Todos'
+                        ? "Sin materiales \"$_filterStock\""
+                        : "Sin materiales registrados",
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF94A3B8)),
+              ),
+              if (_searchQuery.isNotEmpty || _filterStock != 'Todos') ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    setState(() { _searchQuery = ''; _filterStock = 'Todos'; });
+                  },
+                  icon: Icon(LucideIcons.rotateCcw, size: 14, color: _primaryBlue),
+                  label: Text("Limpiar filtros", style: GoogleFonts.inter(fontSize: 13, color: _primaryBlue, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            filtered.length == totalCount
+                ? "$totalCount material${totalCount == 1 ? '' : 'es'}"
+                : "${filtered.length} de $totalCount material${totalCount == 1 ? '' : 'es'}",
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: _textSecondary),
+          ),
+        ),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: filtered.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (_, index) => _buildCard(filtered[index], providers),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(MaterialItem item, List<Provider> providers) {
+    final bool lowStock = item.stock <= 0;
+    final bool hasReserved = item.reservedStock > 0;
+
+    double minPrice = item.prices.isEmpty ? 0 : item.prices.map((e) => e.price).reduce((a, b) => a < b ? a : b);
+    double maxPrice = item.prices.isEmpty ? 0 : item.prices.map((e) => e.price).reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        children: [
+          // Fila superior
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Icono
               Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: _accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: Center(child: Text(item.unit.isNotEmpty ? item.unit.substring(0, 1).toUpperCase() : 'M', style: GoogleFonts.inter(color: _accentColor, fontWeight: FontWeight.w700, fontSize: 14))),
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_accentColor.withOpacity(0.1), _accentColor.withOpacity(0.05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _accentColor.withOpacity(0.15)),
+                ),
+                child: Center(
+                  child: Text(
+                    item.unit.isNotEmpty ? item.unit.substring(0, min(2, item.unit.length)).toUpperCase() : 'M',
+                    style: GoogleFonts.inter(color: _accentColor, fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                ),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
+
+              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary)),
-                    const SizedBox(height: 4),
-                    Text("Unidad: ${item.unit}  •  $priceDisplay", style: GoogleFonts.inter(fontSize: 13, color: _textSecondary)),
-                    
-                    // --- 3. MOSTRAR STOCK EN LA TARJETA ---
-                    const SizedBox(height: 6),
+                    Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: _textPrimary)),
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        // Badge de Stock Total
+                        // Badge unidad
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: lowStock ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: lowStock ? Colors.red.withOpacity(0.3) : Colors.blue.withOpacity(0.3))
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.layers, size: 12, color: lowStock ? Colors.red : Colors.blue),
-                              const SizedBox(width: 6),
-                              Text(
-                                "Stock: ${item.stock.toStringAsFixed(2)} ${item.unit}",
-                                style: GoogleFonts.inter(
-                                  fontSize: 12, 
-                                  fontWeight: FontWeight.w600, 
-                                  color: lowStock ? Colors.red : Colors.blue
-                                )
-                              ),
-                            ],
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
+                          child: Text(item.unit, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _textSecondary)),
                         ),
-                        // ★ NUEVO: Badge de Apartado (solo si hay reservas)
-                        if (item.reservedStock > 0) ...[
-                          const SizedBox(width: 8),
+                        const SizedBox(width: 8),
+                        // Badge precio
+                        if (item.prices.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.1),
+                              color: _accentColor.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.amber.withOpacity(0.3))
+                              border: Border.all(color: _accentColor.withOpacity(0.2)),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(LucideIcons.lock, size: 12, color: Colors.amber.shade700),
-                                const SizedBox(width: 6),
-                                Text(
-                                  "Apartado: ${item.reservedStock.toStringAsFixed(2)}",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12, 
-                                    fontWeight: FontWeight.w600, 
-                                    color: Colors.amber.shade700,
-                                  )
-                                ),
-                              ],
+                            child: Text(
+                              minPrice == maxPrice
+                                  ? "\$${minPrice.toStringAsFixed(2)}"
+                                  : "\$${minPrice.toStringAsFixed(2)} - \$${maxPrice.toStringAsFixed(2)}",
+                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _accentColor),
                             ),
                           ),
-                        ],
                       ],
                     ),
-                    // ★ NUEVO: Mostrar Disponible si hay reservas
-                    if (item.reservedStock > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        "Disponible: ${item.availableStock.toStringAsFixed(2)} ${item.unit}",
-                        style: GoogleFonts.inter(
-                          fontSize: 11, 
-                          fontWeight: FontWeight.w500, 
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                    // --------------------------------------
                   ],
                 ),
               ),
+
+              // Acciones
               if (canEdit)
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue),
-                      onPressed: () => _showEditDialog(item, providers),
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.red),
-                      onPressed: () => _confirmDelete(item),
-                    ),
+                    _buildActionIcon(LucideIcons.edit3, const Color(0xFF2563EB), () => _showEditDialog(item, providers)),
+                    const SizedBox(width: 4),
+                    _buildActionIcon(LucideIcons.trash2, const Color(0xFFEF4444), () => _confirmDelete(item)),
                   ],
-                )
+                ),
             ],
           ),
-          
+
+          const SizedBox(height: 16),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          const SizedBox(height: 16),
+
+          // Métricas de inventario
+          Row(
+            children: [
+              _buildStockChip(
+                icon: LucideIcons.layers,
+                label: "Stock",
+                value: "${item.stock.toStringAsFixed(2)} ${item.unit}",
+                color: lowStock ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+              ),
+              const SizedBox(width: 10),
+              if (hasReserved) ...[
+                _buildStockChip(
+                  icon: LucideIcons.lock,
+                  label: "Apartado",
+                  value: item.reservedStock.toStringAsFixed(2),
+                  color: const Color(0xFFD97706),
+                ),
+                const SizedBox(width: 10),
+                _buildStockChip(
+                  icon: LucideIcons.packageCheck,
+                  label: "Disponible",
+                  value: "${item.availableStock.toStringAsFixed(2)} ${item.unit}",
+                  color: const Color(0xFF059669),
+                ),
+              ],
+              if (!hasReserved)
+                _buildStockChip(
+                  icon: LucideIcons.packageCheck,
+                  label: "Disponible",
+                  value: "${item.availableStock.toStringAsFixed(2)} ${item.unit}",
+                  color: const Color(0xFF059669),
+                ),
+            ],
+          ),
+
+          // Precios por proveedor
           if (item.prices.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: _bgPage, borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _bgPage,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderColor),
+              ),
               child: Column(
-                children: item.prices.map((p) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(LucideIcons.store, size: 14, color: _textSecondary),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(p.providerName, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary))),
-                      Text("\$${p.price.toStringAsFixed(2)}", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _textPrimary)),
-                      const SizedBox(width: 12),
-                      Text(DateFormat('dd/MM/yy').format(p.updatedAt), style: GoogleFonts.inter(fontSize: 11, color: _textSecondary)),
+                      const Icon(LucideIcons.store, size: 12, color: Color(0xFF94A3B8)),
+                      const SizedBox(width: 6),
+                      Text("PRECIOS (${item.prices.length})", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
                     ],
                   ),
-                )).toList(),
+                  const SizedBox(height: 10),
+                  ...item.prices.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Container(width: 5, height: 5, decoration: BoxDecoration(color: _accentColor, shape: BoxShape.circle)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(p.providerName, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary, fontWeight: FontWeight.w500))),
+                        Text("\$${p.price.toStringAsFixed(2)}", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: _textPrimary)),
+                        const SizedBox(width: 12),
+                        Text(DateFormat('dd/MM/yy').format(p.updatedAt), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                      ],
+                    ),
+                  )),
+                ],
               ),
-            )
-          ]
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionIcon(IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    );
+  }
+
+  Widget _buildStockChip({required IconData icon, required String label, required String value, required Color color}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.12)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 12, color: color.withOpacity(0.6)),
+                const SizedBox(width: 6),
+                Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color.withOpacity(0.7), letterSpacing: 0.3)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(value, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: color), maxLines: 1, overflow: TextOverflow.ellipsis),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildForm(List<Provider> providers) {
     return Container(
-      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderColor.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.1), shape: BoxShape.circle), child: Icon(LucideIcons.plus, color: _primaryBlue, size: 20)),
-              const SizedBox(width: 12),
-              Text("Nuevo Material", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: _textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _input(_nameCtrl, "Nombre del Material", LucideIcons.package),
-          const SizedBox(height: 12),
-          
-          // --- 4. CAMPO DE STOCK EN FILA CON UNIDAD ---
-          Row(
-            children: [
-              Expanded(child: _input(_unitCtrl, "Unidad (ej: m, pza)", LucideIcons.ruler)),
-              const SizedBox(width: 12),
-              Expanded(child: _input(_stockCtrl, "Stock Actual", LucideIcons.layers, isNumber: true)),
-            ],
-          ),
-          // --------------------------------------------
-          
-          const SizedBox(height: 24),
-          
-          Text("LISTA DE PRECIOS", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
-          const SizedBox(height: 12),
-          
-          _PriceManager(
-            providers: providers,
-            initialPrices: _tempPrices,
-            onChanged: (updatedList) {
-              setState(() {
-                _tempPrices = updatedList;
-              });
-            },
+
+          // ── Header con acento visual ──────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_primaryBlue.withOpacity(0.08), _primaryBlue.withOpacity(0.02)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(bottom: BorderSide(color: _borderColor.withOpacity(0.5))),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(LucideIcons.package, color: _primaryBlue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Nuevo Material",
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17, color: _textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Completa los datos del material",
+                      style: GoogleFonts.inter(fontSize: 12, color: _textSecondary, fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : () => _handleSave(docId: null),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isUploading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
-                : Text("Guardar Material", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+          // ── Cuerpo del formulario ─────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                // Sección: Identificación
+                _buildSectionChip("Identificación del Material", LucideIcons.package),
+                const SizedBox(height: 12),
+                _input(_nameCtrl, "Nombre del Material", LucideIcons.package),
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(child: _input(_unitCtrl, "Unidad (ej: m, pza)", LucideIcons.ruler)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _input(_stockCtrl, "Stock Actual", LucideIcons.layers, isNumber: true)),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+                _buildDivider(),
+                const SizedBox(height: 20),
+
+                // Sección: Lista de Precios
+                _buildSectionChip("Lista de Precios", LucideIcons.tags),
+                const SizedBox(height: 14),
+
+                _PriceManager(
+                  providers: providers,
+                  initialPrices: _tempPrices,
+                  onChanged: (updatedList) {
+                    setState(() => _tempPrices = updatedList);
+                  },
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── Botón principal ───────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : () => _handleSave(docId: null),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _primaryBlue.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ).copyWith(
+                      overlayColor: WidgetStateProperty.all(Colors.white.withOpacity(0.1)),
+                    ),
+                    child: _isUploading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(LucideIcons.checkCircle, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Guardar Material",
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, letterSpacing: 0.2),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  // ── Helpers de apoyo ──────────────────────────────────────────
+
+  Widget _buildSectionChip(String label, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: _textSecondary),
+        const SizedBox(width: 6),
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.inter(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: _textSecondary,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDivider() {
+    return Divider(color: _borderColor, thickness: 1, height: 1);
   }
 
   // --- DIÁLOGOS Y HELPERS ---

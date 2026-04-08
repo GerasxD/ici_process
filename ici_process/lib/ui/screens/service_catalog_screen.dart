@@ -23,6 +23,8 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
 
   final _nameCtrl = TextEditingController();
   final _unitCtrl = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
   
   List<ServicePriceEntry> _tempPrices = [];
   bool _isUploading = false;
@@ -54,6 +56,7 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _unitCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -106,6 +109,16 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
     ));
   }
 
+  List<ServiceItem> _applyFilter(List<ServiceItem> services) {
+    if (_searchQuery.isEmpty) return services;
+    final q = _searchQuery.toLowerCase();
+    return services.where((s) =>
+      s.name.toLowerCase().contains(q) ||
+      s.unit.toLowerCase().contains(q) ||
+      s.prices.any((p) => p.providerName.toLowerCase().contains(q))
+    ).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,36 +139,43 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  final services = snapshot.data ?? [];
+                  final allServices = snapshot.data ?? [];
+                  final filtered = _applyFilter(allServices);
 
                   return StreamBuilder<List<Provider>>(
                     stream: _providersStream,
                     builder: (context, providerSnap) {
                       final providers = providerSnap.data ?? [];
 
+                      final listSection = Column(
+                        children: [
+                          _buildSearchBar(allServices.length),
+                          const SizedBox(height: 20),
+                          _buildListResults(filtered, allServices.length, providers),
+                        ],
+                      );
+
                       if (isDesktop) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(flex: 7, child: _buildList(services, providers)),
+                            Expanded(flex: 7, child: listSection),
                             const SizedBox(width: 40),
-                            // 3. OCULTAR FORMULARIO (DESKTOP)
-                            if (canEdit) 
-                              Expanded(flex: 4, child: _buildForm(providers)),
+                            if (canEdit) Expanded(flex: 4, child: _buildForm(providers)),
                           ],
                         );
                       } else {
                         return Column(
                           children: [
                             if (canEdit) ...[_buildForm(providers), const SizedBox(height: 40)],
-                            _buildList(services, providers),
+                            listSection,
                           ],
                         );
                       }
-                    }
+                    },
                   );
                 },
-              )
+              ),
             ],
           ),
         );
@@ -163,50 +183,154 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildSearchBar(int totalCount) {
+  return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _borderColor),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (val) => setState(() => _searchQuery = val),
+              style: GoogleFonts.inter(fontSize: 14, color: _textPrimary),
+              decoration: InputDecoration(
+                hintText: "Buscar por nombre, unidad o proveedor...",
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8)),
+                prefixIcon: const Icon(LucideIcons.search, size: 18, color: Color(0xFF94A3B8)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF94A3B8)),
+                        onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); },
+                      )
+                    : null,
+                filled: true,
+                fillColor: _inputFill,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _primaryBlue, width: 1.5)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: _accentColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _accentColor.withOpacity(0.2)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.briefcase, size: 16, color: _accentColor),
+                const SizedBox(width: 8),
+                Text("$totalCount", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: _accentColor)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+ Widget _buildHeader() {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
+            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.15), blurRadius: 16, offset: const Offset(0, 6))],
             border: Border.all(color: _borderColor),
           ),
-          child: Icon(LucideIcons.calendarClock, color: _accentColor, size: 32),
+          child: Icon(LucideIcons.calendarClock, color: _accentColor, size: 30),
         ),
         const SizedBox(width: 20),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Catálogo de Servicios y Rentas", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
-            Text("Gestiona costos indirectos, maquinaria y mano de obra.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Catálogo de Servicios y Rentas", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
+              const SizedBox(height: 4),
+              Text("Gestiona costos indirectos, maquinaria y mano de obra.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  // --- LISTADO ---
-  Widget _buildList(List<ServiceItem> services, List<Provider> providers) {
-    if (services.isEmpty) return const Center(child: Text("Sin servicios registrados"));
-    
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: services.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (_, index) => _buildCard(services[index], providers),
+  Widget _buildListResults(List<ServiceItem> filtered, int totalCount, List<Provider> providers) {
+    if (filtered.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                _searchQuery.isNotEmpty ? LucideIcons.searchX : LucideIcons.briefcase,
+                size: 44,
+                color: const Color(0xFFCBD5E1),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? "Sin resultados para \"$_searchQuery\""
+                    : "Sin servicios registrados",
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: const Color(0xFF94A3B8)),
+              ),
+              if (_searchQuery.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () { _searchCtrl.clear(); setState(() => _searchQuery = ''); },
+                  icon: Icon(LucideIcons.rotateCcw, size: 14, color: _primaryBlue),
+                  label: Text("Limpiar búsqueda", style: GoogleFonts.inter(fontSize: 13, color: _primaryBlue, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            filtered.length == totalCount
+                ? "$totalCount servicio${totalCount == 1 ? '' : 's'}"
+                : "${filtered.length} de $totalCount servicio${totalCount == 1 ? '' : 's'}",
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: _textSecondary),
+          ),
+        ),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: filtered.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (_, index) => _buildCard(filtered[index], providers),
+        ),
+      ],
     );
   }
 
-  Widget _buildCard(ServiceItem item, List<Provider> providers) {
+ Widget _buildCard(ServiceItem item, List<Provider> providers) {
     double minPrice = item.prices.isEmpty ? 0 : item.prices.map((e) => e.price).reduce((a, b) => a < b ? a : b);
     double maxPrice = item.prices.isEmpty ? 0 : item.prices.map((e) => e.price).reduce((a, b) => a > b ? a : b);
-    String priceDisplay = item.prices.isEmpty 
-        ? "Sin cotizar" 
-        : (minPrice == maxPrice ? "\$${minPrice.toStringAsFixed(2)}" : "\$${minPrice.toStringAsFixed(2)} - \$${maxPrice.toStringAsFixed(2)}");
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -218,65 +342,165 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
       ),
       child: Column(
         children: [
+          // Fila superior
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: _accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: Center(child: Icon(LucideIcons.briefcase, color: _accentColor, size: 24)),
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_accentColor.withOpacity(0.1), _accentColor.withOpacity(0.05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _accentColor.withOpacity(0.15)),
+                ),
+                child: Icon(LucideIcons.briefcase, color: _accentColor, size: 24),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: _textPrimary)),
-                    const SizedBox(height: 4),
-                    Text("Unidad: ${item.unit}  •  $priceDisplay", style: GoogleFonts.inter(fontSize: 13, color: _textSecondary)),
+                    Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: _textPrimary)),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        // Badge unidad
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(LucideIcons.clock, size: 10, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 4),
+                              Text(item.unit, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _textSecondary)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Badge precio
+                        if (item.prices.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _accentColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: _accentColor.withOpacity(0.2)),
+                            ),
+                            child: Text(
+                              minPrice == maxPrice
+                                  ? "\$${minPrice.toStringAsFixed(2)}"
+                                  : "\$${minPrice.toStringAsFixed(2)} - \$${maxPrice.toStringAsFixed(2)}",
+                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _accentColor),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFFECACA)),
+                            ),
+                            child: Text("Sin cotizar", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
+                          ),
+                        const SizedBox(width: 8),
+                        // Badge proveedores
+                        if (item.prices.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(LucideIcons.store, size: 10, color: Color(0xFF94A3B8)),
+                                const SizedBox(width: 4),
+                                Text("${item.prices.length} prov.", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _textSecondary)),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
               if (canEdit)
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(LucideIcons.edit3, size: 20, color: Colors.blue),
-                      onPressed: () => _showEditDialog(item, providers),
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.red),
-                      onPressed: () => _confirmDelete(item),
-                    ),
+                    _buildActionIcon(LucideIcons.edit3, const Color(0xFF2563EB), () => _showEditDialog(item, providers)),
+                    const SizedBox(width: 4),
+                    _buildActionIcon(LucideIcons.trash2, const Color(0xFFEF4444), () => _confirmDelete(item)),
                   ],
-                )
+                ),
             ],
           ),
-          
+
+          // Precios por proveedor
           if (item.prices.isNotEmpty) ...[
             const SizedBox(height: 16),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: _bgPage, borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _bgPage,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderColor),
+              ),
               child: Column(
-                children: item.prices.map((p) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(LucideIcons.store, size: 14, color: _textSecondary),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(p.providerName, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary))),
-                      Text("\$${p.price.toStringAsFixed(2)}", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: _textPrimary)),
-                      const SizedBox(width: 12),
-                      Text(DateFormat('dd/MM/yy').format(p.updatedAt), style: GoogleFonts.inter(fontSize: 11, color: _textSecondary)),
+                      const Icon(LucideIcons.store, size: 12, color: Color(0xFF94A3B8)),
+                      const SizedBox(width: 6),
+                      Text("COSTOS POR PROVEEDOR (${item.prices.length})", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
                     ],
                   ),
-                )).toList(),
+                  const SizedBox(height: 10),
+                  ...item.prices.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Container(width: 5, height: 5, decoration: BoxDecoration(color: _accentColor, shape: BoxShape.circle)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(p.providerName, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary, fontWeight: FontWeight.w500))),
+                        Text("\$${p.price.toStringAsFixed(2)}", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: _textPrimary)),
+                        const SizedBox(width: 12),
+                        Text(DateFormat('dd/MM/yy').format(p.updatedAt), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                      ],
+                    ),
+                  )),
+                ],
               ),
-            )
-          ]
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionIcon(IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.15)),
+        ),
+        child: Icon(icon, size: 16, color: color),
       ),
     );
   }
@@ -284,55 +508,126 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
   // --- FORMULARIO ---
   Widget _buildForm(List<Provider> providers) {
     return Container(
-      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _borderColor),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderColor.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _primaryBlue.withOpacity(0.1), shape: BoxShape.circle), child: Icon(LucideIcons.plus, color: _primaryBlue, size: 20)),
-              const SizedBox(width: 12),
-              Text("Nuevo Servicio", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: _textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _input(_nameCtrl, "Nombre del Servicio / Renta", LucideIcons.fileText),
-          const SizedBox(height: 12),
-          _input(_unitCtrl, "Unidad (Día, Mes, Hora)", LucideIcons.clock),
-          const SizedBox(height: 24),
-          
-          Text("COSTOS POR PROVEEDOR", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: _textSecondary, letterSpacing: 0.5)),
-          const SizedBox(height: 12),
-          
-          // Reutilizamos el widget corregido
-          _PriceManager(
-            providers: providers,
-            initialPrices: _tempPrices,
-            onChanged: (updatedList) {
-              setState(() => _tempPrices = updatedList);
-            },
+
+          // ── Header ───────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_primaryBlue.withOpacity(0.08), _primaryBlue.withOpacity(0.02)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(bottom: BorderSide(color: _borderColor.withOpacity(0.5))),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(LucideIcons.fileText, color: _primaryBlue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Nuevo Servicio",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17, color: _textPrimary)),
+                    const SizedBox(height: 2),
+                    Text("Completa los datos del servicio",
+                        style: GoogleFonts.inter(fontSize: 12, color: _textSecondary, fontWeight: FontWeight.w400)),
+                  ],
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : () => _handleSave(docId: null),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isUploading 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
-                : Text("Guardar Servicio", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+          // ── Cuerpo ───────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                // Sección: Identificación
+                Row(children: [
+                  Icon(LucideIcons.fileText, size: 14, color: _textSecondary),
+                  const SizedBox(width: 6),
+                  Text("IDENTIFICACIÓN DEL SERVICIO", style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+                ]),
+                const SizedBox(height: 12),
+                _input(_nameCtrl, "Nombre del Servicio / Renta", LucideIcons.fileText),
+                const SizedBox(height: 12),
+                _input(_unitCtrl, "Unidad (Día, Mes, Hora)", LucideIcons.clock),
+
+                const SizedBox(height: 24),
+                Divider(color: _borderColor, thickness: 1, height: 1),
+                const SizedBox(height: 20),
+
+                // Sección: Costos
+                Row(children: [
+                  Icon(LucideIcons.tags, size: 14, color: _textSecondary),
+                  const SizedBox(width: 6),
+                  Text("COSTOS POR PROVEEDOR", style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.8)),
+                ]),
+                const SizedBox(height: 14),
+
+                _PriceManager(
+                  providers: providers,
+                  initialPrices: _tempPrices,
+                  onChanged: (updatedList) {
+                    setState(() => _tempPrices = updatedList);
+                  },
+                ),
+
+                const SizedBox(height: 32),
+
+                // Botón principal
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : () => _handleSave(docId: null),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _primaryBlue.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ).copyWith(
+                      overlayColor: WidgetStateProperty.all(Colors.white.withOpacity(0.1)),
+                    ),
+                    child: _isUploading
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(LucideIcons.checkCircle, size: 18),
+                              const SizedBox(width: 8),
+                              Text("Guardar Servicio",
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, letterSpacing: 0.2)),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -739,7 +1034,7 @@ class _PriceManagerState extends State<_PriceManager> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-            child: const Center(child: Text("Agrega proveedores arriba 👆", style: TextStyle(color: Colors.grey, fontSize: 12))),
+            child: const Center(child: Text("Agrega proveedores arriba", style: TextStyle(color: Colors.grey, fontSize: 12))),
           )
         else
           Container(

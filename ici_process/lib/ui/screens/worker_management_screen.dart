@@ -142,12 +142,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
         builder: (context, constraints) {
           bool isDesktop = constraints.maxWidth > 1000;
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+            padding: const EdgeInsets.fromLTRB(32, 16, 32, 40),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(),
-                const SizedBox(height: 40),
+                const SizedBox(height: 16),
                 StreamBuilder<List<Worker>>(
                   stream: _workersStream,
                   builder: (context, snapshot) {
@@ -262,161 +262,123 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
 
   Widget _buildCard(Worker worker) {
     final dateFmt = DateFormat('dd/MM/yyyy');
-    final bool hasExtraData =
-        worker.nss.isNotEmpty ||
-        worker.curp.isNotEmpty ||
-        worker.bloodType.isNotEmpty;
+    final bool hasExtraData = worker.nss.isNotEmpty || worker.curp.isNotEmpty || worker.bloodType.isNotEmpty;
+
+    final initials = worker.name.isNotEmpty
+        ? worker.name.trim().split(' ').take(2).map((w) => w[0].toUpperCase()).join()
+        : 'T';
 
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 2))],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           leading: Container(
-            width: 48,
-            height: 48,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: _accentColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [_accentColor.withOpacity(0.1), _accentColor.withOpacity(0.05)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _accentColor.withOpacity(0.15)),
             ),
             child: Center(
-              child: Text(
-                worker.name.isNotEmpty
-                    ? worker.name.substring(0, 1).toUpperCase()
-                    : 'T',
-                style: GoogleFonts.inter(
-                  color: _accentColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                ),
-              ),
+              child: Text(initials, style: GoogleFonts.inter(color: _accentColor, fontWeight: FontWeight.w800, fontSize: 15)),
             ),
           ),
           title: Row(
             children: [
               Expanded(
-                child: Text(
-                  worker.name,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: _textPrimary,
-                  ),
-                ),
+                child: Text(worker.name, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: _textPrimary)),
               ),
               if (!hasExtraData)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF3C7),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFFCD34D)),
+                    border: Border.all(color: const Color(0xFFFCD34D).withOpacity(0.6)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        LucideIcons.alertCircle,
-                        size: 11,
-                        color: Color(0xFFB45309),
-                      ),
+                      const Icon(LucideIcons.alertCircle, size: 10, color: Color(0xFFB45309)),
                       const SizedBox(width: 4),
-                      Text(
-                        "Completar datos",
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFB45309),
-                        ),
-                      ),
+                      Text("Completar", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFFB45309))),
                     ],
                   ),
                 ),
             ],
           ),
           subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: 6),
             child: Row(
               children: [
-                if (worker.email.isNotEmpty) ...[
-                  Icon(LucideIcons.mail, size: 13, color: _textSecondary),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      worker.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: _textSecondary,
+                // Badge email
+                if (worker.email.isNotEmpty)
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(LucideIcons.mail, size: 10, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(worker.email, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: _textSecondary)),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                // Badge sangre
                 if (worker.bloodType.isNotEmpty) ...[
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDC2626).withOpacity(0.1),
+                      color: const Color(0xFFDC2626).withOpacity(0.08),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: const Color(0xFFDC2626).withOpacity(0.2),
-                      ),
+                      border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.2)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          LucideIcons.droplets,
-                          size: 11,
-                          color: Color(0xFFDC2626),
-                        ),
+                        const Icon(LucideIcons.droplets, size: 10, color: Color(0xFFDC2626)),
                         const SizedBox(width: 4),
-                        Text(
-                          worker.bloodType,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFDC2626),
-                          ),
-                        ),
+                        Text(worker.bloodType, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFFDC2626))),
                       ],
                     ),
                   ),
                 ],
+                // Badge fecha
                 if (worker.startDate != null) ...[
-                  const SizedBox(width: 12),
-                  Icon(
-                    LucideIcons.calendarCheck,
-                    size: 12,
-                    color: _textSecondary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    dateFmt.format(worker.startDate!),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: _textSecondary,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: _accentColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _accentColor.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.calendarCheck, size: 10, color: _accentColor),
+                        const SizedBox(width: 4),
+                        Text(dateFmt.format(worker.startDate!), style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _accentColor)),
+                      ],
                     ),
                   ),
                 ],
@@ -427,18 +389,12 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (canEdit) ...[
-                _buildIconBtn(
-                  icon: LucideIcons.edit3,
-                  color: Colors.blue,
-                  onTap: () => _showEditDialog(worker),
-                ),
+                _buildActionIcon(LucideIcons.edit3, const Color(0xFF2563EB), () => _showEditDialog(worker)),
+                const SizedBox(width: 4),
+                _buildActionIcon(LucideIcons.trash2, const Color(0xFFEF4444), () => _confirmDelete(worker)),
                 const SizedBox(width: 8),
-                _buildIconBtn(
-                  icon: LucideIcons.trash2,
-                  color: Colors.red,
-                  onTap: () => _confirmDelete(worker),
-                ),
               ],
+              const Icon(LucideIcons.chevronDown, size: 18, color: Color(0xFFCBD5E1)),
             ],
           ),
           children: [
@@ -453,185 +409,149 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header documentos
                   Row(
                     children: [
-                      Icon(
-                        LucideIcons.clipboard,
-                        size: 16,
-                        color: _textSecondary,
-                      ),
+                      const Icon(LucideIcons.fileText, size: 14, color: Color(0xFF94A3B8)),
                       const SizedBox(width: 8),
-                      Text(
-                        "DATOS PERSONALES",
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: _textSecondary,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
+                      Text("DOCUMENTOS OFICIALES", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+
+                  // Campos en chips
                   Wrap(
-                    spacing: 32,
-                    runSpacing: 16,
+                    spacing: 10,
+                    runSpacing: 10,
                     children: [
-                      _buildInfoField(
-                        "NSS (Seguro Social)",
-                        worker.nss.isNotEmpty ? worker.nss : "No registrado",
-                      ),
-                      _buildInfoField(
-                        "CURP",
-                        worker.curp.isNotEmpty ? worker.curp : "No registrado",
-                      ),
-                      _buildInfoField(
-                        "Tipo de Sangre",
-                        worker.bloodType.isNotEmpty
-                            ? worker.bloodType
-                            : "No registrado",
-                      ),
-                      _buildInfoField(
-                        "Fecha de Ingreso",
-                        worker.startDate != null
-                            ? dateFmt.format(worker.startDate!)
-                            : "No registrada",
-                      ),
-                      _buildInfoField(
-                        "Correo Electrónico",
-                        worker.email.isNotEmpty
-                            ? worker.email
-                            : "No registrado",
-                      ),
+                      _buildDetailChip(LucideIcons.shieldCheck, "NSS", worker.nss.isNotEmpty ? worker.nss : "No registrado", const Color(0xFF2563EB), worker.nss.isNotEmpty),
+                      _buildDetailChip(LucideIcons.fingerprint, "CURP", worker.curp.isNotEmpty ? worker.curp : "No registrado", const Color(0xFF7C3AED), worker.curp.isNotEmpty),
+                      _buildDetailChip(LucideIcons.droplets, "Sangre", worker.bloodType.isNotEmpty ? worker.bloodType : "N/R", const Color(0xFFDC2626), worker.bloodType.isNotEmpty),
+                      _buildDetailChip(LucideIcons.calendarCheck, "Ingreso", worker.startDate != null ? dateFmt.format(worker.startDate!) : "No registrada", _accentColor, worker.startDate != null),
                     ],
                   ),
 
-                  // ── NÚMERO DE EMERGENCIA ─────────────────── ← NUEVO
-                  if (worker.emergencyPhone.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B35).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            LucideIcons.phoneCall,
-                            size: 16,
-                            color: Color(0xFFFF6B35),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "CONTACTO DE EMERGENCIA",
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: _textSecondary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              worker.emergencyPhone,
-                              style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFFFF6B35),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 16),
-                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF6B35).withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            LucideIcons.phoneCall,
-                            size: 16,
-                            color: const Color(0xFFFF6B35).withOpacity(0.4),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "CONTACTO DE EMERGENCIA",
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: _textSecondary,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              "No registrado",
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF94A3B8),
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+                  const SizedBox(height: 16),
+                  Container(height: 1, color: _borderColor),
+                  const SizedBox(height: 16),
 
-                  if (worker.address.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Contacto de emergencia
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: worker.emergencyPhone.isNotEmpty
+                          ? const Color(0xFFEA580C).withOpacity(0.04)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: worker.emergencyPhone.isNotEmpty
+                            ? const Color(0xFFEA580C).withOpacity(0.15)
+                            : _borderColor,
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        Icon(LucideIcons.mapPin, size: 14, color: _accentColor),
-                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEA580C).withOpacity(worker.emergencyPhone.isNotEmpty ? 0.1 : 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(LucideIcons.phoneCall, size: 14, color: Color(worker.emergencyPhone.isNotEmpty ? 0xFFEA580C : 0xFFCBD5E1)),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Text("CONTACTO DE EMERGENCIA", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
+                              const SizedBox(height: 2),
                               Text(
-                                "DIRECCIÓN PARTICULAR",
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: _textSecondary,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                worker.address,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: _textPrimary,
-                                  height: 1.4,
-                                ),
+                                worker.emergencyPhone.isNotEmpty ? worker.emergencyPhone : "No registrado",
+                                style: worker.emergencyPhone.isNotEmpty
+                                    ? GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFFEA580C))
+                                    : GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), fontStyle: FontStyle.italic),
                               ),
                             ],
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  // Dirección
+                  if (worker.address.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _borderColor),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _accentColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(LucideIcons.mapPin, size: 14, color: _accentColor),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("DOMICILIO", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
+                                const SizedBox(height: 2),
+                                Text(worker.address, style: GoogleFonts.inter(fontSize: 13, color: _textPrimary, height: 1.4)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Correo (si existe, en su propia card)
+                  if (worker.email.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.12)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(LucideIcons.mail, size: 14, color: Color(0xFF2563EB)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("CORREO ELECTRÓNICO", style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.5)),
+                                const SizedBox(height: 2),
+                                Text(worker.email, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF2563EB)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ],
@@ -643,201 +563,296 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
     );
   }
 
-  Widget _buildInfoField(String label, String value) {
-    final bool isEmpty = value == "No registrado" || value == "No registrada";
-    return SizedBox(
-      width: 220,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: _textSecondary,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: isEmpty ? FontWeight.w400 : FontWeight.w600,
-              color: isEmpty ? const Color(0xFF94A3B8) : _textPrimary,
-              fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIconBtn({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildActionIcon(IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withOpacity(0.06),
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.15)),
         ),
-        child: Icon(icon, size: 18, color: color),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    );
+  }
+
+  Widget _buildDetailChip(IconData icon, String label, String value, Color color, bool hasData) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: hasData ? color.withOpacity(0.04) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: hasData ? color.withOpacity(0.15) : _borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 11, color: hasData ? color.withOpacity(0.6) : const Color(0xFFCBD5E1)),
+              const SizedBox(width: 6),
+              Text(label.toUpperCase(), style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w800, color: hasData ? color.withOpacity(0.6) : const Color(0xFF94A3B8), letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: hasData
+                ? GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: color)
+                : GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontStyle: FontStyle.italic),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildForm() {
     return Container(
-      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: _borderColor),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderColor.withOpacity(0.6)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _primaryBlue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  LucideIcons.userPlus,
-                  color: _primaryBlue,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Registrar Trabajador",
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: _textPrimary,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
+          // ── Header ──────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F9FF),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: const Color(0xFFBAE6FD).withOpacity(0.5),
+              gradient: LinearGradient(
+                colors: [_primaryBlue.withOpacity(0.08), _primaryBlue.withOpacity(0.02)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(bottom: BorderSide(color: _borderColor.withOpacity(0.5))),
             ),
             child: Row(
               children: [
-                const Icon(
-                  LucideIcons.info,
-                  size: 14,
-                  color: Color(0xFF0369A1),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(LucideIcons.userPlus, color: _primaryBlue, size: 20),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    "Los técnicos creados desde Administración → Usuarios también aparecen aquí automáticamente.",
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: const Color(0xFF0C4A6E),
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Registrar Trabajador", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 17, color: _textPrimary)),
+                      const SizedBox(height: 2),
+                      Text("Completa los datos del personal", style: GoogleFonts.inter(fontSize: 12, color: _textSecondary, fontWeight: FontWeight.w400)),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 24),
-          _buildSectionLabel("Datos Personales"),
-          _input(_nameCtrl, "Nombre Completo", LucideIcons.user),
-          const SizedBox(height: 12),
-          _input(_emailCtrl, "Correo Electrónico", LucideIcons.mail),
-
-          const SizedBox(height: 24),
-          _buildSectionLabel("Documentos Oficiales"),
-          _input(_nssCtrl, "NSS (Seguro Social)", LucideIcons.shieldCheck),
-          const SizedBox(height: 12),
-          _input(_curpCtrl, "CURP", LucideIcons.fingerprint),
-
-          const SizedBox(height: 24),
-          _buildSectionLabel("Información Médica y Laboral"),
-          Row(
-            children: [
-              Expanded(child: _buildBloodTypeDropdown()),
-              const SizedBox(width: 12),
-              Expanded(child: _buildDatePickerField()),
-            ],
-          ),
-
-          // ── NÚMERO DE EMERGENCIA ─────────────────────── ← NUEVO
-          const SizedBox(height: 24),
-          _buildSectionLabel("Contacto de Emergencia"),
-          _inputEmergencyPhone(_emergencyPhoneCtrl),
-
-          const SizedBox(height: 24),
-          _buildSectionLabel("Domicilio"),
-          _input(
-            _addressCtrl,
-            "Dirección particular completa",
-            LucideIcons.mapPin,
-            maxLines: 2,
-          ),
-
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isUploading ? null : _handleAddNew,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          // ── Cuerpo ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Nota informativa
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F9FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.info, size: 14, color: Color(0xFF0369A1)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Los técnicos creados desde Administración → Usuarios también aparecen aquí.",
+                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF0C4A6E), fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                elevation: 0,
-              ),
-              child: _isUploading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      "Registrar Trabajador",
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
+
+                const SizedBox(height: 20),
+
+                // ── Datos Personales ──────────────────────────
+                _buildFormSectionLabel("Datos Personales", LucideIcons.user),
+                const SizedBox(height: 10),
+                _buildFormLabel("NOMBRE COMPLETO"),
+                const SizedBox(height: 6),
+                _input(_nameCtrl, "Ej. Carlos Ramírez López", LucideIcons.user),
+                const SizedBox(height: 12),
+                _buildFormLabel("CORREO ELECTRÓNICO"),
+                const SizedBox(height: 6),
+                _input(_emailCtrl, "correo@empresa.com", LucideIcons.mail),
+
+                const SizedBox(height: 20),
+                _buildFormDivider(),
+                const SizedBox(height: 20),
+
+                // ── Documentos ────────────────────────────────
+                _buildFormSectionLabel("Documentos Oficiales", LucideIcons.fileText),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        _buildFormLabel("NSS"),
+                        const SizedBox(height: 6),
+                        _input(_nssCtrl, "12345678901", LucideIcons.shieldCheck),
+                      ]),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        _buildFormLabel("CURP"),
+                        const SizedBox(height: 6),
+                        _input(_curpCtrl, "RAMC900101...", LucideIcons.fingerprint),
+                      ]),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+                _buildFormDivider(),
+                const SizedBox(height: 20),
+
+                // ── Médica y Laboral ──────────────────────────
+                _buildFormSectionLabel("Médica y Laboral", LucideIcons.heartPulse),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        _buildFormLabel("TIPO DE SANGRE"),
+                        const SizedBox(height: 6),
+                        _buildBloodTypeDropdown(),
+                      ]),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        _buildFormLabel("FECHA DE INGRESO"),
+                        const SizedBox(height: 6),
+                        _buildDatePickerField(),
+                      ]),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+                _buildFormDivider(),
+                const SizedBox(height: 20),
+
+                // ── Emergencia ────────────────────────────────
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: const Color(0xFFEA580C).withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
+                      child: const Icon(LucideIcons.phoneCall, size: 14, color: Color(0xFFEA580C)),
+                    ),
+                    const SizedBox(width: 10),
+                    Text("Emergencia", style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFFEA580C))),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _inputEmergencyPhone(_emergencyPhoneCtrl),
+
+                const SizedBox(height: 20),
+                _buildFormDivider(),
+                const SizedBox(height: 20),
+
+                // ── Domicilio ─────────────────────────────────
+                _buildFormSectionLabel("Domicilio", LucideIcons.mapPin),
+                const SizedBox(height: 10),
+                _input(_addressCtrl, "Calle, Número, Colonia, CP...", LucideIcons.mapPin, maxLines: 2),
+
+                const SizedBox(height: 28),
+
+                // ── Botón ─────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : _handleAddNew,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryBlue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _primaryBlue.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: _isUploading
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(LucideIcons.userPlus, size: 18),
+                              const SizedBox(width: 8),
+                              Text("Registrar Trabajador", style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15)),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Helpers del formulario ──────────────────────────────────
+  Widget _buildFormSectionLabel(String text, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: _primaryBlue.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, size: 14, color: _primaryBlue),
+        ),
+        const SizedBox(width: 10),
+        Text(text, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: _textPrimary)),
+      ],
+    );
+  }
+
+  Widget _buildFormLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2),
+      child: Text(text, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+    );
+  }
+
+  Widget _buildFormDivider() {
+    return Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_borderColor.withOpacity(0), _borderColor, _borderColor.withOpacity(0)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
       ),
     );
   }
@@ -988,20 +1003,6 @@ class _WorkerManagementScreenState extends State<WorkerManagementScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        label.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: _textSecondary,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
 
   Widget _input(
     TextEditingController ctrl,
