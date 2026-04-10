@@ -4,6 +4,7 @@ import 'package:ici_process/services/tool_service.dart';
 import 'package:ici_process/services/user_service.dart';
 import 'package:ici_process/ui/widgets/process_modal/execution_status_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/logistics_section.dart';
+import 'package:ici_process/ui/widgets/process_modal/mention_text_field.dart';
 import 'package:ici_process/ui/widgets/process_modal/quote_form_modal.dart';
 import 'package:ici_process/ui/widgets/process_modal/report_billing_section.dart';
 import 'package:intl/intl.dart';
@@ -56,6 +57,8 @@ class _ProcessModalState extends State<ProcessModal> {
   final _ocNumberController = TextEditingController();
   bool _isNoOc = false;
   DateTime? _ocReceptionDate;
+
+  List<String> _pendingMentionIds = [];
 
   @override
   void initState() {
@@ -2654,7 +2657,9 @@ class _ProcessModalState extends State<ProcessModal> {
     final currentIndex = stages.indexOf(widget.process!.stage);
     if (currentIndex <= 0) return;
 
-    final prevStage = stages[currentIndex - 1];
+    final prevStage = widget.process!.stage == ProcessStage.X
+    ? ProcessStage.E1
+    : stages[currentIndex - 1];
     final currentStageConfig = stageConfigs[widget.process!.stage];
     final prevStageConfig = stageConfigs[prevStage];
 
@@ -3023,7 +3028,9 @@ class _ProcessModalState extends State<ProcessModal> {
     final stages = ProcessStage.values;
     final currentIndex = stages.indexOf(widget.process!.stage);
     if (currentIndex > 0) {
-      final prevStage = stages[currentIndex - 1];
+      final prevStage = widget.process!.stage == ProcessStage.X
+      ? ProcessStage.E1
+      : stages[currentIndex - 1];
       
       bool wasRefunded = false; // ★ NUEVO: bandera para saber si hubo reembolso
 
@@ -3077,18 +3084,220 @@ class _ProcessModalState extends State<ProcessModal> {
   // ── COMMENT ───────────────────────────────────────────────
   void _addComment() {
     if (_commentController.text.trim().isEmpty) return;
+    
+    final currentStage = widget.process?.stage ?? ProcessStage.E1;
+    final stageCode = currentStage.toString().split('.').last;
+    
+    final newComment = CommentModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      text: _commentController.text.trim(),
+      userName: widget.user.name,
+      userId: widget.user.id,
+      date: DateTime.now(),
+      mentionedUserIds: List.from(_pendingMentionIds),
+      stageAtCreation: stageCode,
+    );
+
     setState(() {
-      _comments.insert(
-        0,
-        CommentModel(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          text: _commentController.text.trim(),
-          userName: widget.user.name,
-          date: DateTime.now(),
-        ),
-      );
+      _comments.insert(0, newComment);
       _commentController.clear();
     });
+
+    // Enviar notificaciones a los mencionados
+    if (_pendingMentionIds.isNotEmpty) {
+      _sendMentionNotifications(_pendingMentionIds, newComment.text);
+      _pendingMentionIds = [];
+    }
+  }
+
+  Future<void> _sendMentionNotifications(
+      List<String> userIds, String commentText) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final collRef = FirebaseFirestore.instance.collection('notifications');
+
+      for (final targetId in userIds) {
+        final docRef = collRef.doc();
+        batch.set(docRef, {
+          'targetUserId': targetId,
+          'title': '💬 Te mencionaron en un comentario',
+          'body':
+              '${widget.user.name} te mencionó en: ${_titleController.text}',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'senderName': widget.user.name,
+          'processId': widget.process?.id ?? '',
+          'type': 'mention',
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error enviando notificaciones de mención: $e');
+    }
+  }
+
+  void _editComment(CommentModel comment) {
+    final editController = TextEditingController(text: comment.text);
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 30,
+                offset: const Offset(0, 15),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                decoration: const BoxDecoration(
+                  border: Border(
+                      bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(LucideIcons.pencil,
+                          size: 16, color: Color(0xFF2563EB)),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      "Editar Comentario",
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(LucideIcons.x,
+                          color: Color(0xFF94A3B8), size: 18),
+                      splashRadius: 18,
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                child: TextField(
+                  controller: editController,
+                  maxLines: 4,
+                  autofocus: true,
+                  style: const TextStyle(
+                      fontSize: 14, color: Color(0xFF1E293B), height: 1.5),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.all(16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                          color: Color(0xFF2563EB), width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: TextButton.styleFrom(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(
+                                color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: const Text("Cancelar",
+                            style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final newText = editController.text.trim();
+                          if (newText.isEmpty) return;
+                          setState(() {
+                            final index = _comments.indexWhere(
+                                (c) => c.id == comment.id);
+                            if (index != -1) {
+                              _comments[index] = CommentModel(
+                                id: comment.id,
+                                text: newText,
+                                userName: comment.userName,
+                                userId: comment.userId,
+                                date: comment.date,
+                                mentionedUserIds:
+                                    comment.mentionedUserIds,
+                                stageAtCreation:
+                                    comment.stageAtCreation,
+                                isEdited: true,
+                              );
+                            }
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        child: const Text("Guardar Cambios",
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── BUILD MODEL ───────────────────────────────────────────
@@ -3250,8 +3459,8 @@ class _ProcessModalState extends State<ProcessModal> {
     final updatedProcess = await _processService.getProcessById(widget.process!.id);
     if (updatedProcess != null && mounted) {
       setState(() {
-        _amountController.text = updatedProcess.amount.toString();
-        _costController.text = updatedProcess.estimatedCost.toString();
+        _amountController.text = updatedProcess.amount.toStringAsFixed(2);
+        _costController.text = updatedProcess.estimatedCost.toStringAsFixed(2);
         _currentQuotationData = updatedProcess.quotationData;
       });
     }
@@ -3916,7 +4125,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                 // ── Logística ──────────────────────────
                                 _buildStageHighlight(
                                   isActive: widget.process!.stage == ProcessStage.E5,
-                                  activeLabel: "ETAPA ACTUAL · Logística y Compras",
+                                  activeLabel: "ETAPA ACTUAL · E5 - Logística y Compras",
                                   activeColor: const Color(0xFFB45309),
                                   child: LogisticsSection(
                                     process: widget.process!,
@@ -3936,7 +4145,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                   const SizedBox(height: 16),
                                   _buildStageHighlight(
                                     isActive: widget.process!.stage == ProcessStage.E6,
-                                    activeLabel: "ETAPA ACTUAL · Ejecución en Sitio",
+                                    activeLabel: "ETAPA ACTUAL · E6 -  Ejecución en Sitio",
                                     activeColor: const Color(0xFFC2410C),
                                     child: ExecutionStatusSection(
                                       process: widget.process!,
@@ -3955,7 +4164,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                   const SizedBox(height: 16),
                                   _buildStageHighlight(
                                     isActive: widget.process!.stage == ProcessStage.E7,
-                                    activeLabel: "ETAPA ACTUAL · Reporte y Facturación",
+                                    activeLabel: "ETAPA ACTUAL · E7 -Reporte y Facturación",
                                     activeColor: const Color(0xFF16A34A),
                                     child: ReportBillingSection(
                                       process: widget.process!,
@@ -4393,44 +4602,12 @@ class _ProcessModalState extends State<ProcessModal> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: TextField(
+                  child: MentionTextField(
                     controller: _commentController,
-                    onSubmitted: (_) => _addComment(),
-                    maxLines: 1,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF1E293B),
-                        height: 1.4),
-                    decoration: InputDecoration(
-                      hintText: "Escribe una actualización o nota...",
-                      hintStyle: const TextStyle(
-                          fontSize: 13, color: Color(0xFF94A3B8)),
-                      suffixIcon: IconButton(
-                        onPressed: _addComment,
-                        icon: const Icon(LucideIcons.send,
-                            color: Color(0xFF2563EB), size: 18),
-                        tooltip: "Enviar",
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                            color: Color(0xFF2563EB), width: 1.5),
-                      ),
-                    ),
+                    onSubmit: _addComment,
+                    onMentionsChanged: (ids) {
+                      _pendingMentionIds = ids;
+                    },
                   ),
                 ),
               ],
@@ -4495,6 +4672,13 @@ class _ProcessModalState extends State<ProcessModal> {
         isAuthorized ||
         isDiscarded ||
         isNotification;
+
+    // Determinar si el usuario actual puede editar este comentario
+    final currentStageCode =
+        (widget.process?.stage ?? ProcessStage.E1).toString().split('.').last;
+    final bool canEditThisComment = !isSystemEvent &&
+        c.userId == widget.user.id &&
+        c.stageAtCreation == currentStageCode;
 
     // Paleta por tipo
     Color accentColor;
@@ -4619,8 +4803,7 @@ class _ProcessModalState extends State<ProcessModal> {
                     // Badge de tipo (solo eventos de sistema)
                     if (typeLabel != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: accentColor.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(5),
@@ -4643,38 +4826,98 @@ class _ProcessModalState extends State<ProcessModal> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: isSystemEvent
-                              ? accentColor
-                              : const Color(0xFF334155),
+                          color: isSystemEvent ? accentColor : const Color(0xFF334155),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    // ── BADGE EDITADO ──
+                    if (c.isEdited) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          "editado",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    // ── BOTÓN EDITAR ──
+                    if (canEditThisComment)
+                      InkWell(
+                        onTap: () => _editComment(c),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(LucideIcons.pencil,
+                              size: 14, color: const Color(0xFF94A3B8)),
+                        ),
+                      ),
+                    if (canEditThisComment) const SizedBox(width: 4),
                     Text(
                       DateFormat('dd MMM · HH:mm', 'es').format(c.date),
-                      style: const TextStyle(
-                          fontSize: 11, color: Color(0xFF94A3B8)),
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 5),
-                Text(
+                // En lugar de Text(displayText, ...) usa:
+                _buildMentionRichText(
                   displayText,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isSystemEvent
-                        ? accentColor.withOpacity(0.85)
-                        : const Color(0xFF475569),
-                    fontWeight: isSystemEvent
-                        ? FontWeight.w500
-                        : FontWeight.normal,
-                    height: 1.45,
-                  ),
+                  baseColor: isSystemEvent
+                      ? accentColor.withOpacity(0.85)
+                      : const Color(0xFF475569),
+                  isSystemEvent: isSystemEvent,
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMentionRichText(String text,
+      {required Color baseColor, bool isSystemEvent = false}) {
+    final mentionRegex = RegExp(r'@[\wÀ-ÿ]+(?: [\wÀ-ÿ]+)?');
+    final spans = <TextSpan>[];
+    int lastEnd = 0;
+
+    for (final match in mentionRegex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(0),
+        style: const TextStyle(
+          color: Color(0xFF2563EB),
+          fontWeight: FontWeight.w700,
+          backgroundColor: Color(0xFFEFF6FF),
+        ),
+      ));
+      lastEnd = match.end;
+    }
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 13,
+          color: baseColor,
+          fontWeight: isSystemEvent ? FontWeight.w500 : FontWeight.normal,
+          height: 1.45,
+        ),
+        children: spans,
       ),
     );
   }

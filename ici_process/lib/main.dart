@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:ici_process/ui/screens/login_screen.dart';
 import 'package:ici_process/ui/screens/main_navigation_screen.dart'; // Tu nueva pantalla
@@ -32,6 +33,18 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
         useMaterial3: true,
       ),
+      // 2. AÑADIMOS LOS DELEGADOS DE LOCALIZACIÓN
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      
+      // 3. DEFINIMOS EL IDIOMA ESPAÑOL
+      supportedLocales: const [
+        Locale('es', ''), // Español
+      ],
+
       // El AuthWrapper es ahora el punto de entrada inteligente
       home: const AuthWrapper(), 
     );

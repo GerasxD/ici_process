@@ -10,6 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_localizations:
+    sdk: flutter
+
   # Iconos modernos (los que usamos en el diseño)
   lucide_icons: ^0.257.0
 
@@ -22,7 +25,7 @@ dependencies:
   # Cloud Firestore (Para guardar datos de usuarios/inspecciones)
   cloud_firestore: ^5.6.1
 
-  intl: ^0.19.0
+  intl: ^0.20.0
   google_generative_ai: ^0.4.7
 
   google_fonts: ^6.2.1
@@ -32,7 +35,6 @@ dependencies:
   file_picker: ^8.0.0+1
   firebase_storage: ^12.0.0 
   url_launcher: ^6.1.7
-
 
 dev_dependencies:
   flutter_test:

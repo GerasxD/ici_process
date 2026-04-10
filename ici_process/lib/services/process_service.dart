@@ -6,7 +6,27 @@ class ProcessService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String _collection = 'processes';
 
-  // 1. Obtener todos los procesos en tiempo real (Para el Kanban)
+  // ── Genera el siguiente ID correlativo (PR-01, PR-02...) ──
+  Future<String> _generateProcessId() async {
+    final counterRef = _db.collection('counters').doc('processes');
+
+    return await _db.runTransaction<String>((transaction) async {
+      final snapshot = await transaction.get(counterRef);
+
+      int nextNumber = 1;
+      if (snapshot.exists) {
+        nextNumber = (snapshot.data()?['lastNumber'] ?? 0) + 1;
+      }
+
+      transaction.set(counterRef, {'lastNumber': nextNumber});
+
+      // Formato: PR-01, PR-02 ... PR-99, PR-100
+      final padded = nextNumber.toString().padLeft(2, '0');
+      return 'PR-$padded';
+    });
+  }
+
+  // 1. Obtener todos los procesos en tiempo real
   Stream<List<ProcessModel>> getProcessesStream() {
     return _db
         .collection(_collection)
@@ -17,28 +37,36 @@ class ProcessService {
             .toList());
   }
 
-  // 2. Crear un nuevo proceso
+  // 2. Crear un nuevo proceso con ID correlativo
   Future<void> createProcess(ProcessModel process) async {
     try {
-      await _db.collection(_collection).add(process.toMap());
+      final newId = await _generateProcessId();
+
+      // Creamos el proceso con el ID generado usando .doc(id).set()
+      await _db
+          .collection(_collection)
+          .doc(newId)
+          .set(process.toMap());
     } catch (e) {
       print("Error al crear proceso: $e");
       rethrow;
     }
   }
 
-  // 3. Actualizar un proceso existente (Guardar cambios del Modal)
+  // 3. Actualizar un proceso existente
   Future<void> updateProcess(ProcessModel process) async {
     try {
-      await _db.collection(_collection).doc(process.id).update(process.toMap());
+      await _db
+          .collection(_collection)
+          .doc(process.id)
+          .update(process.toMap());
     } catch (e) {
       print("Error al actualizar proceso: $e");
       rethrow;
     }
   }
 
-  // 4. Mover de Etapa (Lógica rápida para arrastrar en Kanban)
-  // Esta función añade automáticamente una entrada al historial
+  // 4. Mover de Etapa
   Future<void> moveProcessStage({
     required String processId,
     required ProcessStage newStage,
@@ -52,7 +80,6 @@ class ProcessService {
         'date': Timestamp.now(),
         'details': 'Movido a $stageTitle',
       };
-
       await _db.collection(_collection).doc(processId).update({
         'stage': newStage.toString().split('.').last,
         'updatedAt': Timestamp.now(),
@@ -64,19 +91,16 @@ class ProcessService {
     }
   }
 
-  // 5. Eliminar proceso (Mover a Etapa X o borrar permanente)
+  // 5. Eliminar proceso permanentemente
   Future<void> deleteProcess(String id) async {
     await _db.collection(_collection).doc(id).delete();
   }
 
-  // --- AGREGA ESTO EN TU ProcessService ---
-
-  // Obtener un solo proceso por ID (Para recargar datos frescos)
+  // 6. Obtener un proceso por ID
   Future<ProcessModel?> getProcessById(String id) async {
     try {
-      final doc = await _db.collection('processes').doc(id).get();
+      final doc = await _db.collection(_collection).doc(id).get();
       if (doc.exists && doc.data() != null) {
-        // Asegúrate de que tu ProcessModel tenga el factory .fromMap
         return ProcessModel.fromMap(doc.data()!, doc.id);
       }
       return null;
@@ -85,5 +109,4 @@ class ProcessService {
       return null;
     }
   }
-  
 }

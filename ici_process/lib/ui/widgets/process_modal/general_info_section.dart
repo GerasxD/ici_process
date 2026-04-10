@@ -92,7 +92,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   String? _selectedBranch;
   bool _initialDataRestored = false;
   
-  final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 3);
+  final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   bool _isMobile(BuildContext context) => MediaQuery.of(context).size.width < 700;
 
   @override
@@ -108,8 +108,8 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
       // Intentamos convertir el texto a número
       double? value = double.tryParse(controller.text);
       if (value != null) {
-        // Si es válido, lo convertimos a texto forzando 3 decimales
-        controller.text = value.toStringAsFixed(3);
+        // Si es válido, lo convertimos a texto forzando 2 decimales
+        controller.text = value.toStringAsFixed(2); 
       }
     }
   }
@@ -472,10 +472,10 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   }
 
   Map<String, String> get _stageLabels => {
-    'info': 'ETAPA ACTUAL · Solicitud de Cotización',
-    'quote': 'ETAPA ACTUAL · Cotizando',
-    'tracking': 'ETAPA ACTUAL · Cotización Enviada',
-    'oc': 'ETAPA ACTUAL · O.C. Sin Atender',
+    'info': 'ETAPA ACTUAL · E1 - Solicitud de Cotización',
+    'quote': 'ETAPA ACTUAL · E2 - Cotizando',
+    'tracking': 'ETAPA ACTUAL · E1 - Solicitud de Cotización',
+    'oc': 'ETAPA ACTUAL · E4 - O.C. Sin Atender',
   };
 
   Map<String, Color> get _stageColors => {
@@ -551,9 +551,21 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   }
 
   Widget _buildEditableMoneyInput(String label, TextEditingController ctrl, {bool isCost = false, VoidCallback? onChanged, bool obscure = false}) { 
-    if (obscure) return _buildObscuredDisplay(label); // <- Si no tiene permiso, dibuja asteriscos
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 6), TextField(controller: ctrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,3}'))], onChanged: (_) { if (onChanged != null) onChanged(); }, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)), decoration: InputDecoration(prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2))))]); 
+    if (obscure) return _buildObscuredDisplay(label); 
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), 
+      const SizedBox(height: 6), 
+      TextField(
+        controller: ctrl, 
+        keyboardType: const TextInputType.numberWithOptions(decimal: true), 
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))], 
+        onChanged: (_) { if (onChanged != null) onChanged(); }, 
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)), 
+        decoration: InputDecoration(prefixIcon: const Icon(Icons.attach_money, size: 16, color: Colors.grey), filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFCBD5E1))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2)))
+      )
+    ]); 
   }
+
   Widget _buildReadOnlyDisplay(String label, double amount, {bool isCost = false, bool obscure = false}) { 
     if (obscure) return _buildObscuredDisplay(label); // <- Si no tiene permiso, dibuja asteriscos
     return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8), letterSpacing: 0.5)), const SizedBox(height: 8), Text(currencyFormat.format(amount), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isCost ? const Color(0xFF64748B) : const Color(0xFF334155)))],)); 

@@ -117,13 +117,21 @@ class CommentModel {
   final String id;
   final String text;
   final String userName;
+  final String userId;
   final DateTime date;
+  final List<String> mentionedUserIds;
+  final String? stageAtCreation;
+  final bool isEdited;
 
   CommentModel({
     required this.id,
     required this.text,
     required this.userName,
+    this.userId = '',
     required this.date,
+    this.mentionedUserIds = const [],
+    this.stageAtCreation,
+    this.isEdited = false,
   });
 
   factory CommentModel.fromMap(Map<String, dynamic> data) {
@@ -131,7 +139,11 @@ class CommentModel {
       id: data['id'] ?? '',
       text: data['text'] ?? '',
       userName: data['userName'] ?? '',
+      userId: data['userId'] ?? '',
       date: (data['date'] as Timestamp).toDate(),
+      mentionedUserIds: List<String>.from(data['mentionedUserIds'] ?? []),
+      stageAtCreation: data['stageAtCreation'],
+      isEdited: data['isEdited'] ?? false,
     );
   }
 
@@ -140,7 +152,11 @@ class CommentModel {
       'id': id,
       'text': text,
       'userName': userName,
+      'userId': userId,
       'date': Timestamp.fromDate(date),
+      'mentionedUserIds': mentionedUserIds,
+      'stageAtCreation': stageAtCreation,
+      'isEdited': isEdited,
     };
   }
 }
