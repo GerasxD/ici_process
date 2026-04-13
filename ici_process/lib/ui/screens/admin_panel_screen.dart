@@ -27,6 +27,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'General': 'General y Flujo',
     'Ver Base de Datos': 'Visibilidad de Módulos (Lectura)',
     'Editar Base de Datos': 'Gestión de Módulos (Escritura)',
+    'Archivos Adjuntos': 'Gestión de Archivos por Sección',
   };
 
   // Mapa de permisos técnicos a Español
@@ -47,9 +48,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'edit_materials': 'Editar/Crear Materiales',
     'edit_tools': 'Editar/Crear Herramientas',
     'edit_vehicles': 'Editar/Crear Vehículos',
-    'view_workers': 'Ver Personal / Trabajadores',    // ← NUEVO
+    'view_workers': 'Ver Personal / Trabajadores',    
     'edit_workers': 'Editar/Crear Trabajadores',  
     'view_financials': 'Ver Resumen Financiero (Costos/Precios)',
+
+    'view_files_info': 'Ver Archivos: Información Principal',
+    'upload_files_info': 'Subir/Eliminar Archivos: Info Principal',
+    'view_files_financial': 'Ver Archivos: Cotización / Financiero',
+    'upload_files_financial': 'Subir/Eliminar Archivos: Cotización',
+    'view_files_oc': 'Ver Archivos: Orden de Compra',
+    'upload_files_oc': 'Subir/Eliminar Archivos: Orden de Compra',
   };
 
   // Estructura original de permisos
@@ -57,6 +65,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'General': ['view_dashboard', 'manage_users', 'view_budget', 'move_stage', 'create_process', 'discard_process'],
     'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles','view_workers','view_financials',],
     'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_tools', 'edit_vehicles','edit_workers',],
+    'Archivos Adjuntos': ['view_files_info','upload_files_info','view_files_financial','upload_files_financial','view_files_oc','upload_files_oc',],
   };
 
   @override

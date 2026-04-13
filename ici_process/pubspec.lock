@@ -121,6 +121,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
+  desktop_drop:
+    dependency: "direct main"
+    description:
+      name: desktop_drop
+      sha256: e70b46b2d61f1af7a81a40d1f79b43c28a879e30a4ef31e87e9c27bea4d784e8
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.0"
   fake_async:
     dependency: transitive
     description:
@@ -238,6 +246,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.2.1"
+  flutter_dropzone:
+    dependency: "direct main"
+    description:
+      name: flutter_dropzone
+      sha256: d0917c4e366ebb3a98c9c02faac79223d119af5e236967c70e7e4002cdfb20d3
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.1"
+  flutter_dropzone_platform_interface:
+    dependency: transitive
+    description:
+      name: flutter_dropzone_platform_interface
+      sha256: "96d2c51c86063ba150551c3b40fd26c5a18785bee071c0c751502d28a545df3b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
+  flutter_dropzone_web:
+    dependency: transitive
+    description:
+      name: flutter_dropzone_web
+      sha256: "03b216f9443add6ad1d075ab513a354a47edf3d1b87d830a8ed314f0d3a2beac"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.0"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -618,6 +650,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_platform:
+    dependency: transitive
+    description:
+      name: universal_platform
+      sha256: "64e16458a0ea9b99260ceb5467a214c1f298d647c659af1bff6d3bf82536b1ec"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   url_launcher:
     dependency: "direct main"
     description:

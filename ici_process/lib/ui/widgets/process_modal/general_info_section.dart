@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:ici_process/core/constants/app_constants.dart';
-import 'package:ici_process/core/utils/permission_manager.dart'; 
+import 'package:ici_process/core/utils/permission_manager.dart';
+import 'package:ici_process/ui/widgets/file_attachments_widget.dart'; 
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -53,6 +54,7 @@ class GeneralInfoSection extends StatefulWidget {
   final GlobalKey? quoteKey;
   final GlobalKey? trackingKey;
   final GlobalKey? ocKey;
+  final String processId;
 
   const GeneralInfoSection({
     super.key,
@@ -84,6 +86,7 @@ class GeneralInfoSection extends StatefulWidget {
     required this.onRequesterChanged,
     required this.onDateChanged,
     required this.onOpenQuote,
+    required this.processId,
     this.extraSection,
     this.dimCards = false,
     this.quoteKey,
@@ -187,6 +190,12 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   Widget build(BuildContext context) {
     final mobile = _isMobile(context);
     bool canViewFinancials = PermissionManager().can(widget.currentUser, 'view_financials');
+    bool canViewFilesInfo     = PermissionManager().can(widget.currentUser, 'view_files_info');
+    bool canUploadFilesInfo   = PermissionManager().can(widget.currentUser, 'upload_files_info');
+    bool canViewFilesFinance  = PermissionManager().can(widget.currentUser, 'view_files_financial');
+    bool canUploadFilesFinance= PermissionManager().can(widget.currentUser, 'upload_files_financial');
+    bool canViewFilesOc       = PermissionManager().can(widget.currentUser, 'view_files_oc');
+    bool canUploadFilesOc     = PermissionManager().can(widget.currentUser, 'upload_files_oc');
     double precioVentaSubtotal = double.tryParse(widget.amountController.text) ?? 0.0;
     double costoDirectoSubtotal = double.tryParse(widget.costController.text) ?? 0.0;
     double precioVentaTotalConIVA = precioVentaSubtotal * 1.16;
@@ -259,6 +268,13 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                     ]);
                   },
                 ),
+                FileAttachmentsWidget(
+                  processId: widget.processId,
+                  section: 'info',
+                  currentUser: widget.currentUser,
+                  canView: canViewFilesInfo,
+                  canUpload: canUploadFilesInfo,
+                ),
               ],
             ),
           ),
@@ -303,6 +319,13 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                                 if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty)
                                   Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)), child: Row(children: [Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700), const SizedBox(width: 8), Text("Cotización elaborada por: ", style: TextStyle(fontSize: 11, color: Colors.blue.shade800)), Text(widget.quotedBy!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900))])),
                               ]),
+                              FileAttachmentsWidget(
+                                processId: widget.processId,
+                                section: 'financial',
+                                currentUser: widget.currentUser,
+                                canView: canViewFilesFinance,
+                                canUpload: canUploadFilesFinance,
+                              ),
                         const SizedBox(height: 20),
                         if (mobile) ...[
                           const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
@@ -355,6 +378,13 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                   const SizedBox(height: 20),
                   if (mobile) ...[_buildOCNumberField(), const SizedBox(height: 16), _buildOCDateField()]
                   else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: _buildOCNumberField()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildOCDateField())]),
+                FileAttachmentsWidget(
+                    processId: widget.processId,
+                    section: 'oc',
+                    currentUser: widget.currentUser,
+                    canView: canViewFilesOc,
+                    canUpload: canUploadFilesOc,
+                  ),
                 ]),
               ),
             ),

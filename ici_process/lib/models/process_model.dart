@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/app_constants.dart';
-
+ 
 class ProcessModel {
   final String id;
   final String title;
@@ -15,14 +15,14 @@ class ProcessModel {
   final String? poNumber;
   final String? poDate;
   final bool skipClientPO;
-  final String logisticsStatus; // 'ToBuy', 'Incomplete', 'Complete'
+  final String logisticsStatus;
   final List<HistoryEntry> history;
   final List<CommentModel> comments;
   final DateTime updatedAt;
   final Map<String, dynamic>? quotationData;
-  // ── NUEVO: datos completos de logística ─────────────────
   final Map<String, dynamic>? logisticsData;
   final Map<String, dynamic>? reportBillingData;
+  final List<Map<String, dynamic>> attachments; 
 
   ProcessModel({
     required this.id,
@@ -44,9 +44,10 @@ class ProcessModel {
     required this.updatedAt,
     this.quotationData,
     this.logisticsData,
-    this.reportBillingData
+    this.reportBillingData,
+    this.attachments = const [], 
   });
-
+ 
   factory ProcessModel.fromMap(Map<String, dynamic> data, String docId) {
     return ProcessModel(
       id: docId,
@@ -76,16 +77,19 @@ class ProcessModel {
       quotationData: data['quotationData'] != null
           ? Map<String, dynamic>.from(data['quotationData'])
           : null,
-      // ── Leer logisticsData de Firestore ─────────────────
       logisticsData: data['logisticsData'] != null
           ? Map<String, dynamic>.from(data['logisticsData'])
           : null,
       reportBillingData: data['reportBillingData'] != null
           ? Map<String, dynamic>.from(data['reportBillingData'])
           : null,
+      // ── NUEVO: Leer attachments ─────────────────────────
+      attachments: (data['attachments'] as List<dynamic>? ?? [])
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
     );
   }
-
+ 
   Map<String, dynamic> toMap() {
     return {
       'title': title,
@@ -105,14 +109,13 @@ class ProcessModel {
       'comments': comments.map((e) => e.toMap()).toList(),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'quotationData': quotationData,
-      // ── Guardar logisticsData en Firestore ───────────────
       'logisticsData': logisticsData,
       'reportBillingData': reportBillingData,
     };
   }
 }
-
-// ── Soporte para Comentarios ─────────────────────────────────
+ 
+// ── Los modelos CommentModel y HistoryEntry no cambian ──────
 class CommentModel {
   final String id;
   final String text;
@@ -122,7 +125,7 @@ class CommentModel {
   final List<String> mentionedUserIds;
   final String? stageAtCreation;
   final bool isEdited;
-
+ 
   CommentModel({
     required this.id,
     required this.text,
@@ -133,7 +136,7 @@ class CommentModel {
     this.stageAtCreation,
     this.isEdited = false,
   });
-
+ 
   factory CommentModel.fromMap(Map<String, dynamic> data) {
     return CommentModel(
       id: data['id'] ?? '',
@@ -146,7 +149,7 @@ class CommentModel {
       isEdited: data['isEdited'] ?? false,
     );
   }
-
+ 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -160,21 +163,20 @@ class CommentModel {
     };
   }
 }
-
-// ── Historial de Cambios ─────────────────────────────────────
+ 
 class HistoryEntry {
   final String action;
   final String userName;
   final DateTime date;
   final String? details;
-
+ 
   HistoryEntry({
     required this.action,
     required this.userName,
     required this.date,
     this.details,
   });
-
+ 
   factory HistoryEntry.fromMap(Map<String, dynamic> data) {
     return HistoryEntry(
       action: data['action'] ?? '',
@@ -183,7 +185,7 @@ class HistoryEntry {
       details: data['details'],
     );
   }
-
+ 
   Map<String, dynamic> toMap() {
     return {
       'action': action,

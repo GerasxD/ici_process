@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -86,6 +87,13 @@ class _ReportBillingSectionState extends State<ReportBillingSection> {
 
   // ── Uploading states por categoría ─────────────────────
   final Map<String, bool> _isUploading = {
+    'photo_report': false,
+    'invoice_xml': false,
+    'invoice_pdf': false,
+    'editable_report': false,
+  };
+
+  final Map<String, bool> _isDraggingOver = {
     'photo_report': false,
     'invoice_xml': false,
     'invoice_pdf': false,
@@ -308,6 +316,84 @@ class _ReportBillingSectionState extends State<ReportBillingSection> {
         setState(() => _isUploading[fileType] = false);
         _showSnack("Error al seleccionar archivo: $e", isError: true);
       }
+    }
+  }
+
+
+  // ── MANEJAR DRAG & DROP ───────────────────────────────────
+  Future<void> _handleDropForCategory(String fileType, DropDoneDetails details) async {
+    setState(() => _isDraggingOver[fileType] = false);
+    if (!widget.isEditable || (_isUploading[fileType] ?? false)) return;
+
+    // Extensiones permitidas por categoría
+    final Map<String, List<String>> allowedByType = {
+      'photo_report': ['pdf'],
+      'invoice_xml': ['xml'],
+      'invoice_pdf': ['pdf'],
+      'editable_report': ['doc', 'docx', 'xls', 'xlsx'],
+    };
+
+    final allowed = allowedByType[fileType] ?? [];
+
+    setState(() => _isUploading[fileType] = true);
+
+    for (final xFile in details.files) {
+      final ext = xFile.name.split('.').last.toLowerCase();
+      if (!allowed.contains(ext)) {
+        _showSnack("${xFile.name}: tipo no permitido (se espera ${allowed.join(', ')})", isError: true);
+        continue;
+      }
+
+      final bytes = await xFile.readAsBytes();
+      final fileName = xFile.name;
+      final Uint8List fileBytes = Uint8List.fromList(bytes);
+
+      final String storagePath =
+          'processes/${widget.process.id}/report_billing/$fileType/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+      try {
+        final ref = FirebaseStorage.instance.ref().child(storagePath);
+        final extLower = fileName.split('.').last.toLowerCase();
+
+        String contentType = 'application/octet-stream';
+        switch (extLower) {
+          case 'xml': contentType = 'application/xml'; break;
+          case 'pdf': contentType = 'application/pdf'; break;
+          case 'doc': contentType = 'application/msword'; break;
+          case 'docx': contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; break;
+          case 'xls': contentType = 'application/vnd.ms-excel'; break;
+          case 'xlsx': contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; break;
+        }
+
+        await ref.putData(fileBytes, SettableMetadata(contentType: contentType));
+        final downloadUrl = await ref.getDownloadURL();
+
+        final newFile = ReportBillingFile(
+          name: fileName,
+          url: downloadUrl,
+          type: fileType,
+          uploadedAt: DateTime.now(),
+          uploadedBy: widget.currentUserName,
+          sizeBytes: fileBytes.length,
+        );
+
+        setState(() {
+          switch (fileType) {
+            case 'photo_report': _photoReportFiles.add(newFile); break;
+            case 'invoice_xml': _invoiceXmlFiles.add(newFile); break;
+            case 'invoice_pdf': _invoicePdfFiles.add(newFile); break;
+            case 'editable_report': _editableReportFiles.add(newFile); break;
+          }
+        });
+        _notifyChanged();
+      } catch (e) {
+        _showSnack("Error al subir $fileName: $e", isError: true);
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isUploading[fileType] = false);
+      _showSnack("Archivo(s) subido(s) correctamente");
     }
   }
 
@@ -716,76 +802,104 @@ class _ReportBillingSectionState extends State<ReportBillingSection> {
             ),
 
           // ── Zona de subida (solo en E7 editable) ───────
+          // ── Zona de subida con Drag & Drop (solo en E7 editable) ──
           if (widget.isEditable)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-              child: InkWell(
-                onTap: isUploading ? null : () => _pickAndUploadFile(fileType),
-                borderRadius: BorderRadius.circular(10),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isUploading ? _bgMid : _bgTint,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isUploading ? _accentLight : _borderGreen,
+              child: DropTarget(
+                onDragEntered: (_) => setState(() => _isDraggingOver[fileType] = true),
+                onDragExited: (_) => setState(() => _isDraggingOver[fileType] = false),
+                onDragDone: (details) => _handleDropForCategory(fileType, details),
+                child: InkWell(
+                  onTap: isUploading ? null : () => _pickAndUploadFile(fileType),
+                  borderRadius: BorderRadius.circular(10),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: (_isDraggingOver[fileType] == true)
+                          ? _accentMid.withOpacity(0.08)
+                          : isUploading
+                              ? _bgMid
+                              : _bgTint,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: (_isDraggingOver[fileType] == true)
+                            ? _accentMid
+                            : isUploading
+                                ? _accentLight
+                                : _borderGreen,
+                        width: (_isDraggingOver[fileType] == true) ? 2 : 1,
+                      ),
                     ),
-                  ),
-                  child: isUploading
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: _accentMid,
+                    child: isUploading
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: _accentMid,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              "Subiendo archivo...",
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _accentDark,
+                              const SizedBox(width: 12),
+                              Text(
+                                "Subiendo archivo...",
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: _accentDark,
+                                ),
                               ),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(LucideIcons.uploadCloud,
-                                size: 18, color: _accentMid),
-                            const SizedBox(width: 10),
-                            Flexible(
-                              child: Column(
+                            ],
+                          )
+                        : (_isDraggingOver[fileType] == true)
+                            ? Column(
                                 children: [
+                                  Icon(LucideIcons.download, size: 24, color: _accentMid),
+                                  const SizedBox(height: 6),
                                   Text(
-                                    "Toca para seleccionar archivo",
+                                    "Suelta aquí para subir",
                                     style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: _accentDark,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: _accentMid,
                                     ),
                                   ),
-                                  Text(
-                                    acceptLabel,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: _accentMid.withOpacity(0.7),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(LucideIcons.uploadCloud, size: 18, color: _accentMid),
+                                  const SizedBox(width: 10),
+                                  Flexible(
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          "Arrastra o toca para subir",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: _accentDark,
+                                          ),
+                                        ),
+                                        Text(
+                                          acceptLabel,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: _accentMid.withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
+                  ),
                 ),
               ),
             ),

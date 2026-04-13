@@ -242,10 +242,7 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
         priority: widget.process.priority,
         startDate: _startDate,
         endDate: _endDate,
-        realCompletionDate: _realCompletionDate,
         technicians: technicians,
-        toolNames: toolNames,
-        materials: materials,
         notes: widget.logisticsData?['notes'] ?? '',
         folio: 'OT-${widget.process.id.substring(widget.process.id.length > 6 ? widget.process.id.length - 6 : 0)}',
       );
@@ -474,6 +471,63 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
     ]);
   }
 
+  // ── ETIQUETA DE RANGO DE FECHA ────────────────────────────
+  Widget _buildRangeLabel() {
+    if (_realCompletionDate == null || _endDate == null) return const SizedBox.shrink();
+
+    final completionDay = DateTime(
+        _realCompletionDate!.year, _realCompletionDate!.month, _realCompletionDate!.day);
+    final endDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day);
+    final diff = completionDay.difference(endDay).inDays;
+
+    if (diff <= 0) {
+      final daysEarly = -diff;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFECFDF5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF6EE7B7)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.checkCircle2, size: 13, color: Color(0xFF059669)),
+            const SizedBox(width: 6),
+            Text(
+              daysEarly == 0
+                  ? "✓ Terminó exactamente en fecha"
+                  : "✓ Terminó $daysEarly día${daysEarly != 1 ? 's' : ''} antes del plazo",
+              style: GoogleFonts.inter(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF059669)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFFECACA)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.alertTriangle, size: 13, color: Color(0xFFDC2626)),
+            const SizedBox(width: 6),
+            Text(
+              "⚠ Fuera de rango · $diff día${diff != 1 ? 's' : ''} de retraso",
+              style: GoogleFonts.inter(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFFDC2626)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   // ── FECHA REAL DE TÉRMINO (SELECCIONABLE) ─────────────────
   Widget _buildCompletionSection() {
     final isCompleted = _realCompletionDate != null;
@@ -571,26 +625,39 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
   }
 
   Widget _buildCompletedDesktop() {
-    return Row(children: [
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: const Color(0xFF059669).withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-        child: const Icon(LucideIcons.calendarCheck, size: 20, color: Color(0xFF059669)),
-      ),
-      const SizedBox(width: 16),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_dateFmt.format(_realCompletionDate!), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
-          const SizedBox(height: 4),
-          Text("Servicio finalizado", style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF065F46), fontWeight: FontWeight.w500)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: const Color(0xFF059669).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10)),
+            child: const Icon(LucideIcons.calendarCheck, size: 20, color: Color(0xFF059669)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_dateFmt.format(_realCompletionDate!),
+                  style: GoogleFonts.inter(
+                      fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
+              const SizedBox(height: 4),
+              Text("Servicio finalizado",
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: const Color(0xFF065F46), fontWeight: FontWeight.w500)),
+            ]),
+          ),
+          if (_startDate != null) _buildDaysBadge(),
+          if (widget.isEditable) ...[
+            const SizedBox(width: 10),
+            _buildDateActions(),
+          ],
         ]),
-      ),
-      if (_startDate != null) _buildDaysBadge(),
-      if (widget.isEditable) ...[
-        const SizedBox(width: 10),
-        _buildDateActions(),
+        const SizedBox(height: 10),
+        _buildRangeLabel(),  // ← NUEVA ETIQUETA
       ],
-    ]);
+    );
   }
 
   Widget _buildCompletedMobile() {
@@ -598,21 +665,29 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
       Row(children: [
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: const Color(0xFF059669).withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+              color: const Color(0xFF059669).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10)),
           child: const Icon(LucideIcons.calendarCheck, size: 20, color: Color(0xFF059669)),
         ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_dateFmt.format(_realCompletionDate!), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
+            Text(_dateFmt.format(_realCompletionDate!),
+                style: GoogleFonts.inter(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF059669))),
             const SizedBox(height: 2),
-            Text("Servicio finalizado", style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF065F46), fontWeight: FontWeight.w500)),
+            Text("Servicio finalizado",
+                style: GoogleFonts.inter(
+                    fontSize: 11, color: const Color(0xFF065F46), fontWeight: FontWeight.w500)),
           ]),
         ),
         if (_startDate != null) _buildDaysBadge(),
       ]),
+      const SizedBox(height: 10),
+      _buildRangeLabel(),  // ← NUEVA ETIQUETA
       if (widget.isEditable) ...[
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         _buildDateActions(),
       ],
     ]);

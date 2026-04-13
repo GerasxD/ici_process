@@ -1051,6 +1051,252 @@ class _ProcessModalState extends State<ProcessModal> {
       }
     }
 
+    // ── VALIDACIÓN E6: Fecha real de término requerida ─────────
+    if (widget.process!.stage == ProcessStage.E6) {
+      final rawDate = _currentLogisticsData?['realCompletionDate'];
+      final bool missingDate = rawDate == null || rawDate.toString().isEmpty;
+
+      if (missingDate) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 460,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── HEADER ──────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDC2626).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(LucideIcons.calendarX2,
+                              color: Color(0xFFDC2626), size: 26),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Fecha de Término Requerida",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                "Requerida para avanzar a Reporte y Facturación",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFFDC2626),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x,
+                              color: Color(0xFF94A3B8), size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── CONTENIDO ───────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                    child: Column(
+                      children: [
+                        // Tarjeta del proceso
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(LucideIcons.hardHat,
+                                    size: 16, color: Color(0xFFC2410C)),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      widget.process?.title ?? "Sin título",
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      widget.process?.client ?? "",
+                                      style: const TextStyle(
+                                          fontSize: 12, color: Color(0xFF64748B)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Advertencia principal
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(LucideIcons.alertTriangle,
+                                  size: 16, color: Color(0xFFDC2626)),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Para avanzar a la etapa de Reporte y Facturación debes registrar primero la fecha real en que terminó el servicio.",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF991B1B),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Nota informativa
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(LucideIcons.info,
+                                  size: 16, color: Color(0xFF0369A1)),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Registra la fecha en la sección \"Estatus de Ejecución\" tocando el botón \"Registrar fecha de término\".",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF0C4A6E),
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── FOOTER ──────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(LucideIcons.calendarPlus, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              "Entendido, Registrar Fecha de Término",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        return; // ← bloquea el avance
+      }
+    }
+
     // ── VALIDACIÓN E7: Archivos requeridos antes de Finalizar ──
     if (widget.process!.stage == ProcessStage.E7) {
       final photoFiles = (_currentReportBillingData?['photoReportFiles'] as List? ?? []);
@@ -3401,6 +3647,7 @@ class _ProcessModalState extends State<ProcessModal> {
       logisticsData: _currentLogisticsData,
       logisticsStatus: _resolveLogisticsStatus(),
       reportBillingData: _currentReportBillingData,
+      attachments: widget.process?.attachments ?? [],
     );
   }
 
@@ -4180,6 +4427,7 @@ class _ProcessModalState extends State<ProcessModal> {
                             quoteKey: _sectionKeys['quote'],
                             trackingKey: _sectionKeys['tracking'],
                             ocKey: _sectionKeys['oc'],
+                            processId: widget.process!.id,
                             onPriorityChanged: (val) =>
                                 setState(() => _priority = val!),
                             onRequesterChanged: (val) =>
@@ -4376,34 +4624,88 @@ class _ProcessModalState extends State<ProcessModal> {
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Text(
-                widget.process == null ? "NUEVO PROCESO" : "EDITAR PROCESO",
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+          // ── Título ──────────────────────────────────────
+          Text(
+            widget.process == null ? "NUEVO PROCESO" : "EDITAR PROCESO",
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+          ),
+
+          if (!canEditData) ...[
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(4),
               ),
-              if (!canEditData) ...[
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: const Row(
+                children: [
+                  Icon(LucideIcons.lock, size: 12, color: Colors.grey),
+                  SizedBox(width: 4),
+                  Text("Solo Lectura",
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Botón Eliminar / Descartar junto al título ──
+          if (widget.process != null) ...[
+            const SizedBox(width: 16),
+            Tooltip(
+              message: widget.process?.stage == ProcessStage.X
+                  ? "Eliminar Permanentemente"
+                  : "Descartar Proceso",
+              child: InkWell(
+                onTap: _handleDelete,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(4),
+                    color: widget.process?.stage == ProcessStage.X
+                        ? const Color(0xFFDC2626).withOpacity(0.08)
+                        : const Color(0xFF64748B).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: widget.process?.stage == ProcessStage.X
+                          ? const Color(0xFFDC2626).withOpacity(0.25)
+                          : const Color(0xFF64748B).withOpacity(0.2),
+                    ),
                   ),
-                  child: const Row(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.lock, size: 12, color: Colors.grey),
-                      SizedBox(width: 4),
-                      Text("Solo Lectura",
-                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Icon(
+                        LucideIcons.trash2,
+                        size: 15,
+                        color: widget.process?.stage == ProcessStage.X
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF64748B),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        widget.process?.stage == ProcessStage.X
+                            ? "Eliminar"
+                            : "Descartar",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: widget.process?.stage == ProcessStage.X
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ],
-          ),
+              ),
+            ),
+          ],
+
+          const Spacer(),
+
+          // ── Cerrar ───────────────────────────────────────
           IconButton(
             onPressed: () => Navigator.pop(context),
             icon: const Icon(LucideIcons.x),
@@ -4442,61 +4744,7 @@ class _ProcessModalState extends State<ProcessModal> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Fila 1: Acciones de etapa ──────────────────
-            if (widget.process != null && canMoveStage)
-              Row(
-                children: [
-                  if (canEditData || PermissionManager().can(widget.user, 'discard_process'))
-                    IconButton(
-                      onPressed: _handleDelete,
-                      icon: Icon(
-                        widget.process?.stage == ProcessStage.X
-                            ? LucideIcons.trash2
-                            : LucideIcons.xCircle,
-                        color: widget.process?.stage == ProcessStage.X
-                            ? Colors.red
-                            : const Color(0xFF64748B),
-                        size: 20,
-                      ),
-                      tooltip: widget.process?.stage == ProcessStage.X
-                          ? "Eliminar"
-                          : "Descartar",
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                    ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _handleRegressStage,
-                      icon: const Icon(LucideIcons.arrowLeftCircle, size: 16, color: Color(0xFFEA580C)),
-                      label: const Text("Regresar", style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.w600, fontSize: 13)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: const BorderSide(color: Color(0xFFFED7AA)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _handleAdvanceStage,
-                      icon: Icon(advanceIcon, size: 16, color: advanceColor),
-                      label: Text(advanceLabel, style: TextStyle(color: advanceColor, fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: advanceColor.withOpacity(0.3)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-            if (widget.process != null && canMoveStage)
-              const SizedBox(height: 10),
-
-            // ── Fila 2: Cerrar + Guardar ───────────────────
+            // ── Fila 1: Cerrar + Guardar ───────────────────
             Row(
               children: [
                 Expanded(
@@ -4509,7 +4757,10 @@ class _ProcessModalState extends State<ProcessModal> {
                         side: const BorderSide(color: Color(0xFFE2E8F0)),
                       ),
                     ),
-                    child: const Text("Cerrar", style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    child: const Text("Cerrar",
+                        style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600)),
                   ),
                 ),
                 if (canEditData) ...[
@@ -4519,24 +4770,73 @@ class _ProcessModalState extends State<ProcessModal> {
                     child: ElevatedButton.icon(
                       onPressed: _save,
                       icon: const Icon(LucideIcons.save, size: 16),
-                      label: const Text("Guardar", style: TextStyle(fontWeight: FontWeight.w700)),
+                      label: const Text("Guardar",
+                          style: TextStyle(fontWeight: FontWeight.w700)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0F172A),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
                 ],
               ],
             ),
+
+            // ── Fila 2: Acciones de etapa ──────────────────
+            if (widget.process != null && canMoveStage) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _handleRegressStage,
+                      icon: const Icon(LucideIcons.arrowLeftCircle, size: 16),
+                      label: const Text(
+                        "Regresar",
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEA580C),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _handleAdvanceStage,
+                      icon: Icon(advanceIcon, size: 16),
+                      label: Text(advanceLabel,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13),
+                          overflow: TextOverflow.ellipsis),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: advanceColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       );
     }
 
-    // ── DESKTOP (tu diseño original) ──────────────────────
+    // ── DESKTOP (diseño reorganizado) ──────────────────────
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: const BoxDecoration(
@@ -4545,38 +4845,7 @@ class _ProcessModalState extends State<ProcessModal> {
       ),
       child: Row(
         children: [
-          if (widget.process != null) ...[
-            if (canEditData)
-              IconButton(
-                onPressed: _handleDelete,
-                icon: Icon(
-                  widget.process?.stage == ProcessStage.X
-                      ? LucideIcons.trash2
-                      : LucideIcons.xCircle,
-                  color: widget.process?.stage == ProcessStage.X
-                      ? Colors.red
-                      : const Color(0xFF64748B),
-                ),
-                tooltip: widget.process?.stage == ProcessStage.X
-                    ? "Eliminar Permanentemente"
-                    : "Descartar Proceso",
-              ),
-            const SizedBox(width: 8),
-            if (canMoveStage) ...[
-              TextButton.icon(
-                onPressed: _handleRegressStage,
-                icon: const Icon(LucideIcons.arrowLeftCircle, size: 18, color: Color(0xFFEA580C)),
-                label: const Text("Regresar", style: TextStyle(color: Color(0xFFEA580C), fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: _handleAdvanceStage,
-                icon: Icon(advanceIcon, size: 18, color: advanceColor),
-                label: Text(advanceLabel, style: TextStyle(color: advanceColor, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ],
-          const Spacer(),
+          // ── IZQUIERDA: Cerrar + Guardar ──────────────────
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("Cerrar"),
@@ -4594,6 +4863,49 @@ class _ProcessModalState extends State<ProcessModal> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
+          ],
+
+          const Spacer(),
+
+          // ── DERECHA: Descartar / Regresar / Avanzar ──────
+          if (widget.process != null) ...[
+            if (canMoveStage) ...[
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _handleRegressStage,
+                icon: const Icon(LucideIcons.arrowLeftCircle, size: 16),
+                label: const Text(
+                  "Regresar",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEA580C),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Avanzar con diseño igual a "Guardar Cambios" pero verde
+              ElevatedButton.icon(
+                onPressed: _handleAdvanceStage,
+                icon: Icon(advanceIcon, size: 16),
+                label: Text(
+                  advanceLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: advanceColor,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+              ),
+            ],
           ],
         ],
       ),

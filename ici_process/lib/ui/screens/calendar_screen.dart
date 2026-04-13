@@ -6,10 +6,13 @@ import 'package:intl/intl.dart';
 import '../../models/user_model.dart';
 import '../../models/process_model.dart';
 import '../../models/event_model.dart';
+import '../../models/disabled_day_model.dart';
 import '../../services/process_service.dart';
 import '../../services/event_service.dart';
+import '../../services/disabled_day_service.dart';
 import '../../core/constants/app_constants.dart';
 import '../widgets/calendar/event_form_dialog.dart';
+import '../widgets/calendar/disable_day_dialog.dart';
 
 class CalendarScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -26,8 +29,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   final ProcessService _processService = ProcessService();
   final EventService _eventService = EventService();
+  final DisabledDayService _disabledDayService = DisabledDayService();
 
   static const double _cellMinHeight = 90.0;
+
+  // ── HELPERS DE ROL ────────────────────────────────────────
+  bool get _isAdminOrSuperAdmin {
+    final role = widget.currentUser.role.name.toLowerCase();
+    return role == 'admin' || role == 'superadmin';
+  }
 
   void _previousMonth() => setState(() {
         _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
@@ -83,6 +93,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return all.where((e) => e.coversDay(day)).toList();
   }
 
+  /// Busca si un día está deshabilitado en la lista
+  DisabledDay? _findDisabledDay(DateTime day, List<DisabledDay> allDisabled) {
+    final nd = DisabledDay.normalizeDate(day);
+    for (final dd in allDisabled) {
+      if (DisabledDay.normalizeDate(dd.date) == nd) return dd;
+    }
+    return null;
+  }
+
   Color _stageColor(ProcessStage stage) =>
       stageConfigs[stage]?.textColor ?? const Color(0xFF64748B);
 
@@ -122,6 +141,85 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  // ── INHABILITAR / HABILITAR DÍA ──────────────────────────
+  void _openDisableDayDialog(DateTime day, DisabledDay? existing) async {
+    if (!_isAdminOrSuperAdmin) return;
+
+    final result = await showDialog(
+      context: context,
+      builder: (_) => DisableDayDialog(
+        date: day,
+        existingDisabled: existing,
+      ),
+    );
+
+    if (result == null) return;
+
+    try {
+      if (result is String) {
+        // Inhabilitar → result es la razón
+        await _disabledDayService.disableDay(
+          date: day,
+          reason: result,
+          userId: widget.currentUser.id,
+          userName: widget.currentUser.name,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(LucideIcons.calendarOff,
+                      size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text("Día inhabilitado correctamente",
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                ],
+              ),
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+      } else if (result == true) {
+        // Habilitar
+        await _disabledDayService.enableDay(day);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(LucideIcons.calendarCheck,
+                      size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text("Día habilitado correctamente",
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                ],
+              ),
+              backgroundColor: const Color(0xFF10B981),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: $e"),
+            backgroundColor: Colors.red.shade800,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,9 +228,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
         onPressed: () => _openCreateEvent(),
         backgroundColor: const Color(0xFF2563EB),
         elevation: 2,
-        icon: const Icon(LucideIcons.calendarPlus, color: Colors.white, size: 20),
+        icon: const Icon(LucideIcons.calendarPlus,
+            color: Colors.white, size: 20),
         label: Text("Nuevo Evento",
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700)),
+            style: GoogleFonts.inter(
+                color: Colors.white, fontWeight: FontWeight.w700)),
       ),
       body: StreamBuilder<List<ProcessModel>>(
         stream: _processService.getProcessesStream(),
@@ -142,45 +242,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
             stream: _eventService.getEventsStream(),
             builder: (context, evSnap) {
               final allEvents = evSnap.data ?? [];
-              final calDays = _buildCalendarDays();
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildHeader(),
-                          const SizedBox(height: 28),
-                          _buildCalendarCard(calDays, allProcesses, allEvents),
-                        ],
-                      ),
-                    ),
-                  ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeInOut,
-                    width: _sidebarVisible ? 320 : 0,
-                    child: ClipRect(
-                      child: OverflowBox(
-                        maxWidth: 320,
-                        alignment: Alignment.topLeft,
-                        child: SizedBox(
-                          width: 320,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              border: Border(left: BorderSide(color: Color(0xFFE2E8F0))),
-                            ),
-                            child: _buildSidePanel(allProcesses, allEvents),
+              // ── NUEVO STREAM: días deshabilitados ──
+              return StreamBuilder<List<DisabledDay>>(
+                stream: _disabledDayService.getDisabledDaysStream(),
+                builder: (context, disSnap) {
+                  final allDisabled = disSnap.data ?? [];
+                  final calDays = _buildCalendarDays();
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildHeader(),
+                              const SizedBox(height: 28),
+                              _buildCalendarCard(
+                                  calDays, allProcesses, allEvents, allDisabled),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeInOut,
+                        width: _sidebarVisible ? 320 : 0,
+                        child: ClipRect(
+                          child: OverflowBox(
+                            maxWidth: 320,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(
+                              width: 320,
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border(
+                                      left: BorderSide(
+                                          color: Color(0xFFE2E8F0))),
+                                ),
+                                child: _buildSidePanel(
+                                    allProcesses, allEvents, allDisabled),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             },
           );
@@ -193,9 +304,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool isNarrow = constraints.maxWidth < 380;
-        
-        // 1. CAMBIAMOS DE ROW A WRAP
-        Widget actionButtons = Wrap( 
+
+        Widget actionButtons = Wrap(
           spacing: 8,
           runSpacing: 8,
           alignment: WrapAlignment.end,
@@ -210,13 +320,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             Tooltip(
               message: _sidebarVisible ? "Ocultar panel" : "Mostrar panel",
               child: InkWell(
-                onTap: () => setState(() => _sidebarVisible = !_sidebarVisible),
+                onTap: () =>
+                    setState(() => _sidebarVisible = !_sidebarVisible),
                 borderRadius: BorderRadius.circular(10),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _sidebarVisible ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    color: _sidebarVisible
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: _sidebarVisible
@@ -225,9 +338,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   ),
                   child: Icon(
-                    _sidebarVisible ? LucideIcons.panelRightClose : LucideIcons.panelRightOpen,
+                    _sidebarVisible
+                        ? LucideIcons.panelRightClose
+                        : LucideIcons.panelRightOpen,
                     size: 17,
-                    color: _sidebarVisible ? Colors.white : const Color(0xFF64748B),
+                    color: _sidebarVisible
+                        ? Colors.white
+                        : const Color(0xFF64748B),
                   ),
                 ),
               ),
@@ -254,7 +371,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           offset: const Offset(0, 4))
                     ],
                   ),
-                  child: const Icon(LucideIcons.calendarDays, color: Color(0xFF2563EB), size: 28),
+                  child: const Icon(LucideIcons.calendarDays,
+                      color: Color(0xFF2563EB), size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -272,7 +390,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Text("Visualiza la actividad del equipo por fecha.",
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF64748B))),
                     ],
                   ),
                 ),
@@ -295,8 +415,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildCalendarCard(List<DateTime?> days,
-      List<ProcessModel> allProcesses, List<CalendarEvent> allEvents) {
+  Widget _buildCalendarCard(
+    List<DateTime?> days,
+    List<ProcessModel> allProcesses,
+    List<CalendarEvent> allEvents,
+    List<DisabledDay> allDisabled,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -315,25 +439,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           _buildWeekdayRow(),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          _buildDaysGrid(days, allProcesses, allEvents),
+          _buildDaysGrid(days, allProcesses, allEvents, allDisabled),
         ],
       ),
     );
   }
 
- Widget _buildMonthNavigation() {
+  Widget _buildMonthNavigation() {
     final monthName = DateFormat('MMMM', 'es').format(_focusedMonth);
     final capitalized = monthName[0].toUpperCase() + monthName.substring(1);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Wrap( // 2. EL ROW PRINCIPAL AHORA ES UN WRAP
+      child: Wrap(
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         spacing: 8,
         runSpacing: 8,
         children: [
-          Container( // 3. ESTO REEMPLAZA AL EXPANDED
-            constraints: const BoxConstraints(maxWidth: 160), 
+          Container(
+            constraints: const BoxConstraints(maxWidth: 160),
             child: RichText(
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -355,7 +479,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ]),
             ),
           ),
-          Wrap( // 4. LAS FLECHAS SE ACOMODAN SOLAS SI NO HAY ESPACIO
+          Wrap(
             spacing: 8,
             children: [
               _buildNavArrow(LucideIcons.chevronLeft, _previousMonth),
@@ -393,7 +517,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           return Expanded(
             child: Center(
               child: Text(d,
-                  maxLines: 1, // <-- PROTEGE LA CELDA
+                  maxLines: 1,
                   overflow: TextOverflow.clip,
                   style: GoogleFonts.inter(
                       fontSize: 12,
@@ -409,8 +533,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildDaysGrid(List<DateTime?> days, List<ProcessModel> allProcesses,
-      List<CalendarEvent> allEvents) {
+  Widget _buildDaysGrid(
+    List<DateTime?> days,
+    List<ProcessModel> allProcesses,
+    List<CalendarEvent> allEvents,
+    List<DisabledDay> allDisabled,
+  ) {
     final int weeks = days.length ~/ 7;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
@@ -421,14 +549,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: List.generate(7, (dayIndex) {
                 final cellIndex = weekIndex * 7 + dayIndex;
-                final day = cellIndex < days.length ? days[cellIndex] : null;
+                final day =
+                    cellIndex < days.length ? days[cellIndex] : null;
                 final processes = day != null
                     ? _processesForDay(day, allProcesses)
                     : <ProcessModel>[];
-                final events =
-                    day != null ? _eventsForDay(day, allEvents) : <CalendarEvent>[];
+                final events = day != null
+                    ? _eventsForDay(day, allEvents)
+                    : <CalendarEvent>[];
+                final disabledDay =
+                    day != null ? _findDisabledDay(day, allDisabled) : null;
                 return Expanded(
-                  child: _buildDayCell(day, dayIndex, processes, events),
+                  child: _buildDayCell(
+                      day, dayIndex, processes, events, disabledDay),
                 );
               }),
             ),
@@ -438,39 +571,60 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-
-  Widget _buildDayCell(DateTime? day, int weekdayIndex,
-      List<ProcessModel> processes, List<CalendarEvent> events) {
+  // ══════════════════════════════════════════════════════════
+  // ██  CELDA DE DÍA — CON SOPORTE PARA DÍAS DESHABILITADOS
+  // ══════════════════════════════════════════════════════════
+  Widget _buildDayCell(
+    DateTime? day,
+    int weekdayIndex,
+    List<ProcessModel> processes,
+    List<CalendarEvent> events,
+    DisabledDay? disabledDay,
+  ) {
     final today = _isToday(day);
     final selected = _isSelected(day);
     final isWeekend = weekdayIndex >= 5;
     final isEmpty = day == null;
+    final isDisabled = disabledDay != null;
     final hasContent = processes.isNotEmpty || events.isNotEmpty;
     final totalCount = processes.length + events.length;
 
     Color cellBg() {
       if (isEmpty) return Colors.transparent;
+      if (isDisabled) return const Color(0xFFFEF2F2); // fondo rojo suave
       if (today) return const Color(0xFFEFF6FF);
-      if (selected) return const Color(0xFFF0F7FF); 
+      if (selected) return const Color(0xFFF0F7FF);
       if (isWeekend) return const Color(0xFFFAFAFC);
       return Colors.white;
     }
 
     Color borderColor() {
       if (isEmpty) return Colors.transparent;
+      if (isDisabled && selected) return const Color(0xFFDC2626);
+      if (isDisabled) return const Color(0xFFFECACA);
       if (selected) return const Color(0xFF2563EB);
       if (today) return const Color(0xFF93C5FD);
       return const Color(0xFFE2E8F0);
     }
 
-    double borderWidth() => selected ? 2.0 : (today ? 1.5 : 1.0);
+    double borderWidth() {
+      if (isDisabled && selected) return 2.0;
+      if (isDisabled) return 1.5;
+      return selected ? 2.0 : (today ? 1.5 : 1.0);
+    }
 
     return GestureDetector(
       onTap: day != null ? () => setState(() => _selectedDay = day) : null,
-      onDoubleTap: day != null ? () => _openCreateEvent(day) : null,
+      onDoubleTap: day != null && !isDisabled
+          ? () => _openCreateEvent(day)
+          : null,
+      // ── LONG PRESS: admin/superadmin puede inhabilitar/habilitar ──
+      onLongPress: day != null && _isAdminOrSuperAdmin
+          ? () => _openDisableDayDialog(day, disabledDay)
+          : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        clipBehavior: Clip.hardEdge, // <-- OCULTA LOS ERRORES FRACCIONARIOS (0.286px)
+        clipBehavior: Clip.hardEdge,
         constraints: const BoxConstraints(minHeight: _cellMinHeight),
         margin: const EdgeInsets.all(3),
         decoration: BoxDecoration(
@@ -482,104 +636,166 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
         child: isEmpty
             ? const SizedBox.shrink()
-            : Padding(
-                padding: const EdgeInsets.all(7),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+            : Stack(
+                children: [
+                  // ── CONTENIDO NORMAL ──
+                  Padding(
+                    padding: const EdgeInsets.all(7),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(
-                            color: today
-                                ? const Color(0xFF2563EB)
-                                : selected
-                                    ? const Color(0xFF2563EB).withOpacity(0.08)
-                                    : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                            border: selected && !today
-                                ? Border.all(
-                                    color: const Color(0xFF2563EB), width: 1.5)
-                                : null,
-                          ),
-                          child: Center(
-                            child: Text(
-                              "${day.day}",
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: today || selected
-                                    ? FontWeight.w800
-                                    : FontWeight.w500,
-                                color: today
-                                    ? Colors.white
-                                    : selected
-                                        ? const Color(0xFF2563EB)
-                                        : isWeekend
-                                            ? const Color(0xFFCBD5E1)
-                                            : const Color(0xFF334155),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (hasContent) ...[
-                          const SizedBox(width: 4),
-                          Flexible( // <-- PROTEGE EL BADGE SI LA CELDA SE VUELVE MUY ANGOSTA
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 2),
+                        Row(
+                          children: [
+                            Container(
+                              width: 26,
+                              height: 26,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
+                                color: isDisabled
+                                    ? const Color(0xFFDC2626).withOpacity(0.12)
+                                    : today
+                                        ? const Color(0xFF2563EB)
+                                        : selected
+                                            ? const Color(0xFF2563EB)
+                                                .withOpacity(0.08)
+                                            : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: selected && !today && !isDisabled
+                                    ? Border.all(
+                                        color: const Color(0xFF2563EB),
+                                        width: 1.5)
+                                    : isDisabled
+                                        ? Border.all(
+                                            color: const Color(0xFFDC2626)
+                                                .withOpacity(0.3),
+                                            width: 1)
+                                        : null,
                               ),
-                              child: Text(
-                                "$totalCount",
-                                maxLines: 1, // <-- PREVIENE ERRORES INTERNOS
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF2563EB),
+                              child: Center(
+                                child: Text(
+                                  "${day!.day}",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: today || selected || isDisabled
+                                        ? FontWeight.w800
+                                        : FontWeight.w500,
+                                    color: isDisabled
+                                        ? const Color(0xFFDC2626)
+                                        : today
+                                            ? Colors.white
+                                            : selected
+                                                ? const Color(0xFF2563EB)
+                                                : isWeekend
+                                                    ? const Color(0xFFCBD5E1)
+                                                    : const Color(0xFF334155),
+                                  ),
                                 ),
                               ),
                             ),
+                            if (hasContent && !isDisabled) ...[
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB)
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    "$totalCount",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+
+                        // ── SI ESTÁ DESHABILITADO: mostrar razón ──
+                        if (isDisabled) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(
+                                  color: const Color(0xFFDC2626)
+                                      .withOpacity(0.15)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(LucideIcons.ban,
+                                    size: 9, color: Color(0xFFDC2626)),
+                                const SizedBox(width: 3),
+                                Expanded(
+                                  child: Text(
+                                    disabledDay!.reason,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        ],
+
+                        // ── EVENTOS Y PROCESOS (solo si NO está deshabilitado) ──
+                        if (hasContent && !isDisabled) ...[
+                          const SizedBox(height: 5),
+                          ...events
+                              .take(2)
+                              .map((e) => _buildEventChip(e)),
+                          ...processes
+                              .take(3 - events.take(2).length)
+                              .map((p) => _buildProcessDot(p)),
+                          if (totalCount > 3)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                "+${totalCount - 3} más",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  color: const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
                         ],
                       ],
                     ),
+                  ),
 
-                    if (hasContent) ...[
-                      const SizedBox(height: 5),
-                      ...events.take(2).map((e) => _buildEventChip(e)),
-                      ...processes
-                          .take(3 - events.take(2).length)
-                          .map((p) => _buildProcessDot(p)),
-                      if (totalCount > 3)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            "+${totalCount - 3} más",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              color: const Color(0xFF94A3B8),
-                            ),
-                          ),
+                  // ── X ROJA SUPERPUESTA PARA DÍAS DESHABILITADOS ──
+                  if (isDisabled)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _DisabledXPainter(),
                         ),
-                    ],
-                  ],
-                ),
+                      ),
+                    ),
+                ],
               ),
       ),
     );
   }
 
-  // ── CHIP DE EVENTO ────────────────────────────────────────
-  // CAMBIO 2: padding mayor, texto más grande, borde izquierdo de color,
-  // fondo más opaco → más fácil de tocar y leer.
   Widget _buildEventChip(CalendarEvent e) {
     return GestureDetector(
       onTap: () => _openEventDetail(e),
@@ -613,8 +829,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  // ── DOT DE PROCESO ────────────────────────────────────────
-  // También ligeramente más grande para consistencia
   Widget _buildProcessDot(ProcessModel p) {
     final color = _stageColor(p.stage);
     return Container(
@@ -646,15 +860,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  // ── SIDE PANEL ────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  // ██  SIDE PANEL — CON SOPORTE PARA DÍAS DESHABILITADOS
+  // ══════════════════════════════════════════════════════════
   Widget _buildSidePanel(
-      List<ProcessModel> allProcesses, List<CalendarEvent> allEvents) {
+    List<ProcessModel> allProcesses,
+    List<CalendarEvent> allEvents,
+    List<DisabledDay> allDisabled,
+  ) {
     final selected = _selectedDay;
     final processes = selected != null
         ? _processesForDay(selected, allProcesses)
         : <ProcessModel>[];
-    final events =
-        selected != null ? _eventsForDay(selected, allEvents) : <CalendarEvent>[];
+    final events = selected != null
+        ? _eventsForDay(selected, allEvents)
+        : <CalendarEvent>[];
+    final disabledDay =
+        selected != null ? _findDisabledDay(selected, allDisabled) : null;
     final totalCount = processes.length + events.length;
 
     return Column(
@@ -673,7 +895,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   children: [
                     Text(
                       selected != null
-                          ? DateFormat("EEEE, d 'de' MMMM", 'es').format(selected)
+                          ? DateFormat("EEEE, d 'de' MMMM", 'es')
+                              .format(selected)
                           : "Selecciona un día",
                       style: GoogleFonts.inter(
                           fontSize: 14,
@@ -682,16 +905,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                     if (selected != null) ...[
                       const SizedBox(height: 3),
-                      Text(
-                        "$totalCount actividad${totalCount != 1 ? 'es' : ''}",
-                        style: GoogleFonts.inter(
-                            fontSize: 12, color: const Color(0xFF64748B)),
-                      ),
+                      if (disabledDay != null)
+                        Text(
+                          "Día inhabilitado",
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: const Color(0xFFDC2626),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else
+                        Text(
+                          "$totalCount actividad${totalCount != 1 ? 'es' : ''}",
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: const Color(0xFF64748B)),
+                        ),
                     ],
                   ],
                 ),
               ),
-              if (selected != null)
+              if (selected != null && disabledDay == null)
                 Tooltip(
                   message: "Agendar evento en este día",
                   child: InkWell(
@@ -708,6 +942,38 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   ),
                 ),
+              // ── BOTÓN INHABILITAR/HABILITAR (solo admin) ──
+              if (selected != null && _isAdminOrSuperAdmin) ...[
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: disabledDay != null
+                      ? "Habilitar este día"
+                      : "Inhabilitar este día",
+                  child: InkWell(
+                    onTap: () =>
+                        _openDisableDayDialog(selected, disabledDay),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: disabledDay != null
+                            ? const Color(0xFF10B981).withOpacity(0.1)
+                            : const Color(0xFFDC2626).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        disabledDay != null
+                            ? LucideIcons.calendarCheck
+                            : LucideIcons.calendarOff,
+                        size: 16,
+                        color: disabledDay != null
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(width: 4),
               Tooltip(
                 message: "Ocultar panel",
@@ -731,34 +997,210 @@ class _CalendarScreenState extends State<CalendarScreen> {
         Expanded(
           child: selected == null
               ? _buildEmptySideState()
-              : (processes.isEmpty && events.isEmpty)
-                  ? _buildNothingState(selected)
-                  : ListView(
-                      padding: const EdgeInsets.all(14),
-                      children: [
-                        if (events.isNotEmpty) ...[
-                          _buildSideSectionLabel("EVENTOS", LucideIcons.star),
-                          const SizedBox(height: 8),
-                          ...events.map((e) => Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: _buildEventCard(e),
-                              )),
-                          if (processes.isNotEmpty) const SizedBox(height: 8),
-                        ],
-                        if (processes.isNotEmpty) ...[
-                          _buildSideSectionLabel(
-                              "PROCESOS", LucideIcons.folderKanban),
-                          const SizedBox(height: 8),
-                          ...processes.map((p) => Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: _buildProcessCard(p),
-                              )),
-                        ],
-                      ],
-                    ),
+              : disabledDay != null
+                  ? _buildDisabledDaySideState(selected, disabledDay)
+                  : (processes.isEmpty && events.isEmpty)
+                      ? _buildNothingState(selected)
+                      : ListView(
+                          padding: const EdgeInsets.all(14),
+                          children: [
+                            if (events.isNotEmpty) ...[
+                              _buildSideSectionLabel(
+                                  "EVENTOS", LucideIcons.star),
+                              const SizedBox(height: 8),
+                              ...events.map((e) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 8),
+                                    child: _buildEventCard(e),
+                                  )),
+                              if (processes.isNotEmpty)
+                                const SizedBox(height: 8),
+                            ],
+                            if (processes.isNotEmpty) ...[
+                              _buildSideSectionLabel(
+                                  "PROCESOS", LucideIcons.folderKanban),
+                              const SizedBox(height: 8),
+                              ...processes.map((p) => Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 8),
+                                    child: _buildProcessCard(p),
+                                  )),
+                            ],
+                          ],
+                        ),
         ),
         _buildStageLegend(),
       ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ██  ESTADO DEL SIDE PANEL PARA DÍA DESHABILITADO
+  // ══════════════════════════════════════════════════════════
+  Widget _buildDisabledDaySideState(DateTime day, DisabledDay dd) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          // Icono grande
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFFECACA), width: 2),
+            ),
+            child: const Icon(LucideIcons.calendarOff,
+                size: 36, color: Color(0xFFDC2626)),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "Día inhabilitado",
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFFDC2626),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            DateFormat("d 'de' MMMM, yyyy", 'es').format(day),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Tarjeta de información
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFECACA)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFDC2626).withOpacity(0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoLabel("Motivo"),
+                const SizedBox(height: 4),
+                Text(
+                  dd.reason,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0F172A),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 14),
+                _buildInfoLabel("Inhabilitado por"),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(LucideIcons.userCog,
+                          size: 14, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        dd.disabledByName,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 14),
+                _buildInfoLabel("Fecha de registro"),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat("d MMM yyyy, HH:mm", 'es').format(dd.createdAt),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Botón para habilitar (solo admin)
+          if (_isAdminOrSuperAdmin) ...[
+            const SizedBox(height: 20),
+            InkWell(
+              onTap: () => _openDisableDayDialog(day, dd),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF10B981).withOpacity(0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(LucideIcons.calendarCheck,
+                        size: 16, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Habilitar este día",
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoLabel(String label) {
+    return Text(
+      label.toUpperCase(),
+      style: GoogleFonts.inter(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: const Color(0xFF94A3B8),
+        letterSpacing: 0.6,
+      ),
     );
   }
 
@@ -823,8 +1265,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 const Spacer(),
                 if (!_isSameDay(e.startDate, e.endDate))
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(4),
@@ -915,7 +1357,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(6),
@@ -923,7 +1366,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
             child: Text(_stageLabel(p.stage),
                 style: GoogleFonts.inter(
-                    fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: color)),
           ),
           const SizedBox(height: 6),
           Text(p.title,
@@ -1050,11 +1495,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.calendarSearch, size: 44, color: Colors.grey.shade200),
+          Icon(LucideIcons.calendarSearch,
+              size: 44, color: Colors.grey.shade200),
           const SizedBox(height: 12),
           Text("Toca un día",
               style: GoogleFonts.inter(
-                  fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8))),
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF94A3B8))),
           const SizedBox(height: 4),
           Text("para ver sus actividades",
               style: GoogleFonts.inter(
@@ -1073,7 +1520,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
           const SizedBox(height: 12),
           Text("Sin actividad",
               style: GoogleFonts.inter(
-                  fontWeight: FontWeight.bold, color: const Color(0xFF94A3B8))),
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF94A3B8))),
           const SizedBox(height: 4),
           Text("el ${DateFormat('d MMMM', 'es').format(day)}",
               style: GoogleFonts.inter(
@@ -1083,7 +1531,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
             onTap: () => _openCreateEvent(day),
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFF2563EB).withOpacity(0.08),
                 borderRadius: BorderRadius.circular(8),
@@ -1141,4 +1590,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
     );
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ██  CUSTOM PAINTER — X ROJA DIAGONAL SOBRE CELDAS BLOQUEADAS
+// ══════════════════════════════════════════════════════════════
+class _DisabledXPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFDC2626).withOpacity(0.12)
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Líneas diagonales (X) con margen
+    const m = 6.0;
+    canvas.drawLine(
+      Offset(m, m),
+      Offset(size.width - m, size.height - m),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - m, m),
+      Offset(m, size.height - m),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
