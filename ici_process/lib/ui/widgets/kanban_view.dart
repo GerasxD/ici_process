@@ -62,21 +62,18 @@ class _KanbanViewState extends State<KanbanView> {
           );
         }
 
-        // --- AQUÍ ESTÁ LA SOLUCIÓN NATIVA ---
         return ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(
-            // Le decimos a Flutter qué dispositivos pueden arrastrar la pantalla
             dragDevices: {
-              PointerDeviceKind.touch,    // Teléfonos / Tablets
-              PointerDeviceKind.mouse,    // Clic sostenido de ratón
-              PointerDeviceKind.trackpad, // Trackpad de Laptops
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
             },
           ),
           child: SingleChildScrollView(
             controller: _scrollController,
             scrollDirection: Axis.horizontal,
-            // BouncingScrollPhysics da un efecto de rebote suave y natural al llegar a los bordes
-            physics: const BouncingScrollPhysics(), 
+            physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.all(24),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,6 +194,13 @@ class _KanbanViewState extends State<KanbanView> {
                       'priority': process.priority,
                       'amount': process.amount,
                       'updatedAt': process.updatedAt.toIso8601String(),
+                      // ── Campos para seguimiento de etapas ──
+                      'stage': process.stage.toString().split('.').last,
+                      'attendedBy': _findUserForAction(process.history, 'a etapa E2'),
+                      'quotedBy': _findUserForAction(process.history, 'revisión (E2A)'),
+                      'authorizedBy': _findUserForAction(process.history, 'a etapa E3'),
+                      'ocReceivedBy': _findUserForAction(process.history, 'a etapa E4'),
+                      'handledBy': _findUserForAction(process.history, 'a etapa E5'),
                     },
                     canViewPrices: canViewFinancials,
                     onClick: () => showDialog(
@@ -212,5 +216,18 @@ class _KanbanViewState extends State<KanbanView> {
         ],
       ),
     );
+  }
+
+  /// Busca en el historial quién ejecutó una acción específica.
+  /// Retorna el nombre del usuario o cadena vacía si no se encuentra.
+  String _findUserForAction(List<HistoryEntry> history, String detailMatch) {
+    try {
+      final entry = history.lastWhere(
+        (h) => h.details != null && h.details!.contains(detailMatch),
+      );
+      return entry.userName;
+    } catch (_) {
+      return '';
+    }
   }
 }

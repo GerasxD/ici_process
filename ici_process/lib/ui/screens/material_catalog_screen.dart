@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/core/utils/permission_manager.dart';
+import 'package:ici_process/ui/widgets/material_assignments_view.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/user_model.dart';
@@ -36,6 +37,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   // Lista temporal para guardar los precios antes de subir a Firebase
   List<PriceEntry> _tempPrices = [];
   bool _isUploading = false;
+  String _currentView = 'catalogo'; // 'catalogo' o 'asignaciones'
 
   // Colores
   final Color _bgPage = const Color(0xFFF8FAFC);
@@ -190,7 +192,9 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
             children: [
               _buildHeader(),
               const SizedBox(height: 40),
-              
+              if (_currentView == 'asignaciones')
+                const MaterialAssignmentsView()
+              else
               StreamBuilder<List<MaterialItem>>(
                 stream: _materialsStream,
                 builder: (context, snapshot) {
@@ -267,10 +271,51 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
             ],
           ),
         ),
+        // ── TOGGLE ──
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildToggleButton('catalogo', 'Catálogo', LucideIcons.package),
+              _buildToggleButton('asignaciones', 'Asignaciones', LucideIcons.gitBranch),
+            ],
+          ),
+        ),
       ],
     );
   }
 
+  Widget _buildToggleButton(String value, String label, IconData icon) {
+    final isActive = _currentView == value;
+    return InkWell(
+      onTap: () => setState(() => _currentView = value),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? _primaryBlue : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: isActive ? Colors.white : _textSecondary),
+            const SizedBox(width: 8),
+            Text(label, style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              color: isActive ? Colors.white : _textSecondary,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildSearchAndFilters(Map<String, int> counts) {
     final filterOptions = ['Todos', 'Con Stock', 'Sin Stock', 'Apartado'];
@@ -572,7 +617,7 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
                 ),
             ],
           ),
-
+          
           // Precios por proveedor
           if (item.prices.isNotEmpty) ...[
             const SizedBox(height: 16),

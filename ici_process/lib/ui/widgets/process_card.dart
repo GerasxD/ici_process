@@ -80,13 +80,51 @@ class _ProcessCardState extends State<ProcessCard> {
     }
   }
 
+  List<String> get _stageLines {
+    final stage = (widget.item['stage'] ?? '').toString().toUpperCase();
+    final lines = <String>[];
+
+    switch (stage) {
+      case 'E2':
+        final user = widget.item['attendedBy'] ?? '';
+        if (user.toString().isNotEmpty) {
+          lines.add('Atendido por: $user');
+        }
+        break;
+      case 'E2A':
+        final att = widget.item['attendedBy'] ?? '';
+        final quot = widget.item['quotedBy'] ?? '';
+        if (att.toString().isNotEmpty) lines.add('Atendido por: $att');
+        if (quot.toString().isNotEmpty) lines.add('Cotizado por: $quot');
+        break;
+      case 'E3':
+        final att = widget.item['attendedBy'] ?? '';
+        final quot = widget.item['quotedBy'] ?? '';
+        final auth = widget.item['authorizedBy'] ?? '';
+        if (att.toString().isNotEmpty) lines.add('Atendido por: $att');
+        if (quot.toString().isNotEmpty) lines.add('Cotizado por: $quot');
+        if (auth.toString().isNotEmpty) lines.add('Autorizado por: $auth');
+        break;
+      case 'E4':
+        final oc = widget.item['ocReceivedBy'] ?? '';
+        if (oc.toString().isNotEmpty) lines.add('O.C Recibida por: $oc');
+        break;
+      case 'E5':
+        final handled = widget.item['handledBy'] ?? '';
+        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
+        break;
+    }
+
+    return lines;
+  }
+
   @override
   Widget build(BuildContext context) {
     final config = _priorityConfig;
     final String client = widget.item['client'] ?? 'Cliente no asignado';
-    // Soporta tanto 'branch' como 'sucursal' como nombre de campo
     final String? branch = widget.item['branch'] ?? widget.item['sucursal'];
     final bool hasBranch = branch != null && branch.trim().isNotEmpty;
+    final stageLines = _stageLines;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -118,7 +156,7 @@ class _ProcessCardState extends State<ProcessCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── HEADER con gradiente ─────────────────────
+              // ── HEADER ─────────────────────────────────
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 decoration: BoxDecoration(
@@ -204,7 +242,6 @@ class _ProcessCardState extends State<ProcessCard> {
                     // Título
                     Text(
                       widget.item['title'] ?? 'Sin título',
-                      // Sin maxLines ni overflow → muestra todo el título
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
@@ -230,7 +267,6 @@ class _ProcessCardState extends State<ProcessCard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Etiqueta de sección
                           Row(
                             children: const [
                               Icon(LucideIcons.building2,
@@ -247,10 +283,7 @@ class _ProcessCardState extends State<ProcessCard> {
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 6),
-
-                          // Nombre del cliente (completo, sin truncar)
                           Text(
                             client,
                             style: const TextStyle(
@@ -260,8 +293,6 @@ class _ProcessCardState extends State<ProcessCard> {
                               height: 1.35,
                             ),
                           ),
-
-                          // Sucursal (si existe)
                           if (hasBranch) ...[
                             const SizedBox(height: 6),
                             Container(
@@ -280,7 +311,6 @@ class _ProcessCardState extends State<ProcessCard> {
                                   Flexible(
                                     child: Text(
                                       branch,
-                                      // Sin overflow → muestra la sucursal completa
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -296,6 +326,25 @@ class _ProcessCardState extends State<ProcessCard> {
                         ],
                       ),
                     ),
+
+                    // ── Seguimiento de etapas ────────────────
+                    if (stageLines.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ...stageLines.map(
+                        (line) => Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            line,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 14),
 

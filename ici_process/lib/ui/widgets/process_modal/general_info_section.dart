@@ -28,6 +28,9 @@ class GeneralInfoSection extends StatefulWidget {
   final DateTime? ocReceptionDate;
   final Function(bool?) onNoOcChanged;
   final Function(DateTime) onOcDateChanged;
+
+  final DateTime? quoteSentDate;
+  final Function(DateTime) onQuoteSentDateChanged;
   
   // Callback para la campanita de notificación
   final VoidCallback onNotifyUsers; 
@@ -47,6 +50,9 @@ class GeneralInfoSection extends StatefulWidget {
   final VoidCallback onOpenQuote;
   final Widget? extraSection;
   final bool dimCards;
+  final GlobalKey? quoteKey;
+  final GlobalKey? trackingKey;
+  final GlobalKey? ocKey;
 
   const GeneralInfoSection({
     super.key,
@@ -65,6 +71,9 @@ class GeneralInfoSection extends StatefulWidget {
     required this.onOcDateChanged,
     required this.onNotifyUsers,
     // --------------------------
+
+    required this.quoteSentDate,
+    required this.onQuoteSentDateChanged,
     
     required this.selectedPriority,
     required this.selectedRequester,
@@ -77,6 +86,9 @@ class GeneralInfoSection extends StatefulWidget {
     required this.onOpenQuote,
     this.extraSection,
     this.dimCards = false,
+    this.quoteKey,
+    this.trackingKey,
+    this.ocKey,
   });
 
   @override
@@ -256,71 +268,74 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
         // --- SECCIÓN: COTIZACIÓN ---
         if (_showQuoteSection) ...[
-          _wrapCard('quote',
-            Column(
-              children: [
-                if (_showEditQuoteButton && canViewFinancials) ...[
-                  Container(
-                    width: double.infinity,
-                    alignment: Alignment.centerRight,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ElevatedButton.icon(
-                      onPressed: widget.onOpenQuote,
-                      icon: const Icon(LucideIcons.calculator, size: 18),
-                      label: Text(mobile ? "Cotizador" : "Abrir Cotizador Completo"),
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEAB308), foregroundColor: Colors.white, padding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Container(
+            key: widget.quoteKey,
+            child: _wrapCard('quote',
+              Column(
+                children: [
+                  if (_showEditQuoteButton && canViewFinancials) ...[
+                    Container(
+                      width: double.infinity,
+                      alignment: Alignment.centerRight,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ElevatedButton.icon(
+                        onPressed: widget.onOpenQuote,
+                        icon: const Icon(LucideIcons.calculator, size: 18),
+                        label: Text(mobile ? "Cotizador" : "Abrir Cotizador Completo"),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEAB308), foregroundColor: Colors.white, padding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 24, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ),
+                  ],
+                  _buildCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        mobile
+                            ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
+                                if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700), const SizedBox(width: 6), Flexible(child: Text("Por: ${widget.quotedBy!}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900), overflow: TextOverflow.ellipsis))])),
+                                ],
+                              ])
+                            : Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
+                                if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty)
+                                  Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)), child: Row(children: [Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700), const SizedBox(width: 8), Text("Cotización elaborada por: ", style: TextStyle(fontSize: 11, color: Colors.blue.shade800)), Text(widget.quotedBy!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900))])),
+                              ]),
+                        const SizedBox(height: 20),
+                        if (mobile) ...[
+                          const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 12),
+                          _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState(() {}), obscure: !canViewFinancials),
+                          const SizedBox(height: 10),
+                          _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials),
+                          const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 12),
+                          _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState(() {}), obscure: !canViewFinancials),
+                          const SizedBox(height: 10),
+                          _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials),
+                          const SizedBox(height: 20),
+                        ] else ...[
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+                              const SizedBox(height: 12),
+                              Row(children: [Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState(() {}), obscure: !canViewFinancials)), const SizedBox(width: 12), Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials))]),
+                            ])),
+                            const SizedBox(width: 32),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+                              const SizedBox(height: 12),
+                              Row(children: [Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState(() {}), obscure: !canViewFinancials)), const SizedBox(width: 12), Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials))]),
+                            ])),
+                          ]),
+                        ],
+                      ],
                     ),
                   ),
                 ],
-                _buildCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      mobile
-                          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
-                              if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700), const SizedBox(width: 6), Flexible(child: Text("Por: ${widget.quotedBy!}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900), overflow: TextOverflow.ellipsis))])),
-                              ],
-                            ])
-                          : Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              _buildSectionTitle("Resumen Financiero", LucideIcons.dollarSign),
-                              if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty)
-                                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)), child: Row(children: [Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700), const SizedBox(width: 8), Text("Cotización elaborada por: ", style: TextStyle(fontSize: 11, color: Colors.blue.shade800)), Text(widget.quotedBy!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900))])),
-                            ]),
-                      const SizedBox(height: 20),
-                      if (mobile) ...[
-                        const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
-                        const SizedBox(height: 12),
-                        _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState(() {}), obscure: !canViewFinancials),
-                        const SizedBox(height: 10),
-                        _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials),
-                        const SizedBox(height: 20),
-                        const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
-                        const SizedBox(height: 12),
-                        _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState(() {}), obscure: !canViewFinancials),
-                        const SizedBox(height: 10),
-                        _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials),
-                      ] else ...[
-                        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            const Text("Precio de Venta", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
-                            const SizedBox(height: 12),
-                            Row(children: [Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.amountController, onChanged: () => setState(() {}), obscure: !canViewFinancials)), const SizedBox(width: 12), Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", precioVentaTotalConIVA, obscure: !canViewFinancials))]),
-                          ])),
-                          const SizedBox(width: 32),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            const Text("Costo Estimado", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
-                            const SizedBox(height: 12),
-                            Row(children: [Expanded(child: _buildEditableMoneyInput("SUBTOTAL (SIN IVA)", widget.costController, isCost: true, onChanged: () => setState(() {}), obscure: !canViewFinancials)), const SizedBox(width: 12), Expanded(child: _buildReadOnlyDisplay("TOTAL (CON IVA)", costoTotalConIVA, isCost: true, obscure: !canViewFinancials))]),
-                          ])),
-                        ]),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -328,33 +343,65 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
         // --- SECCIÓN: ORDEN DE COMPRA ---
         if (_showOCSection) ...[
-          _wrapCard('oc',
-            _buildCard(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Expanded(child: _buildSectionTitle("Datos de Orden de Compra", LucideIcons.shoppingBag)),
-                  if (_showNotifyButton) IconButton(onPressed: widget.onNotifyUsers, icon: const Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)), tooltip: "Notificar usuarios sobre O.C.", style: IconButton.styleFrom(backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+          Container(
+            key: widget.ocKey,
+              child: _wrapCard('oc',
+              _buildCard(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Expanded(child: _buildSectionTitle("Datos de Orden de Compra", LucideIcons.shoppingBag)),
+                    if (_showNotifyButton) IconButton(onPressed: widget.onNotifyUsers, icon: const Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)), tooltip: "Notificar usuarios sobre O.C.", style: IconButton.styleFrom(backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+                  ]),
+                  const SizedBox(height: 20),
+                  if (mobile) ...[_buildOCNumberField(), const SizedBox(height: 16), _buildOCDateField()]
+                  else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: _buildOCNumberField()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildOCDateField())]),
                 ]),
-                const SizedBox(height: 20),
-                if (mobile) ...[_buildOCNumberField(), const SizedBox(height: 16), _buildOCDateField()]
-                else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: _buildOCNumberField()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildOCDateField())]),
-              ]),
+              ),
             ),
           ),
           const SizedBox(height: 16),
         ],
 
-        // --- CARD: Seguimiento ---
-        _wrapCard('tracking',
-          _buildCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _buildSectionTitle("Seguimiento", LucideIcons.clock),
-              const SizedBox(height: 20),
-              if (mobile)
-                Column(children: [_buildDatePicker(), const SizedBox(height: 16), _buildDaysCounter(), const SizedBox(height: 16), _buildPrioritySelector()])
-              else
-                Row(children: [Expanded(flex: 2, child: _buildDatePicker()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildDaysCounter()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildPrioritySelector())]),
-            ]),
+       // --- CARD: Seguimiento ---
+       Container(
+          key: widget.trackingKey,
+          child: _wrapCard('tracking',
+            _buildCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _buildSectionTitle("Seguimiento", LucideIcons.clock),
+                const SizedBox(height: 20),
+                if (mobile)
+                  Column(children: [
+                    _buildDatePicker(),
+                    const SizedBox(height: 16),
+                    _buildDaysCounter(),
+                    const SizedBox(height: 16),
+                    _buildPrioritySelector(),
+                    if (_showQuoteSentDate) ...[
+                      const SizedBox(height: 16),
+                      _buildQuoteSentDateField(),
+                    ],
+                  ])
+                else
+                  Column(children: [
+                    Row(children: [
+                      Expanded(flex: 2, child: _buildDatePicker()),
+                      const SizedBox(width: 16),
+                      Expanded(flex: 2, child: _buildDaysCounter()),
+                      const SizedBox(width: 16),
+                      Expanded(flex: 2, child: _buildPrioritySelector()),
+                    ]),
+                    if (_showQuoteSentDate) ...[
+                      const SizedBox(height: 16),
+                      Row(children: [
+                        Expanded(flex: 2, child: _buildQuoteSentDateField()),
+                        const SizedBox(width: 16),
+                        const Expanded(flex: 4, child: SizedBox()),
+                      ]),
+                    ],
+                  ]),
+              ]),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -458,37 +505,102 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
     );
   }
 
+  Widget _buildQuoteSentDateField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("FECHA COTIZACIÓN ENVIADA",
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B), letterSpacing: 0.8)),
+        const SizedBox(height: 10),
+        InkWell(
+          onTap: () async {
+            DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: widget.quoteSentDate ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+              builder: (context, child) => Theme(
+                data: ThemeData.light().copyWith(
+                  colorScheme: const ColorScheme.light(
+                      primary: Color(0xFF7C3AED))),
+                child: child!),
+            );
+            if (picked != null) widget.onQuoteSentDateChanged(picked);
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6)),
+                  child: Icon(LucideIcons.send,
+                        size: 16, color: const Color(0xFF7C3AED)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.quoteSentDate != null
+                        ? DateFormat('dd MMM, yyyy').format(widget.quoteSentDate!)
+                        : "Pendiente",
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E293B)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // --- WIDGETS AUXILIARES ---
   // ── Mapeo: qué card se activa en cada etapa ──────────────
   String? get _activeCardKey {
     switch (widget.currentStage) {
-      case ProcessStage.E1: return 'info'; // E1 activa tanto la info principal como el seguimiento, porque ahí se llena la información inicial y se hace el primer seguimiento
+      case ProcessStage.E1: return 'info';
       case ProcessStage.E2:
       case ProcessStage.E2A: return 'quote';
-      case ProcessStage.E3: return 'tracking';
+      case ProcessStage.E3: return 'tracking';  // ← CAMBIO
       case ProcessStage.E4: return 'oc';
-      default: return null; // E5+ se maneja en extraSection
+      default: return null;
     }
   }
 
   Map<String, String> get _stageLabels => {
     'info': 'ETAPA ACTUAL · E1 - Solicitud de Cotización',
     'quote': 'ETAPA ACTUAL · E2 - Cotizando',
-    'tracking': 'ETAPA ACTUAL · E1 - Solicitud de Cotización',
+    'tracking': widget.currentStage == ProcessStage.E3
+        ? 'ETAPA ACTUAL · E3 - Esperando O.C.'
+        : 'ETAPA ACTUAL · E1 - Solicitud de Cotización',
     'oc': 'ETAPA ACTUAL · E4 - O.C. Sin Atender',
   };
 
   Map<String, Color> get _stageColors => {
     'info': const Color(0xFF2563EB),
     'quote': const Color(0xFFEAB308),
-    'tracking': const Color(0xFF7C3AED),
+    'tracking': widget.currentStage == ProcessStage.E3
+        ? const Color(0xFF7C3AED)
+        : const Color(0xFF2563EB),
     'oc': const Color(0xFF7C3AED),
   };
 
   bool _shouldDim(String cardKey) {
     if (widget.currentStage == null) return false;
     if (widget.currentStage!.index >= ProcessStage.E5.index) return true;
-    if (widget.currentStage == ProcessStage.E1 && cardKey == 'tracking') {
+    if ((widget.currentStage == ProcessStage.E1 || widget.currentStage == ProcessStage.E3) 
+        && cardKey == 'tracking') {
       return false;
     }
     return _activeCardKey != null && _activeCardKey != cardKey;
@@ -497,10 +609,16 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
   bool _shouldHighlight(String cardKey) {
     if (widget.currentStage == null) return false;
     if (widget.currentStage!.index >= ProcessStage.E5.index) return false;
-    if (widget.currentStage == ProcessStage.E1 && cardKey == 'tracking') {
+    if ((widget.currentStage == ProcessStage.E1 || widget.currentStage == ProcessStage.E3) 
+        && cardKey == 'tracking') {
       return true;
     }
     return _activeCardKey == cardKey;
+  }
+
+  bool get _showQuoteSentDate {
+    if (widget.currentStage == null) return false;
+    return widget.currentStage!.index >= ProcessStage.E3.index;
   }
 
   Widget _wrapCard(String cardKey, Widget child) {

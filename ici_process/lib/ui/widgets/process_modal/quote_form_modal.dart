@@ -66,11 +66,11 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
 
   // Secciones expandidas
   final Map<String, bool> _expanded = {
-    'mat': true,
+    'mat': false,
     'spec': false,
-    'ind': true,
+    'ind': false,
     'veh': false,
-    'labor': true,
+    'labor': false,
   };
 
   // Controllers
@@ -484,46 +484,9 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                 overflow: TextOverflow.ellipsis),
           ]),
         ),
-        // Mini-chips de subtotales en desktop
-        if (!mobile) ...[
-          _miniChip('Mat', materialTotal,  _matColor),
-          _miniChip('Esp', specialtyTotal, _specColor),
-          _miniChip('Ind', indirectTotal,  _indColor),
-          _miniChip('Log', vehicleTotal,   _vehColor),
-          _miniChip('MOb', laborTotal + travelTotal, _laborColor),
-          const SizedBox(width: 8),
-        ],
         IconButton(
             onPressed: () => Navigator.pop(context),
             icon: Icon(LucideIcons.x, color: _labelColor, size: 20)),
-      ]),
-    );
-  }
-
-  Widget _miniChip(String label, double value, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.18)),
-      ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(label,
-            style: GoogleFonts.inter(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: color,
-                letterSpacing: 0.4)),
-        Text(
-          value == 0
-              ? '—'
-              : NumberFormat.compactCurrency(symbol: '\$', decimalDigits: 0)
-                  .format(value),
-          style: GoogleFonts.inter(
-              fontSize: 10, fontWeight: FontWeight.w800, color: color),
-        ),
       ]),
     );
   }

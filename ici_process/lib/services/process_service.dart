@@ -109,4 +109,12 @@ class ProcessService {
       return null;
     }
   }
+
+  // 7. Obtener todos los procesos (snapshot único, no stream)
+  Future<List<ProcessModel>> getProcessesOnce() async {
+    final snapshot = await _db.collection(_collection).get();
+    return snapshot.docs
+        .map((doc) => ProcessModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
 }

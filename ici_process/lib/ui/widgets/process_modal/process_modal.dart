@@ -57,14 +57,41 @@ class _ProcessModalState extends State<ProcessModal> {
   final _ocNumberController = TextEditingController();
   bool _isNoOc = false;
   DateTime? _ocReceptionDate;
+  DateTime? _quoteSentDate;
 
   List<String> _pendingMentionIds = [];
+
+  final ScrollController _modalScrollController = ScrollController();
+  final Map<String, GlobalKey> _sectionKeys = {
+    'info': GlobalKey(),
+    'quote': GlobalKey(),
+    'oc': GlobalKey(),
+    'tracking': GlobalKey(),
+    'logistics': GlobalKey(),
+    'execution': GlobalKey(),
+    'reportBilling': GlobalKey(),
+  };
 
   @override
   void initState() {
     super.initState();
     _initializeData();
     _checkPermissions();
+    _scrollToActiveSection(); 
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _clientController.dispose();
+    _descriptionController.dispose();
+    _commentController.dispose();
+    _regressionController.dispose();
+    _amountController.dispose();
+    _costController.dispose();
+    _ocNumberController.dispose();
+    _modalScrollController.dispose();
+    super.dispose();
   }
 
   void _initializeData() {
@@ -91,7 +118,11 @@ class _ProcessModalState extends State<ProcessModal> {
         } catch (_) {
           _ocReceptionDate = null;
         }
-      }
+      } 
+      final qsd = widget.process!.quotationData?['quoteSentDate'];
+      if (qsd != null && qsd.toString().isNotEmpty) {
+        try { _quoteSentDate = DateTime.parse(qsd); } catch (_) {}
+      }     
     }
   }
 
@@ -104,17 +135,52 @@ class _ProcessModalState extends State<ProcessModal> {
     canViewFinancials = pm.can(widget.user, 'view_financials');
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _clientController.dispose();
-    _descriptionController.dispose();
-    _commentController.dispose();
-    _regressionController.dispose();
-    _amountController.dispose();
-    _costController.dispose();
-    _ocNumberController.dispose();
-    super.dispose();
+  void _scrollToActiveSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Pequeño delay para que el layout termine de renderizar
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (!mounted) return;
+
+        String? targetKey;
+        switch (widget.process?.stage) {
+          case ProcessStage.E1:
+            targetKey = 'info';
+            break;
+          case ProcessStage.E2:
+          case ProcessStage.E2A:
+            targetKey = 'quote';
+            break;
+          case ProcessStage.E3:
+            targetKey = 'tracking';
+            break;
+          case ProcessStage.E4:
+            targetKey = 'oc';
+            break;
+          case ProcessStage.E5:
+            targetKey = 'logistics';
+            break;
+          case ProcessStage.E6:
+            targetKey = 'execution';
+            break;
+          case ProcessStage.E7:
+            targetKey = 'reportBilling';
+            break;
+          default:
+            targetKey = null;
+        }
+
+        if (targetKey == null) return;
+        final key = _sectionKeys[targetKey];
+        if (key?.currentContext == null) return;
+
+        Scrollable.ensureVisible(
+          key!.currentContext!,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOutCubic,
+          alignment: 0.05, // 5% desde arriba
+        );
+      });
+    });
   }
 
   // ── Helper: calcula logisticsStatus para el modelo ────────
@@ -3305,6 +3371,13 @@ class _ProcessModalState extends State<ProcessModal> {
     double finalAmount = double.tryParse(_amountController.text) ?? 0.0;
     double finalCost = double.tryParse(_costController.text) ?? 0.0;
 
+    Map<String, dynamic>? finalQuotationData = _currentQuotationData != null
+        ? Map<String, dynamic>.from(_currentQuotationData!)
+        : <String, dynamic>{};
+    if (_quoteSentDate != null) {
+      finalQuotationData['quoteSentDate'] = _quoteSentDate!.toIso8601String();
+    }
+
     return ProcessModel(
       id: widget.process?.id ??
           "PROC-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}",
@@ -3323,7 +3396,7 @@ class _ProcessModalState extends State<ProcessModal> {
       poNumber: _ocNumberController.text,
       skipClientPO: _isNoOc,
       poDate: _ocReceptionDate?.toIso8601String(),
-      quotationData: _currentQuotationData,
+      quotationData: finalQuotationData.isNotEmpty ? finalQuotationData : _currentQuotationData,
       // ── Incluir logisticsData y status calculado ──────────
       logisticsData: _currentLogisticsData,
       logisticsStatus: _resolveLogisticsStatus(),
@@ -4082,104 +4155,122 @@ class _ProcessModalState extends State<ProcessModal> {
             _buildModalHeader(),
             Expanded(
               child: SingleChildScrollView(
+                controller: _modalScrollController,
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
                     // ── Info general (bloqueada si no tiene permiso) ──
-                    AbsorbPointer(
-                      absorbing: !canEditData,
-                      child: Opacity(
-                        opacity: canEditData ? 1.0 : 0.7,
-                        child: GeneralInfoSection(
-                          currentUser: widget.user,
-                          titleController: _titleController,
-                          clientController: _clientController,
-                          descriptionController: _descriptionController,
-                          amountController: _amountController,
-                          costController: _costController,
-                          selectedPriority: _priority,
-                          selectedRequester: _requestedBy,
-                          requestDate: _requestDate,
-                          currentStage: widget.process?.stage,
-                          onPriorityChanged: (val) =>
-                              setState(() => _priority = val!),
-                          onRequesterChanged: (val) =>
-                              setState(() => _requestedBy = val),
-                          onDateChanged: (val) =>
-                              setState(() => _requestDate = val),
-                          quotedBy: _getQuoterName(),
-                          onOpenQuote: _openQuoteModal,
-                          onNotifyUsers: _handleNotifyUsers,
-                          ocNumberController: _ocNumberController,
-                          isNoOc: _isNoOc,
-                          ocReceptionDate: _ocReceptionDate,
-                          onNoOcChanged: (val) => setState(() {
-                            _isNoOc = val ?? false;
-                            if (_isNoOc) _ocNumberController.text = "S/N";
-                          }),
-                          onOcDateChanged: (val) =>
-                              setState(() => _ocReceptionDate = val),
-                          extraSection: showLogistics
-                          ? Column(
-                              children: [
-                                // ── Logística ──────────────────────────
-                                _buildStageHighlight(
-                                  isActive: widget.process!.stage == ProcessStage.E5,
-                                  activeLabel: "ETAPA ACTUAL · E5 - Logística y Compras",
-                                  activeColor: const Color(0xFFB45309),
-                                  child: LogisticsSection(
-                                    process: widget.process!,
-                                    isEditable: widget.process!.stage == ProcessStage.E5 ? canEditData : false,
-                                    initialData: _currentLogisticsData,
-                                    canViewFinancials: canViewFinancials,
-                                    currentUserName: widget.user.name,
-                                    currentUserRole: widget.user.role,
-                                    onDataChanged: (data) {
-                                      _currentLogisticsData = data;
-                                    },
-                                  ),
-                                ),
-
-                                // ── Estatus de Ejecución ───────────────
-                                if (widget.process!.stage.index >= ProcessStage.E6.index) ...[
-                                  const SizedBox(height: 16),
-                                  _buildStageHighlight(
-                                    isActive: widget.process!.stage == ProcessStage.E6,
-                                    activeLabel: "ETAPA ACTUAL · E6 -  Ejecución en Sitio",
-                                    activeColor: const Color(0xFFC2410C),
-                                    child: ExecutionStatusSection(
-                                      process: widget.process!,
-                                      logisticsData: _currentLogisticsData,
-                                      isEditable: widget.process!.stage == ProcessStage.E6 ? canEditData : false,
-                                      onCompletionDateChanged: (date) {
-                                        _currentLogisticsData ??= {};
-                                        _currentLogisticsData!['realCompletionDate'] = date?.toIso8601String();
-                                      },
+                    Container(
+                      key: _sectionKeys['info'],
+                      child: AbsorbPointer(
+                        absorbing: !canEditData,
+                          child: Opacity(
+                            opacity: canEditData ? 1.0 : 0.7,
+                            child: GeneralInfoSection(
+                            currentUser: widget.user,
+                            titleController: _titleController,
+                            clientController: _clientController,
+                            descriptionController: _descriptionController,
+                            amountController: _amountController,
+                            costController: _costController,
+                            selectedPriority: _priority,
+                            selectedRequester: _requestedBy,
+                            requestDate: _requestDate,
+                            currentStage: widget.process?.stage,
+                            quoteKey: _sectionKeys['quote'],
+                            trackingKey: _sectionKeys['tracking'],
+                            ocKey: _sectionKeys['oc'],
+                            onPriorityChanged: (val) =>
+                                setState(() => _priority = val!),
+                            onRequesterChanged: (val) =>
+                                setState(() => _requestedBy = val),
+                            onDateChanged: (val) =>
+                                setState(() => _requestDate = val),
+                            quotedBy: _getQuoterName(),
+                            onOpenQuote: _openQuoteModal,
+                            onNotifyUsers: _handleNotifyUsers,
+                            ocNumberController: _ocNumberController,
+                            isNoOc: _isNoOc,
+                            ocReceptionDate: _ocReceptionDate,
+                            quoteSentDate: _quoteSentDate,
+                            onQuoteSentDateChanged: (val) => setState(() => _quoteSentDate = val),
+                            onNoOcChanged: (val) => setState(() {
+                              _isNoOc = val ?? false;
+                              if (_isNoOc) _ocNumberController.text = "S/N";
+                            }),
+                            onOcDateChanged: (val) =>
+                                setState(() => _ocReceptionDate = val),
+                            extraSection: showLogistics
+                            ? Column(
+                                children: [
+                                  // ── Logística ──────────────────────────
+                                  Container(
+                                    key: _sectionKeys['logistics'],
+                                    child: _buildStageHighlight(
+                                      isActive: widget.process!.stage == ProcessStage.E5,
+                                      activeLabel: "ETAPA ACTUAL · E5 - Logística y Compras",
+                                      activeColor: const Color(0xFFB45309),
+                                      child: LogisticsSection(
+                                        process: widget.process!,
+                                        isEditable: widget.process!.stage == ProcessStage.E5 ? canEditData : false,
+                                        initialData: _currentLogisticsData,
+                                        canViewFinancials: canViewFinancials,
+                                        currentUserName: widget.user.name,
+                                        currentUserRole: widget.user.role,
+                                        onDataChanged: (data) {
+                                          _currentLogisticsData = data;
+                                        },
+                                      ),
                                     ),
                                   ),
-                                ],
 
-                                // ── Reporte y Facturación ──────────────
-                                if (showReportBilling) ...[
-                                  const SizedBox(height: 16),
-                                  _buildStageHighlight(
-                                    isActive: widget.process!.stage == ProcessStage.E7,
-                                    activeLabel: "ETAPA ACTUAL · E7 -Reporte y Facturación",
-                                    activeColor: const Color(0xFF16A34A),
-                                    child: ReportBillingSection(
-                                      process: widget.process!,
-                                      isEditable: widget.process!.stage == ProcessStage.E7 ? canEditData : false,
-                                      initialData: _currentReportBillingData,
-                                      currentUserName: widget.user.name,
-                                      onDataChanged: (data) {
-                                        _currentReportBillingData = data;
-                                      },
+                                  // ── Estatus de Ejecución ───────────────
+                                  if (widget.process!.stage.index >= ProcessStage.E6.index) ...[
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      key: _sectionKeys['execution'],
+                                      child: _buildStageHighlight(
+                                        isActive: widget.process!.stage == ProcessStage.E6,
+                                        activeLabel: "ETAPA ACTUAL · E6 - Ejecución en Sitio",
+                                        activeColor: const Color(0xFFC2410C),
+                                        child: ExecutionStatusSection(
+                                          process: widget.process!,
+                                          logisticsData: _currentLogisticsData,
+                                          isEditable: widget.process!.stage == ProcessStage.E6 ? canEditData : false,
+                                          onCompletionDateChanged: (date) {
+                                            _currentLogisticsData ??= {};
+                                            _currentLogisticsData!['realCompletionDate'] = date?.toIso8601String();
+                                          },
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                  ],
+
+                                  // ── Reporte y Facturación ──────────────
+                                  if (showReportBilling) ...[
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      key: _sectionKeys['reportBilling'],
+                                      child: _buildStageHighlight(
+                                        isActive: widget.process!.stage == ProcessStage.E7,
+                                        activeLabel: "ETAPA ACTUAL · E7 - Reporte y Facturación",
+                                        activeColor: const Color(0xFF16A34A),
+                                        child: ReportBillingSection(
+                                          process: widget.process!,
+                                          isEditable: widget.process!.stage == ProcessStage.E7 ? canEditData : false,
+                                          initialData: _currentReportBillingData,
+                                          currentUserName: widget.user.name,
+                                          onDataChanged: (data) {
+                                            _currentReportBillingData = data;
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            )
-                          : null,
+                              )
+                            : null,
+                          ),
                         ),
                       ),
                     ),
