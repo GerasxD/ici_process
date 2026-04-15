@@ -268,12 +268,36 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                     ]);
                   },
                 ),
+                if (widget.processId.isNotEmpty)
                 FileAttachmentsWidget(
                   processId: widget.processId,
                   section: 'info',
                   currentUser: widget.currentUser,
                   canView: canViewFilesInfo,
                   canUpload: canUploadFilesInfo,
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(top: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.save, color: Colors.amber.shade700, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "Guarda el proceso por primera vez para poder subir archivos adjuntos.",
+                          style: TextStyle(color: Colors.amber.shade900, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -319,12 +343,20 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                                 if (widget.quotedBy != null && widget.quotedBy!.isNotEmpty)
                                   Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade200)), child: Row(children: [Icon(LucideIcons.userPlus, size: 14, color: Colors.blue.shade700), const SizedBox(width: 8), Text("Cotización elaborada por: ", style: TextStyle(fontSize: 11, color: Colors.blue.shade800)), Text(widget.quotedBy!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade900))])),
                               ]),
+                              if (widget.processId.isNotEmpty)
                               FileAttachmentsWidget(
                                 processId: widget.processId,
                                 section: 'financial',
                                 currentUser: widget.currentUser,
                                 canView: canViewFilesFinance,
                                 canUpload: canUploadFilesFinance,
+                              )
+                            else
+                              Container(
+                                margin: const EdgeInsets.only(top: 16),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+                                child: Text("Guarda el proceso para habilitar los archivos financieros.", style: TextStyle(color: Colors.amber.shade800, fontSize: 12)),
                               ),
                         const SizedBox(height: 20),
                         if (mobile) ...[
@@ -378,12 +410,20 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
                   const SizedBox(height: 20),
                   if (mobile) ...[_buildOCNumberField(), const SizedBox(height: 16), _buildOCDateField()]
                   else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: _buildOCNumberField()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildOCDateField())]),
-                FileAttachmentsWidget(
+                if (widget.processId.isNotEmpty)
+                  FileAttachmentsWidget(
                     processId: widget.processId,
                     section: 'oc',
                     currentUser: widget.currentUser,
                     canView: canViewFilesOc,
                     canUpload: canUploadFilesOc,
+                  )
+                else
+                  Container(
+                    margin: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+                    child: Text("Guarda el proceso para habilitar los archivos de O.C.", style: TextStyle(color: Colors.amber.shade800, fontSize: 12)),
                   ),
                 ]),
               ),
@@ -614,7 +654,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
     'tracking': widget.currentStage == ProcessStage.E3
         ? 'ETAPA ACTUAL · E3 - Esperando O.C.'
         : 'ETAPA ACTUAL · E1 - Solicitud de Cotización',
-    'oc': 'ETAPA ACTUAL · E4 - O.C. Sin Atender',
+    'oc': 'ETAPA ACTUAL · E4 - O.C. y Validación de Materiales',
   };
 
   Map<String, Color> get _stageColors => {

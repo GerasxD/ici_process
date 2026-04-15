@@ -21,6 +21,7 @@ class ProcessModel {
   final DateTime updatedAt;
   final Map<String, dynamic>? quotationData;
   final Map<String, dynamic>? logisticsData;
+  final Map<String, dynamic>? materialValidationData;
   final Map<String, dynamic>? reportBillingData;
   final List<Map<String, dynamic>> attachments; 
 
@@ -44,6 +45,7 @@ class ProcessModel {
     required this.updatedAt,
     this.quotationData,
     this.logisticsData,
+    this.materialValidationData,
     this.reportBillingData,
     this.attachments = const [], 
   });
@@ -80,6 +82,9 @@ class ProcessModel {
       logisticsData: data['logisticsData'] != null
           ? Map<String, dynamic>.from(data['logisticsData'])
           : null,
+      materialValidationData: data['materialValidationData'] != null
+          ? Map<String, dynamic>.from(data['materialValidationData'])
+          : null,
       reportBillingData: data['reportBillingData'] != null
           ? Map<String, dynamic>.from(data['reportBillingData'])
           : null,
@@ -110,6 +115,7 @@ class ProcessModel {
       'updatedAt': Timestamp.fromDate(updatedAt),
       'quotationData': quotationData,
       'logisticsData': logisticsData,
+      'materialValidationData': materialValidationData,
       'reportBillingData': reportBillingData,
     };
   }

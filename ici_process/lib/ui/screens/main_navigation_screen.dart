@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/services/admin_service.dart';
 import 'package:ici_process/ui/screens/admin_panel_screen.dart';
 import 'package:ici_process/ui/screens/calendar_screen.dart';
@@ -14,9 +13,10 @@ import 'package:ici_process/ui/screens/service_catalog_screen.dart';
 import 'package:ici_process/ui/screens/tool_catalog_screen.dart';
 import 'package:ici_process/ui/screens/vehicle_management_screen.dart';
 import 'package:ici_process/ui/screens/worker_management_screen.dart';
+import 'package:ici_process/ui/widgets/calendar/event_form_dialog.dart';
+import 'package:ici_process/ui/widgets/notifications_modal.dart';
 import 'package:ici_process/ui/widgets/process_modal/process_modal.dart';
 import 'package:ici_process/ui/widgets/kanban_view.dart';
-import 'package:intl/intl.dart'; 
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/user_model.dart';
 // 1. IMPORTAMOS EL GESTOR DE PERMISOS
@@ -128,6 +128,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                           );
                         },
                         icon: const Icon(LucideIcons.plus, size: 16, color: Colors.white),
+                        label: const Text("Nuevo", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  if (_selectedIndex == 1)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: SizedBox(
+                      height: 36,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => EventFormDialog(
+                              currentUser: widget.user,
+                              initialDate: DateTime.now(), // Usa el día actual por defecto
+                            ),
+                          );
+                        },
+                        icon: const Icon(LucideIcons.calendarPlus, size: 16, color: Colors.white),
                         label: const Text("Nuevo", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2563EB),
@@ -335,6 +362,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
              if (PermissionManager().can(widget.user, 'create_process')) 
                 _buildQuickActionButton(),
           ],
+          if (_selectedIndex == 1) ...[
+             const SizedBox(width: 24),
+             _buildNewEventButton(),
+          ],
         ],
       ),
     );
@@ -344,54 +375,84 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   // MÉTODO ACTUALIZADO: BADGE DE NOTIFICACIONES REAL
   // ---------------------------------------------------------------------------
   Widget _buildNotificationBadge() {
-    // Escuchamos en tiempo real la colección 'notifications' para este usuario
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('notifications')
-          .where('targetUserId', isEqualTo: widget.user.id) // Solo las de este usuario
-          .where('read', isEqualTo: false) // Solo las no leídas
+          .where('targetUserId', isEqualTo: widget.user.id)
+          .where('read', isEqualTo: false)
           .snapshots(),
       builder: (context, snapshot) {
-        // Si no hay datos o hay error, mostramos la campana sin badge
-        if (!snapshot.hasData || snapshot.hasError) {
-          return IconButton(
-            icon: const Icon(LucideIcons.bell, color: Color(0xFF94A3B8)),
-            onPressed: () => _showNotificationsModal(),
-          );
-        }
-
-        final unreadCount = snapshot.data!.docs.length;
-
+        final unreadCount = snapshot.data?.docs.length ?? 0;
+  
         return Stack(
           alignment: Alignment.center,
           children: [
-            IconButton(
-              icon: const Icon(LucideIcons.bell, color: Color(0xFF94A3B8)),
-              onPressed: () => _showNotificationsModal(),
+            // Botón principal con fondo sutil cuando hay notificaciones
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              decoration: BoxDecoration(
+                color: unreadCount > 0
+                    ? const Color(0xFFFEF2F2)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  unreadCount > 0 ? LucideIcons.bellRing : LucideIcons.bell,
+                  color: unreadCount > 0
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFF94A3B8),
+                  size: 20,
+                ),
+                tooltip: unreadCount > 0
+                    ? "$unreadCount notificaciones sin leer"
+                    : "Notificaciones",
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) =>
+                        NotificationsModal(currentUser: widget.user),
+                  );
+                },
+              ),
             ),
-            // Solo mostramos el globito rojo si hay notificaciones sin leer
+  
+            // Badge contador
             if (unreadCount > 0)
               Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Text(
-                    unreadCount > 9 ? '9+' : '$unreadCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                right: 6,
+                top: 6,
+                child: IgnorePointer(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: unreadCount > 9 ? 4 : 3,
+                      vertical: 2,
                     ),
-                    textAlign: TextAlign.center,
+                    constraints:
+                        const BoxConstraints(minWidth: 17, minHeight: 17),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withOpacity(0.4),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
               ),
@@ -400,211 +461,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       },
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // MÉTODO ACTUALIZADO: CON MANEJO DE ERRORES
-  // ---------------------------------------------------------------------------
-  void _showNotificationsModal() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent, // Evita tintes raros de Material 3
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: SizedBox(
-          width: 420,
-          height: 550,
-          child: Column(
-            children: [
-              // --- HEADER DEL MODAL ---
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 16, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF), // Fondo azul clarito
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(LucideIcons.bellRing, color: Color(0xFF2563EB), size: 20),
-                        ),
-                        const SizedBox(width: 16),
-                        Text("Notificaciones", 
-                          style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A))
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      icon: const Icon(LucideIcons.x, color: Color(0xFF64748B), size: 22),
-                      tooltip: "Cerrar",
-                      onPressed: () => Navigator.pop(context),
-                      splashRadius: 20,
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: Color(0xFFE2E8F0)),
-
-              // --- CONTENIDO (LISTA O ESTADOS) ---
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('notifications')
-                      .where('targetUserId', isEqualTo: widget.user.id)
-                      .orderBy('createdAt', descending: true)
-                      .limit(20)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    // 1. ESTADO DE ERROR
-                    if (snapshot.hasError) {
-                      print("Error en notificaciones: ${snapshot.error}");
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(color: const Color(0xFFFEF2F2), shape: BoxShape.circle),
-                                child: const Icon(LucideIcons.alertTriangle, color: Color(0xFFEF4444), size: 32),
-                              ),
-                              const SizedBox(height: 16),
-                              Text("Error de conexión", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF0F172A))),
-                              const SizedBox(height: 8),
-                              Text("Revisa la consola para crear el índice en Firebase.", textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    // 2. ESTADO DE CARGA
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-                      );
-                    }
-                    
-                    // 3. ESTADO VACÍO (Cero notificaciones) - AHORA PERFECTAMENTE CENTRADO
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center( // <-- Este Center envuelve todo para alinear al medio de la pantalla
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: const BoxDecoration(color: Color(0xFFF8FAFC), shape: BoxShape.circle),
-                              child: const Icon(LucideIcons.bellOff, size: 40, color: Color(0xFFCBD5E1)),
-                            ),
-                            const SizedBox(height: 16),
-                            Text("Todo está al día", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
-                            const SizedBox(height: 8),
-                            Text("No tienes notificaciones nuevas por ahora.", textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8))),
-                          ],
-                        ),
-                      );
-                    }
-
-                    // 4. LISTA DE NOTIFICACIONES
-                    final docs = snapshot.data!.docs;
-
-                    return ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: docs.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                      itemBuilder: (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
-                        final docId = docs[index].id;
-                        final isRead = data['read'] ?? false;
-                        final title = data['title'] ?? 'Notificación';
-                        final body = data['body'] ?? '';
-                        final date = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-
-                        return Material(
-                          color: isRead ? Colors.transparent : const Color(0xFFF0F9FF), // Fondo azul muy claro si no está leída
-                          child: InkWell(
-                            onTap: () async {
-                              if (!isRead) {
-                                await FirebaseFirestore.instance
-                                    .collection('notifications')
-                                    .doc(docId)
-                                    .update({'read': true});
-                              }
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Icono circular
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: isRead ? const Color(0xFFF1F5F9) : const Color(0xFFDBEAFE),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      LucideIcons.info, 
-                                      size: 18, 
-                                      color: isRead ? const Color(0xFF94A3B8) : const Color(0xFF2563EB)
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  
-                                  // Textos de la notificación
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(title, 
-                                          style: GoogleFonts.inter(
-                                            fontWeight: isRead ? FontWeight.w500 : FontWeight.bold, 
-                                            fontSize: 14,
-                                            color: isRead ? const Color(0xFF334155) : const Color(0xFF0F172A),
-                                          )
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(body, 
-                                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), height: 1.4)
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(DateFormat('dd MMM, HH:mm').format(date), 
-                                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500)
-                                        ),
-                                      ],
-                                    )
-                                  ),
-                                  
-                                  // Puntito indicador de "No leída"
-                                  if (!isRead)
-                                    Container(
-                                      margin: const EdgeInsets.only(top: 6, left: 8),
-                                      width: 8, height: 8, 
-                                      decoration: const BoxDecoration(color: Color(0xFF2563EB), shape: BoxShape.circle)
-                                    )
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
+ 
   Widget _buildQuickActionButton() {
     return ElevatedButton.icon(
       onPressed: () {
@@ -615,6 +472,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       },
       icon: const Icon(LucideIcons.plus, size: 18, color: Colors.white),
       label: const Text("Nuevo Proceso", style: TextStyle(color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF2563EB),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Widget _buildNewEventButton() {
+    return ElevatedButton.icon(
+      onPressed: () {
+        showDialog(
+          context: context,
+          builder: (context) => EventFormDialog(
+            currentUser: widget.user,
+            initialDate: DateTime.now(),
+          ),
+        );
+      },
+      icon: const Icon(LucideIcons.calendarPlus, size: 18, color: Colors.white),
+      label: const Text("Nuevo Evento", style: TextStyle(color: Colors.white)),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF2563EB),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

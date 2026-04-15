@@ -171,7 +171,7 @@ class _KanbanViewState extends State<KanbanView> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
-                      color: config.color,
+                      color: const Color(0xFF1E293B),
                     ),
                   ),
                 ),

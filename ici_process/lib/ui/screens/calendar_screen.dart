@@ -224,16 +224,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCreateEvent(),
-        backgroundColor: const Color(0xFF2563EB),
-        elevation: 2,
-        icon: const Icon(LucideIcons.calendarPlus,
-            color: Colors.white, size: 20),
-        label: Text("Nuevo Evento",
-            style: GoogleFonts.inter(
-                color: Colors.white, fontWeight: FontWeight.w700)),
-      ),
       body: StreamBuilder<List<ProcessModel>>(
         stream: _processService.getProcessesStream(),
         builder: (context, procSnap) {
@@ -673,7 +663,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               ),
                               child: Center(
                                 child: Text(
-                                  "${day!.day}",
+                                  "${day.day}",
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: today || selected || isDisabled
@@ -692,25 +682,30 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 ),
                               ),
                             ),
+                            
+                            // AQUÍ ES DONDE AHORA ESTÁ EL TEXTO "X EVENTOS"
                             if (hasContent && !isDisabled) ...[
-                              const SizedBox(width: 4),
-                              Flexible(
+                              const SizedBox(width: 3), // Reduje un milímetro la separación
+                              Expanded( // Cambiamos Flexible por Expanded para usar todo el espacio libre
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 2),
+                                      horizontal: 3, vertical: 2), // Reduje el padding interior
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF2563EB)
                                         .withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text(
-                                    "$totalCount",
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF2563EB),
+                                  child: FittedBox( // ESTA ES LA MAGIA: Escala el texto en lugar de cortarlo
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      "$totalCount EVENTO${totalCount == 1 ? '' : 'S'}",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF2563EB),
+                                        letterSpacing: -0.3, // Junta ligerísimamente las letras
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -739,7 +734,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 const SizedBox(width: 3),
                                 Expanded(
                                   child: Text(
-                                    disabledDay!.reason,
+                                    disabledDay.reason,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.inter(
@@ -754,7 +749,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                         ],
 
-                        // ── EVENTOS Y PROCESOS (solo si NO está deshabilitado) ──
+                        // ── EVENTOS Y PROCESOS (RECUPERADOS: solo si NO está deshabilitado) ──
                         if (hasContent && !isDisabled) ...[
                           const SizedBox(height: 5),
                           ...events
@@ -1435,14 +1430,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ProcessStage.E6,
       ProcessStage.E8,
     ];
+
+    // Obtenemos el padding inferior del dispositivo para que no lo tape la barra de iOS/Android
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      // APLICAMOS EL CAMBIO AQUÍ: Más aire abajo para evitar el corte
+      padding: EdgeInsets.fromLTRB(14, 14, 14, bottomPadding > 0 ? bottomPadding + 8 : 24),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
         color: Color(0xFFF8FAFC),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min, // Evita que intente expandirse de más
         children: [
           Text("ETAPAS DE PROCESO",
               style: GoogleFonts.inter(
@@ -1450,16 +1451,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFF94A3B8),
                   letterSpacing: 0.8)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10), // Un poquito más de separación
           Wrap(
-            spacing: 5,
-            runSpacing: 5,
+            spacing: 6,
+            runSpacing: 8, // Más espacio entre líneas por si se envuelven
             children: stages.map((s) {
               final color = _stageColor(s);
               final cfg = stageConfigs[s]!;
               return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                // Un poco más de padding vertical interno al "chip"
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: cfg.color,
                   borderRadius: BorderRadius.circular(6),
@@ -1469,17 +1470,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 5,
-                      height: 5,
+                      width: 6,
+                      height: 6,
                       decoration:
                           BoxDecoration(color: color, shape: BoxShape.circle),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Text(s.name,
                         style: GoogleFonts.inter(
-                            fontSize: 9,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: color)),
+                            color: color,
+                            height: 1.1, // Forzamos la altura de línea para que no corte
+                        )),
                   ],
                 ),
               );

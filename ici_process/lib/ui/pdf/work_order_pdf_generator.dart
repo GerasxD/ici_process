@@ -213,9 +213,11 @@ class WorkOrderPdfGenerator {
             child: pw.Column(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                pw.Text('ORDEN DE TRABAJO',
+                // 👇 AQUÍ SE IMPRIME AUTOMÁTICAMENTE EL ID (Ej: OT-PR-06) 👇
+                pw.Text('ORDEN DE TRABAJO $folio',
                     style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: _black),
-                    textAlign: pw.TextAlign.center),
+                    textAlign: pw.TextAlign.center,
+                    maxLines: 1), 
                 pw.SizedBox(height: 3),
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),

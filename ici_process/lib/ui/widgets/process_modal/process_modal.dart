@@ -4,6 +4,7 @@ import 'package:ici_process/services/tool_service.dart';
 import 'package:ici_process/services/user_service.dart';
 import 'package:ici_process/ui/widgets/process_modal/execution_status_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/logistics_section.dart';
+import 'package:ici_process/ui/widgets/process_modal/material_validation_section.dart';
 import 'package:ici_process/ui/widgets/process_modal/mention_text_field.dart';
 import 'package:ici_process/ui/widgets/process_modal/quote_form_modal.dart';
 import 'package:ici_process/ui/widgets/process_modal/report_billing_section.dart';
@@ -41,6 +42,7 @@ class _ProcessModalState extends State<ProcessModal> {
   // ── NUEVO: datos de logística ─────────────────────────────
   Map<String, dynamic>? _currentLogisticsData;
   Map<String, dynamic>? _currentReportBillingData;
+  Map<String, dynamic>? _currentMaterialValidationData;
 
   String _priority = 'Media';
   String? _requestedBy;
@@ -67,6 +69,7 @@ class _ProcessModalState extends State<ProcessModal> {
     'quote': GlobalKey(),
     'oc': GlobalKey(),
     'tracking': GlobalKey(),
+    'materialValidation': GlobalKey(),
     'logistics': GlobalKey(),
     'execution': GlobalKey(),
     'reportBilling': GlobalKey(),
@@ -110,6 +113,7 @@ class _ProcessModalState extends State<ProcessModal> {
       _isNoOc = widget.process!.skipClientPO;
       // ── Cargar datos de logística ─────────────────────────
       _currentLogisticsData = widget.process!.logisticsData;
+      _currentMaterialValidationData = widget.process!.materialValidationData;
       _currentReportBillingData = widget.process!.reportBillingData;
 
       if (widget.process!.poDate != null && widget.process!.poDate!.isNotEmpty) {
@@ -154,7 +158,7 @@ class _ProcessModalState extends State<ProcessModal> {
             targetKey = 'tracking';
             break;
           case ProcessStage.E4:
-            targetKey = 'oc';
+            targetKey = 'materialValidation';
             break;
           case ProcessStage.E5:
             targetKey = 'logistics';
@@ -1048,6 +1052,196 @@ class _ProcessModalState extends State<ProcessModal> {
         ),
       );
         return; // Esto detiene el flujo y evita que pase a E5
+      }
+    }
+
+    // ── VALIDACIÓN E4: Materiales deben estar validados ─────────
+    if (widget.process!.stage == ProcessStage.E4) {
+      final validationData = _currentMaterialValidationData;
+      final bool isValidated = validationData?['isValidated'] ?? false;
+
+      if (!isValidated) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: Container(
+              width: 460,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7C3AED).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(LucideIcons.clipboardX,
+                              color: Color(0xFF7C3AED), size: 26),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Validación de Materiales Pendiente",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                "Requerida para avanzar a Logística",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF7C3AED),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(LucideIcons.x,
+                              color: Color(0xFF94A3B8), size: 20),
+                          splashRadius: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFDDD6FE)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(LucideIcons.alertTriangle,
+                                  size: 16, color: Color(0xFF7C3AED)),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Para avanzar a la etapa de Logística debes primero completar la validación de los materiales cotizados.",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF5B21B6),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(LucideIcons.info,
+                                  size: 16, color: Color(0xFF0369A1)),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Revisa, ajusta cantidades y presiona \"Validar Materiales\" en la sección de Validación de Materiales.",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF0C4A6E),
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF7C3AED),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(LucideIcons.clipboardCheck, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              "Entendido, Completar Validación",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        return; // ← Bloquea el avance
       }
     }
 
@@ -3432,7 +3626,7 @@ class _ProcessModalState extends State<ProcessModal> {
         final docRef = collRef.doc();
         batch.set(docRef, {
           'targetUserId': targetId,
-          'title': '💬 Te mencionaron en un comentario',
+          'title': 'Te mencionaron en un comentario',
           'body':
               '${widget.user.name} te mencionó en: ${_titleController.text}',
           'read': false,
@@ -3645,6 +3839,7 @@ class _ProcessModalState extends State<ProcessModal> {
       quotationData: finalQuotationData.isNotEmpty ? finalQuotationData : _currentQuotationData,
       // ── Incluir logisticsData y status calculado ──────────
       logisticsData: _currentLogisticsData,
+      materialValidationData: _currentMaterialValidationData,
       logisticsStatus: _resolveLogisticsStatus(),
       reportBillingData: _currentReportBillingData,
       attachments: widget.process?.attachments ?? [],
@@ -4182,7 +4377,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                       final docRef = collRef.doc();
                                       batch.set(docRef, {
                                         'targetUserId': targetId,
-                                        'title': '📌 O.C. Recibida',
+                                        'title': 'O.C. Recibida',
                                         'body':
                                             'Proyecto: ${_titleController.text}',
                                         'read': false,
@@ -4376,6 +4571,16 @@ class _ProcessModalState extends State<ProcessModal> {
   // ── BUILD ─────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+
+    final bool showMaterialValidation = widget.process != null && [
+      ProcessStage.E4,
+      ProcessStage.E5,
+      ProcessStage.E6,
+      ProcessStage.E7,
+      ProcessStage.E8,
+      ProcessStage.X,
+    ].contains(widget.process!.stage);
+
    final bool showLogistics = widget.process != null && [
       ProcessStage.E5,
       ProcessStage.E6,
@@ -4427,7 +4632,7 @@ class _ProcessModalState extends State<ProcessModal> {
                             quoteKey: _sectionKeys['quote'],
                             trackingKey: _sectionKeys['tracking'],
                             ocKey: _sectionKeys['oc'],
-                            processId: widget.process!.id,
+                            processId: widget.process?.id ?? '',
                             onPriorityChanged: (val) =>
                                 setState(() => _priority = val!),
                             onRequesterChanged: (val) =>
@@ -4448,10 +4653,33 @@ class _ProcessModalState extends State<ProcessModal> {
                             }),
                             onOcDateChanged: (val) =>
                                 setState(() => _ocReceptionDate = val),
-                            extraSection: showLogistics
-                            ? Column(
-                                children: [
-                                  // ── Logística ──────────────────────────
+                            extraSection: (showMaterialValidation || showLogistics)
+                          ? Column(
+                              children: [
+                                // ── Validación de Materiales (E4+) ──
+                                if (showMaterialValidation) ...[
+                                  Container(
+                                    key: _sectionKeys['materialValidation'],
+                                    child: _buildStageHighlight(
+                                      isActive: widget.process!.stage == ProcessStage.E4,
+                                      activeLabel: "ETAPA ACTUAL · E4 - Validación de Materiales",
+                                      activeColor: const Color(0xFF7C3AED),
+                                      child: MaterialValidationSection(
+                                        process: widget.process!,
+                                        isEditable: widget.process!.stage == ProcessStage.E4 ? canEditData : false,
+                                        initialData: _currentMaterialValidationData,
+                                        currentUserName: widget.user.name,
+                                        onDataChanged: (data) {
+                                          _currentMaterialValidationData = data;
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+
+                                // ── Logística (E5+) ─────────────────
+                                if (showLogistics) ...[
                                   Container(
                                     key: _sectionKeys['logistics'],
                                     child: _buildStageHighlight(
@@ -4472,7 +4700,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                     ),
                                   ),
 
-                                  // ── Estatus de Ejecución ───────────────
+                                  // ── Estatus de Ejecución (E6+) ────
                                   if (widget.process!.stage.index >= ProcessStage.E6.index) ...[
                                     const SizedBox(height: 16),
                                     Container(
@@ -4494,7 +4722,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                     ),
                                   ],
 
-                                  // ── Reporte y Facturación ──────────────
+                                  // ── Reporte y Facturación (E7+) ───
                                   if (showReportBilling) ...[
                                     const SizedBox(height: 16),
                                     Container(
@@ -4516,8 +4744,9 @@ class _ProcessModalState extends State<ProcessModal> {
                                     ),
                                   ],
                                 ],
-                              )
-                            : null,
+                              ],
+                            )
+                          : null,
                           ),
                         ),
                       ),

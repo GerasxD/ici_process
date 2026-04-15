@@ -34,6 +34,7 @@
     double reservedStockQty;
     double deductedStockQty;
     bool isPendingReservation;
+    bool ignoreStock; // ★ NUEVO: El usuario decidió no usar stock y comprar todo
   
     LogisticsItem({
       required this.materialId,
@@ -53,17 +54,18 @@
       this.reservedStockQty = 0,
       this.deductedStockQty = 0,
       this.isPendingReservation = false,
+      this.ignoreStock = false,
     });
   
     // ★ CORRECCIÓN: Cantidad efectiva de stock que se usará para este proceso
     // Si está reservado, usar la cantidad reservada (puede ser menor que stockQty original)
-    // Si NO está reservado, usar el mínimo entre lo disponible y lo requerido
     double get effectiveStockUsed {
+      // ★ Si el usuario eligió ignorar stock, no se usa nada del almacén
+      if (ignoreStock) return 0.0;
+      
       if (isStockReserved) {
-        // Ya está apartado: usar exactamente lo que se apartó
         return reservedStockQty.clamp(0.0, requiredQty);
       } else {
-        // No apartado: mostrar cuánto PODRÍA usarse del stock disponible
         return stockQty.clamp(0.0, requiredQty);
       }
     }
@@ -114,6 +116,7 @@
           'reservedStockQty': reservedStockQty,
           'deductedStockQty': deductedStockQty,
           'isPendingReservation': isPendingReservation,
+          'ignoreStock': ignoreStock,
         };
   
     factory LogisticsItem.fromMap(Map<String, dynamic> map) => LogisticsItem(
@@ -138,6 +141,7 @@
           reservedStockQty: (map['reservedStockQty'] ?? 0).toDouble(),
           deductedStockQty: (map['deductedStockQty'] ?? 0).toDouble(),
           isPendingReservation: map['isPendingReservation'] ?? false,
+          ignoreStock: map['ignoreStock'] ?? false,
         );
   }
 
@@ -275,6 +279,9 @@
             } catch (_) {}
           }
     
+          // ★ SINCRONIZAR: Si hay validación confirmada, actualizar requiredQty
+          _syncWithValidation(loadedItems);
+
           if (mounted) setState(() { _items = loadedItems; _isLoading = false; });
         } else {
           _initFromQuotation();
@@ -301,6 +308,14 @@
     }
 
     void _initFromQuotation() {
+      // ★ PRIORIDAD: Si hay datos de validación confirmados, usar esos
+      final validationData = widget.process.materialValidationData;
+      if (validationData != null && validationData['isValidated'] == true) {
+        _initFromValidation(validationData);
+        return;
+      }
+
+      // Fallback: usar la cotización directamente
       if (widget.process.quotationData == null) return;
       final quotation = QuotationModel.fromMap(widget.process.quotationData!);
       final List<LogisticsItem> items = [];
@@ -320,12 +335,10 @@
           materialName: qItem.name,
           unit: dbMat?.unit ?? '',
           requiredQty: qItem.quantity,
-          // ★ Usar availableStock que ya descuenta reservas de OTROS procesos
           stockQty: dbMat?.availableStock ?? 0,
           quotedUnitPrice: qItem.unitPrice,
           actualUnitPrice: qItem.unitPrice,
           stockUnitPrice: _resolveStockPrice(dbMat, qItem.unitPrice),
-          // ★ Importante: al crear desde cotización, NO está reservado aún
           isStockReserved: false,
           reservedStockQty: 0,
         );
@@ -339,6 +352,181 @@
         items.add(logItem);
       }
       _items = items;
+    }
+
+    /// ★ NUEVO: Inicializar desde los datos de validación de E4
+    void _initFromValidation(Map<String, dynamic> validationData) {
+      final rawItems = (validationData['items'] as List? ?? []);
+      final List<LogisticsItem> items = [];
+
+      for (final raw in rawItems) {
+        final map = Map<String, dynamic>.from(raw);
+        
+        // Saltar materiales que fueron eliminados en la validación
+        if (map['isRemoved'] == true) continue;
+
+        final materialName = map['materialName'] ?? '';
+        final materialId = map['materialId'] ?? '';
+        final validatedQty = (map['validatedQty'] ?? 0).toDouble();
+        final unitPrice = (map['unitPrice'] ?? 0).toDouble();
+        final unit = map['unit'] ?? '';
+        final providerName = map['providerName'] ?? '';
+
+        if (materialName.isEmpty || validatedQty <= 0) continue;
+
+        MaterialItem? dbMat;
+        try {
+          dbMat = _materialsDB.firstWhere(
+            (m) => m.id == materialId || 
+                   m.name.toLowerCase() == materialName.toLowerCase(),
+          );
+        } catch (_) {}
+
+        final logItem = LogisticsItem(
+          materialId: dbMat?.id ?? materialId,
+          materialName: materialName,
+          unit: dbMat?.unit ?? unit,
+          // ★ Usar la cantidad VALIDADA, no la cotizada original
+          requiredQty: validatedQty,
+          stockQty: dbMat?.availableStock ?? 0,
+          quotedUnitPrice: unitPrice,
+          actualUnitPrice: unitPrice,
+          stockUnitPrice: _resolveStockPrice(dbMat, unitPrice),
+          isStockReserved: false,
+          reservedStockQty: 0,
+        );
+
+        // Auto-seleccionar proveedor si solo hay uno
+        if (dbMat != null && dbMat.prices.length == 1) {
+          logItem.selectedProviderId = dbMat.prices.first.providerId;
+          logItem.selectedProviderName = dbMat.prices.first.providerName;
+          logItem.actualUnitPrice = dbMat.prices.first.price;
+        } 
+        // O si el proveedor viene de la validación, intentar encontrarlo
+        else if (providerName.isNotEmpty && dbMat != null) {
+          try {
+            final matchingPrice = dbMat.prices.firstWhere(
+              (p) => p.providerName == providerName,
+            );
+            logItem.selectedProviderId = matchingPrice.providerId;
+            logItem.selectedProviderName = matchingPrice.providerName;
+            logItem.actualUnitPrice = matchingPrice.price;
+          } catch (_) {}
+        }
+
+        items.add(logItem);
+      }
+      _items = items;
+    }
+
+
+    /// ★ SINCRONIZAR items de logística ya guardados con la validación de E4
+    /// Esto resuelve el caso donde:
+    /// 1. Se guardó logística con 10 cables (de cotización)
+    /// 2. En E4 se validaron 15 cables
+    /// 3. Al volver a E5, los 15 deben reflejarse como requiredQty
+    void _syncWithValidation(List<LogisticsItem> loadedItems) {
+      final validationData = widget.process.materialValidationData;
+      if (validationData == null || validationData['isValidated'] != true) return;
+
+      final rawValidatedItems = (validationData['items'] as List? ?? []);
+      if (rawValidatedItems.isEmpty) return;
+
+      // Construir mapa de materialId/nombre → cantidad validada
+      final Map<String, double> validatedQtyMap = {};
+      final Map<String, bool> validatedRemovedMap = {};
+      final List<Map<String, dynamic>> newItemsFromValidation = [];
+
+      for (final raw in rawValidatedItems) {
+        final map = Map<String, dynamic>.from(raw);
+        final id = map['materialId'] ?? '';
+        final name = (map['materialName'] ?? '').toString().toLowerCase();
+        final qty = (map['validatedQty'] ?? 0).toDouble();
+        final isRemoved = map['isRemoved'] ?? false;
+
+        if (id.isNotEmpty) validatedQtyMap[id] = qty;
+        if (name.isNotEmpty) validatedQtyMap['name:$name'] = qty;
+        if (id.isNotEmpty) validatedRemovedMap[id] = isRemoved;
+        if (name.isNotEmpty) validatedRemovedMap['name:$name'] = isRemoved;
+
+        // Detectar materiales NUEVOS agregados en validación que no existen en logística
+        if ((map['isNew'] ?? false) && !isRemoved && qty > 0) {
+          final existsInLogistics = loadedItems.any((li) =>
+              li.materialId == id ||
+              li.materialName.toLowerCase() == name);
+          if (!existsInLogistics) {
+            newItemsFromValidation.add(map);
+          }
+        }
+      }
+
+      // 1. Actualizar requiredQty de items existentes
+      for (final item in loadedItems) {
+        double? newQty = validatedQtyMap[item.materialId] ??
+            validatedQtyMap['name:${item.materialName.toLowerCase()}'];
+
+        if (newQty != null && (newQty - item.requiredQty).abs() > 0.001) {
+          item.requiredQty = newQty;
+        }
+
+        // Si fue eliminado en validación, marcar como 0
+        bool? wasRemoved = validatedRemovedMap[item.materialId] ??
+            validatedRemovedMap['name:${item.materialName.toLowerCase()}'];
+        if (wasRemoved == true) {
+          item.requiredQty = 0;
+        }
+      }
+
+      // 2. Eliminar items con requiredQty = 0 (eliminados en validación)
+      loadedItems.removeWhere((i) => i.requiredQty <= 0);
+
+      // 3. Agregar materiales NUEVOS de la validación que no existían en logística
+      for (final map in newItemsFromValidation) {
+        final materialName = map['materialName'] ?? '';
+        final materialId = map['materialId'] ?? '';
+        final validatedQty = (map['validatedQty'] ?? 0).toDouble();
+        final unitPrice = (map['unitPrice'] ?? 0).toDouble();
+        final unit = map['unit'] ?? '';
+        final providerName = map['providerName'] ?? '';
+
+        MaterialItem? dbMat;
+        try {
+          dbMat = _materialsDB.firstWhere(
+            (m) => m.id == materialId ||
+                m.name.toLowerCase() == materialName.toLowerCase(),
+          );
+        } catch (_) {}
+
+        final logItem = LogisticsItem(
+          materialId: dbMat?.id ?? materialId,
+          materialName: materialName,
+          unit: dbMat?.unit ?? unit,
+          requiredQty: validatedQty,
+          stockQty: dbMat?.availableStock ?? 0,
+          quotedUnitPrice: unitPrice,
+          actualUnitPrice: unitPrice,
+          stockUnitPrice: _resolveStockPrice(dbMat, unitPrice),
+          isStockReserved: false,
+          reservedStockQty: 0,
+        );
+
+        if (dbMat != null && dbMat.prices.length == 1) {
+          logItem.selectedProviderId = dbMat.prices.first.providerId;
+          logItem.selectedProviderName = dbMat.prices.first.providerName;
+          logItem.actualUnitPrice = dbMat.prices.first.price;
+        } else if (providerName.isNotEmpty && dbMat != null) {
+          try {
+            final matchingPrice = dbMat.prices.firstWhere(
+              (p) => p.providerName == providerName,
+            );
+            logItem.selectedProviderId = matchingPrice.providerId;
+            logItem.selectedProviderName = matchingPrice.providerName;
+            logItem.actualUnitPrice = matchingPrice.price;
+          } catch (_) {}
+        }
+
+        loadedItems.add(logItem);
+      }
     }
 
     double _resolveStockPrice(MaterialItem? dbMat, double quotedPrice) {
@@ -358,7 +546,7 @@
 
   Future<void> _reserveAllStock() async {
     final itemsToReserve = _items.where(
-      (i) => !i.isStockReserved && i.stockQty > 0 && i.requiredQty > 0
+      (i) => !i.isStockReserved && !i.ignoreStock && i.stockQty > 0 && i.requiredQty > 0
     ).toList();
 
     if (itemsToReserve.isEmpty) {
@@ -1107,11 +1295,18 @@
             const SizedBox(height: 20),
 
             // ── 3. Balance de Materiales ─────────────────────
-            _buildSectionTitle("Balance de Materiales", LucideIcons.table),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildSectionTitle("Balance de Materiales", LucideIcons.table),
+                if (widget.isEditable && _items.isNotEmpty)
+                  _buildIgnoreAllStockButton(),
+              ],
+            ),
             const SizedBox(height: 16),
             _buildBalanceTable(),
   
-            // ★ NUEVO: Botón de Apartar Stock
+            // ★ Botón de Apartar Stock (solo si hay items que no ignoran stock)
             if (widget.isEditable && _items.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildReserveStockButton(),
@@ -1199,38 +1394,67 @@
             final pending = item.pendingQty;
             final pendingColor = pending > 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981);
 
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.materialName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
-                        if (item.unit.isNotEmpty)
-                          Text(item.unit, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
-                      ],
-                    ),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: item.ignoreStock ? const Color(0xFFFFFBEB) : null,
+                    border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
                   ),
-                  Expanded(flex: 2, child: _buildQtyCell(_fmtQty(item.requiredQty), null)),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      children: [
-                        _buildQtyCell(_fmtQty(item.stockQty), const Color(0xFF2563EB)),
-                        if (item.isStockReserved) _buildReservedBadge(item),
-                      ],
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.materialName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                            if (item.unit.isNotEmpty)
+                              Text(item.unit, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                          ],
+                        ),
+                      ),
+                      Expanded(flex: 2, child: _buildQtyCell(_fmtQty(item.requiredQty), null)),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          children: [
+                            // ★ Si ignoreStock, mostrar 0 tachado
+                            if (item.ignoreStock)
+                              Column(children: [
+                                Text("0", textAlign: TextAlign.center,
+                                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF94A3B8))),
+                                Container(
+                                  margin: const EdgeInsets.only(top: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF59E0B).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text("Comprar todo",
+                                      style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w700, color: const Color(0xFFB45309))),
+                                ),
+                              ])
+                            else ...[
+                              _buildQtyCell(_fmtQty(item.effectiveStockUsed), const Color(0xFF2563EB)),
+                              if (item.isStockReserved) _buildReservedBadge(item),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Expanded(flex: 2, child: _buildQtyCell(_fmtQty(item.purchasedQty), const Color(0xFF10B981))),
+                      Expanded(flex: 2, child: _buildQtyCell(_fmtQty(pending), pendingColor)),
+                    ],
                   ),
-                  Expanded(flex: 2, child: _buildQtyCell(_fmtQty(item.purchasedQty), const Color(0xFF10B981))),
-                  Expanded(flex: 2, child: _buildQtyCell(_fmtQty(pending), pendingColor)),
-                ],
-              ),
+                ),
+                if (widget.isEditable && !item.isStockReserved && item.stockQty > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: _buildIgnoreStockToggle(item),
+                  ),
+              ],
             );
           }),
         ],
@@ -1273,14 +1497,13 @@
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: item.ignoreStock ? const Color(0xFFFFFBEB) : Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: item.ignoreStock ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Nombre del material
               Row(
                 children: [
                   Container(
@@ -1303,15 +1526,26 @@
                     ),
                   ),
                   if (item.isStockReserved) _buildReservedBadge(item),
+                  if (item.ignoreStock)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text("Comprar todo",
+                          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFFB45309))),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
-              // Grid de cantidades 2x2
               Row(
                 children: [
                   Expanded(child: _buildBalanceCell("Requerido", _fmtQty(item.requiredQty), const Color(0xFF64748B))),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildBalanceCell("Stock", _fmtQty(item.stockQty), const Color(0xFF2563EB))),
+                  Expanded(child: _buildBalanceCell("Stock", 
+                      item.ignoreStock ? "0" : _fmtQty(item.effectiveStockUsed), 
+                      item.ignoreStock ? const Color(0xFF94A3B8) : const Color(0xFF2563EB))),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1322,6 +1556,11 @@
                   Expanded(child: _buildBalanceCell("Pendiente", _fmtQty(pending), pendingColor)),
                 ],
               ),
+              // ★ Toggle para ignorar stock (solo en editable y si no está reservado)
+              if (widget.isEditable && !item.isStockReserved && item.stockQty > 0) ...[
+                const SizedBox(height: 10),
+                _buildIgnoreStockToggle(item),
+              ],
             ],
           ),
         );
@@ -1348,9 +1587,108 @@
     );
   }
 
-    Widget _buildReserveStockButton() {
+  // ★ NUEVO: Toggle individual para ignorar stock de un material
+  Widget _buildIgnoreStockToggle(LogisticsItem item) {
+    return InkWell(
+      onTap: () {
+        setState(() => item.ignoreStock = !item.ignoreStock);
+        _notifyChanged();
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: item.ignoreStock 
+              ? const Color(0xFFF59E0B).withOpacity(0.08) 
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: item.ignoreStock 
+                ? const Color(0xFFF59E0B).withOpacity(0.3) 
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              item.ignoreStock ? LucideIcons.toggleRight : LucideIcons.toggleLeft,
+              size: 18,
+              color: item.ignoreStock ? const Color(0xFFB45309) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              item.ignoreStock ? "Comprando todo · Stock ignorado" : "Usar stock disponible",
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: item.ignoreStock ? const Color(0xFFB45309) : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ★ NUEVO: Botón para ignorar TODO el stock de golpe
+  Widget _buildIgnoreAllStockButton() {
+    final hasStockItems = _items.any((i) => i.stockQty > 0 && !i.isStockReserved);
+    if (!hasStockItems) return const SizedBox.shrink();
+
+    final allIgnored = _items.where((i) => i.stockQty > 0 && !i.isStockReserved).every((i) => i.ignoreStock);
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          for (final item in _items) {
+            if (item.stockQty > 0 && !item.isStockReserved) {
+              item.ignoreStock = !allIgnored;
+            }
+          }
+        });
+        _notifyChanged();
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: allIgnored 
+              ? const Color(0xFFF59E0B).withOpacity(0.08)
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: allIgnored 
+                ? const Color(0xFFF59E0B).withOpacity(0.3)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              allIgnored ? LucideIcons.undo2 : LucideIcons.shoppingBag,
+              size: 16,
+              color: allIgnored ? const Color(0xFFB45309) : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              allIgnored ? "Volver a usar stock" : "Comprar todo (ignorar stock)",
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: allIgnored ? const Color(0xFFB45309) : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReserveStockButton() {
       final hasUnreserved = _items.any(
-        (i) => !i.isStockReserved && i.stockQty > 0 && i.requiredQty > 0
+        (i) => !i.isStockReserved && !i.ignoreStock && i.stockQty > 0 && i.requiredQty > 0
       );
       
       // ★ Verificar si hay items con stock > 0 que YA están reservados
@@ -1359,7 +1697,7 @@
       ).toList();
       
       final allReservedOrNoStock = _items.isNotEmpty && 
-        !_items.any((i) => !i.isStockReserved && i.stockQty > 0 && i.requiredQty > 0);
+        !_items.any((i) => !i.isStockReserved && !i.ignoreStock && i.stockQty > 0 && i.requiredQty > 0);
     
       // ★ Caso: Todo lo que tenía stock ya fue apartado
       if (allReservedOrNoStock && reservedItems.isNotEmpty) {
@@ -1446,7 +1784,7 @@
           ),
         ),
       );
-    }
+  }
 
     // ── SECCIÓN: Gestión de Compras ──────────────────────────
     Widget _buildPurchasesSection() {

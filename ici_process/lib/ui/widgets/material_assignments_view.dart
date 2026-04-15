@@ -145,6 +145,44 @@ class _MaterialAssignmentsViewState extends State<MaterialAssignmentsView> {
 
         if (materials.isEmpty) continue;
 
+        // ★ SINCRONIZAR con validación de E4 si existe
+        final validationData = process.materialValidationData;
+        if (validationData != null && validationData['isValidated'] == true) {
+          final rawValidated = (validationData['items'] as List? ?? []);
+          for (final rawV in rawValidated) {
+            final vMap = Map<String, dynamic>.from(rawV);
+            final vId = vMap['materialId'] ?? '';
+            final vName = (vMap['materialName'] ?? '').toString().toLowerCase();
+            final vQty = (vMap['validatedQty'] ?? 0).toDouble();
+            final vRemoved = vMap['isRemoved'] ?? false;
+
+            for (final mat in materials) {
+              if (mat.materialId == vId || mat.materialName.toLowerCase() == vName) {
+                // Actualizar requiredQty con el reflejo de un campo mutable
+                // Como _AssignedMaterial es inmutable, reconstruimos
+                final idx = materials.indexOf(mat);
+                if (vRemoved) {
+                  materials.removeAt(idx);
+                } else if ((vQty - mat.requiredQty).abs() > 0.001) {
+                  materials[idx] = _AssignedMaterial(
+                    materialId: mat.materialId,
+                    materialName: mat.materialName,
+                    unit: mat.unit,
+                    requiredQty: vQty,
+                    reservedQty: mat.reservedQty,
+                    deductedQty: mat.deductedQty,
+                    purchasedQty: mat.purchasedQty,
+                    isReserved: mat.isReserved,
+                  );
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        if (materials.isEmpty) continue;
+
         final cfg = stageConfigs[process.stage];
         result.add(_ProjectAllocation(
           processId: process.id,
