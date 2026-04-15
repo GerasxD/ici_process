@@ -7,9 +7,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../models/process_model.dart';
 import '../../../models/event_model.dart';
+import '../../../models/vehicle_model.dart';
 import '../../../services/event_service.dart';
 import '../../../services/user_service.dart';
 import '../../../services/tool_service.dart';
+import '../../../services/vehicle_service.dart';
 
 class ExecutionPlanningWidget extends StatefulWidget {
   final ProcessModel process;
@@ -28,13 +30,15 @@ class ExecutionPlanningWidget extends StatefulWidget {
   });
 
   @override
-  State<ExecutionPlanningWidget> createState() => _ExecutionPlanningWidgetState();
+  State<ExecutionPlanningWidget> createState() =>
+      _ExecutionPlanningWidgetState();
 }
 
 class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
   final UserService _userService = UserService();
-  final ToolService _toolService = ToolService(); 
+  final ToolService _toolService = ToolService();
   final EventService _eventService = EventService();
+  final VehicleService _vehicleService = VehicleService();
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -43,19 +47,26 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
 
   final TextEditingController _toolSearchCtrl = TextEditingController();
   String _toolSearchQuery = '';
-    
+
   Set<String> _selectedTechIds = {};
   Map<String, String> _techNames = {};
   Set<String> _selectedToolIds = {};
+
+  Set<String> _selectedVehicleIds = {};
+  Map<String, String> _vehicleNames = {};
 
   String? _scheduledEventId;
   bool _isScheduling = false;
 
   final List<Color> _colorPalette = [
-    const Color(0xFF2563EB), const Color(0xFF7C3AED), const Color(0xFF059669),
-    const Color(0xFFEA580C), const Color(0xFF0891B2), const Color(0xFF475569),
+    const Color(0xFF2563EB),
+    const Color(0xFF7C3AED),
+    const Color(0xFF059669),
+    const Color(0xFFEA580C),
+    const Color(0xFF0891B2),
+    const Color(0xFF475569),
   ];
-  
+
   bool get _isMobile => MediaQuery.of(context).size.width < 700;
 
   @override
@@ -66,23 +77,32 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
 
   void _loadInitialData() {
     if (widget.initialData == null) return;
-    
+
     final data = widget.initialData!;
-    _startDate = data['startDate'] != null ? DateTime.parse(data['startDate']) : null;
+    _startDate = data['startDate'] != null
+        ? DateTime.parse(data['startDate'])
+        : null;
     _endDate = data['endDate'] != null ? DateTime.parse(data['endDate']) : null;
     _justificationCtrl.text = data['justification'] ?? '';
     _selectedColor = Color(data['colorValue'] ?? 0xFF2563EB);
     _scheduledEventId = data['eventId'];
-    
+
     _selectedTechIds = Set<String>.from(data['technicianIds'] ?? []);
     final names = List<String>.from(data['technicianNames'] ?? []);
-    
+
     int i = 0;
     for (var id in _selectedTechIds) {
       if (i < names.length) _techNames[id] = names[i];
       i++;
     }
     _selectedToolIds = Set<String>.from(data['toolIds'] ?? []);
+    _selectedVehicleIds = Set<String>.from(data['vehicleIds'] ?? []);
+    final vNames = List<String>.from(data['vehicleNames'] ?? []);
+    int vi = 0;
+    for (var id in _selectedVehicleIds) {
+      if (vi < vNames.length) _vehicleNames[id] = vNames[vi];
+      vi++;
+    }
   }
 
   @override
@@ -106,8 +126,12 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       'justification': _justificationCtrl.text,
       'colorValue': _selectedColor.value,
       'technicianIds': _selectedTechIds.toList(),
-      'technicianNames': _selectedTechIds.map((id) => _techNames[id] ?? '').toList(),
+      'technicianNames': _selectedTechIds
+          .map((id) => _techNames[id] ?? '')
+          .toList(),
       'toolIds': _selectedToolIds.toList(),
+      'vehicleIds': _selectedVehicleIds.toList(),
+      'vehicleNames': _selectedVehicleIds.map((id) => _vehicleNames[id] ?? '').toList(),
       'eventId': _scheduledEventId,
       'calculatedDays': _calculatedDays,
     });
@@ -119,12 +143,26 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       SnackBar(
         content: Row(
           children: [
-            Icon(isError ? LucideIcons.alertOctagon : LucideIcons.checkCircle2, color: Colors.white, size: 20),
+            Icon(
+              isError ? LucideIcons.alertOctagon : LucideIcons.checkCircle2,
+              color: Colors.white,
+              size: 20,
+            ),
             const SizedBox(width: 10),
-            Expanded(child: Text(message, style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13))),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ),
           ],
         ),
-        backgroundColor: isError ? const Color(0xFFE11D48) : const Color(0xFF059669),
+        backgroundColor: isError
+            ? const Color(0xFFE11D48)
+            : const Color(0xFF059669),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -135,11 +173,17 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
 
   Future<void> _scheduleEvent() async {
     if (_startDate == null || _endDate == null) {
-      _showSnackBar("Por favor, selecciona las fechas del proyecto", isError: true);
+      _showSnackBar(
+        "Por favor, selecciona las fechas del proyecto",
+        isError: true,
+      );
       return;
     }
     if (_exceedsQuotedDays && _justificationCtrl.text.trim().isEmpty) {
-      _showSnackBar("Se requiere una justificación por exceder los días cotizados", isError: true);
+      _showSnackBar(
+        "Se requiere una justificación por exceder los días cotizados",
+        isError: true,
+      );
       return;
     }
 
@@ -155,7 +199,13 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         endDate: _endDate!,
         colorValue: _selectedColor.value,
         technicianIds: _selectedTechIds.toList(),
-        technicianNames: _selectedTechIds.map((id) => _techNames[id] ?? '').toList(),
+        technicianNames: _selectedTechIds
+            .map((id) => _techNames[id] ?? '')
+            .toList(),
+        vehicleIds: _selectedVehicleIds.toList(),
+        vehicleModels: _selectedVehicleIds
+            .map((id) => _vehicleNames[id] ?? '')
+            .toList(),
         createdBy: "Logística",
         createdAt: DateTime.now(),
       );
@@ -164,7 +214,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         await _eventService.updateEvent(event);
         _showSnackBar("Evento sincronizado en el calendario");
       } else {
-        final docRef = FirebaseFirestore.instance.collection('calendar_events').doc();
+        final docRef = FirebaseFirestore.instance
+            .collection('calendar_events')
+            .doc();
         final newEvent = CalendarEvent(
           id: docRef.id,
           title: event.title,
@@ -175,14 +227,16 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           colorValue: event.colorValue,
           technicianIds: event.technicianIds,
           technicianNames: event.technicianNames,
+          vehicleIds: event.vehicleIds,         
+          vehicleModels: event.vehicleModels,   
           createdBy: event.createdBy,
           createdAt: event.createdAt,
         );
         await docRef.set(newEvent.toMap());
-        _scheduledEventId = docRef.id; 
+        _scheduledEventId = docRef.id;
         _showSnackBar("Evento agendado exitosamente");
       }
-      _notifyData(); 
+      _notifyData();
     } catch (e) {
       _showSnackBar("Hubo un error al procesar la solicitud", isError: true);
     } finally {
@@ -191,8 +245,8 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
   }
 
   Future<void> _pickDate(bool isStart) async {
-    final initialDate = isStart 
-        ? (_startDate ?? DateTime.now()) 
+    final initialDate = isStart
+        ? (_startDate ?? DateTime.now())
         : (_endDate ?? _startDate ?? DateTime.now());
 
     final picked = await showDatePicker(
@@ -200,7 +254,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       initialDate: initialDate,
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime(2030),
-      helpText: isStart ? "SELECCIONA FECHA DE INICIO" : "SELECCIONA FECHA DE FIN",
+      helpText: isStart
+          ? "SELECCIONA FECHA DE INICIO"
+          : "SELECCIONA FECHA DE FIN",
       builder: (ctx, child) => Theme(
         data: ThemeData.light().copyWith(
           colorScheme: ColorScheme.light(
@@ -210,7 +266,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
             onSurface: const Color(0xFF1E293B),
           ),
           datePickerTheme: const DatePickerThemeData(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
             headerBackgroundColor: Color(0xFFF8FAFC),
             headerForegroundColor: Color(0xFF0F172A),
           ),
@@ -224,10 +282,12 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     setState(() {
       if (isStart) {
         _startDate = picked;
-        if (_endDate != null && _endDate!.isBefore(_startDate!)) _endDate = _startDate;
+        if (_endDate != null && _endDate!.isBefore(_startDate!))
+          _endDate = _startDate;
       } else {
         _endDate = picked;
-        if (_startDate != null && picked.isBefore(_startDate!)) _startDate = picked;
+        if (_startDate != null && picked.isBefore(_startDate!))
+          _startDate = picked;
       }
     });
     _notifyData();
@@ -288,20 +348,28 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
               color: _selectedColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(LucideIcons.layoutList, color: _selectedColor, size: 18),
+            child: Icon(
+              LucideIcons.layoutList,
+              color: _selectedColor,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Text(
             "Detalles de Agendamiento",
             // Tamaño igualado al de LogisticsSection
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF0F172A),
+            ),
           ),
         ],
       ),
     );
   }
 
- Widget _buildDatesSection() {
+  Widget _buildDatesSection() {
     if (_isMobile) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,12 +378,24 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _buildDateCard("Inicio", _startDate, () => _pickDate(true))),
+              Expanded(
+                child: _buildDateCard(
+                  "Inicio",
+                  _startDate,
+                  () => _pickDate(true),
+                ),
+              ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(LucideIcons.arrowRight, size: 16, color: Color(0xFFCBD5E1)),
+                child: Icon(
+                  LucideIcons.arrowRight,
+                  size: 16,
+                  color: Color(0xFFCBD5E1),
+                ),
               ),
-              Expanded(child: _buildDateCard("Fin", _endDate, () => _pickDate(false))),
+              Expanded(
+                child: _buildDateCard("Fin", _endDate, () => _pickDate(false)),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -336,22 +416,35 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(child: _buildDateCard("Inicio", _startDate, () => _pickDate(true))),
+                  Expanded(
+                    child: _buildDateCard(
+                      "Inicio",
+                      _startDate,
+                      () => _pickDate(true),
+                    ),
+                  ),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Icon(LucideIcons.arrowRight, size: 16, color: Color(0xFFCBD5E1)),
+                    child: Icon(
+                      LucideIcons.arrowRight,
+                      size: 16,
+                      color: Color(0xFFCBD5E1),
+                    ),
                   ),
-                  Expanded(child: _buildDateCard("Fin", _endDate, () => _pickDate(false))),
+                  Expanded(
+                    child: _buildDateCard(
+                      "Fin",
+                      _endDate,
+                      () => _pickDate(false),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
         ),
         const SizedBox(width: 20),
-        Expanded(
-          flex: 3,
-          child: _buildDaysSummaryCard(),
-        ),
+        Expanded(flex: 3, child: _buildDaysSummaryCard()),
       ],
     );
   }
@@ -375,11 +468,19 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                   children: [
                     Row(
                       children: [
-                        const Icon(LucideIcons.shieldAlert, color: Color(0xFFE11D48), size: 16),
+                        const Icon(
+                          LucideIcons.shieldAlert,
+                          color: Color(0xFFE11D48),
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           "Justificación por exceso de días",
-                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFFBE123C)),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFFBE123C),
+                          ),
                         ),
                       ],
                     ),
@@ -389,16 +490,40 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                       enabled: widget.isEditable,
                       onChanged: (_) => _notifyData(),
                       maxLines: 2,
-                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF4C0519)),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFF4C0519),
+                      ),
                       decoration: InputDecoration(
                         hintText: "Ej. Retraso por clima...",
-                        hintStyle: TextStyle(color: const Color(0xFFE11D48).withOpacity(0.4)),
+                        hintStyle: TextStyle(
+                          color: const Color(0xFFE11D48).withOpacity(0.4),
+                        ),
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFFECDD3))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFFECDD3))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE11D48), width: 1.5)),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFFECDD3),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFFECDD3),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE11D48),
+                            width: 1.5,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -444,19 +569,34 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
 
     final toolWidget = _buildToolSelectionCard();
+    final vehicleWidget = _buildVehicleSelectionCard();
 
     if (_isMobile) {
       return Column(
-        children: [techWidget, const SizedBox(height: 16), toolWidget],
+        children: [
+          techWidget,
+          const SizedBox(height: 16),
+          toolWidget,
+          const SizedBox(height: 16),
+          vehicleWidget,
+        ],
       );
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
       children: [
-        Expanded(child: techWidget),
-        const SizedBox(width: 20),
-        Expanded(child: toolWidget),
+        // Fila superior: Técnicos | Herramientas
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: techWidget),
+            const SizedBox(width: 20),
+            Expanded(child: toolWidget),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // Vehículo centrado abajo
+        Center(child: SizedBox(width: 460, child: vehicleWidget)),
       ],
     );
   }
@@ -485,12 +625,16 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               );
             }
 
             final allTools = snap.data ?? [];
-            final selectedTools = allTools.where((t) => _selectedToolIds.contains(t.id)).toList();
+            final selectedTools = allTools
+                .where((t) => _selectedToolIds.contains(t.id))
+                .toList();
 
             return Container(
               decoration: BoxDecoration(
@@ -508,7 +652,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: selectedTools.map((tool) => _buildToolChip(tool)).toList(),
+                        children: selectedTools
+                            .map((tool) => _buildToolChip(tool))
+                            .toList(),
                       ),
                     ),
 
@@ -518,7 +664,11 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                       child: Center(
                         child: Text(
                           "Sin herramientas seleccionadas",
-                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
@@ -527,7 +677,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: InkWell(
-                      onTap: widget.isEditable ? () => _openToolSelector(allTools) : null,
+                      onTap: widget.isEditable
+                          ? () => _openToolSelector(allTools)
+                          : null,
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
                         width: double.infinity,
@@ -535,16 +687,29 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _selectedColor.withOpacity(0.3), style: BorderStyle.solid),
+                          border: Border.all(
+                            color: _selectedColor.withOpacity(0.3),
+                            style: BorderStyle.solid,
+                          ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(LucideIcons.plus, size: 16, color: _selectedColor),
+                            Icon(
+                              LucideIcons.plus,
+                              size: 16,
+                              color: _selectedColor,
+                            ),
                             const SizedBox(width: 8),
                             Text(
-                              selectedTools.isEmpty ? "Seleccionar herramientas" : "Agregar o quitar herramientas",
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _selectedColor),
+                              selectedTools.isEmpty
+                                  ? "Seleccionar herramientas"
+                                  : "Agregar o quitar herramientas",
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedColor,
+                              ),
                             ),
                           ],
                         ),
@@ -575,7 +740,11 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           const SizedBox(width: 6),
           Text(
             tool.name,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _selectedColor),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: _selectedColor,
+            ),
           ),
           if (widget.isEditable) ...[
             const SizedBox(width: 6),
@@ -584,7 +753,11 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                 setState(() => _selectedToolIds.remove(tool.id));
                 _notifyData();
               },
-              child: Icon(LucideIcons.x, size: 14, color: _selectedColor.withOpacity(0.6)),
+              child: Icon(
+                LucideIcons.x,
+                size: 14,
+                color: _selectedColor.withOpacity(0.6),
+              ),
             ),
           ],
         ],
@@ -610,8 +783,12 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
 
               if (_toolSearchQuery.isNotEmpty) {
                 final q = _toolSearchQuery.toLowerCase();
-                final matchName = tool.name.toString().toLowerCase().contains(q);
-                final matchBrand = tool.brand.toString().toLowerCase().contains(q);
+                final matchName = tool.name.toString().toLowerCase().contains(
+                  q,
+                );
+                final matchBrand = tool.brand.toString().toLowerCase().contains(
+                  q,
+                );
                 return matchName || matchBrand;
               }
               return true;
@@ -640,7 +817,10 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                       margin: const EdgeInsets.only(top: 12),
                       width: 40,
                       height: 4,
-                      decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2)),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
 
@@ -655,18 +835,32 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                           children: [
                             Text(
                               "Seleccionar Herramientas",
-                              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0F172A),
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               "$selectedCount seleccionada${selectedCount == 1 ? '' : 's'}",
-                              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B)),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF64748B),
+                              ),
                             ),
                           ],
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          child: Text("Listo", style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: _selectedColor)),
+                          child: Text(
+                            "Listo",
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: _selectedColor,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -677,15 +871,30 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                     child: TextField(
                       controller: _toolSearchCtrl,
-                      onChanged: (val) => setSheetState(() => _toolSearchQuery = val),
-                      style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A)),
+                      onChanged: (val) =>
+                          setSheetState(() => _toolSearchQuery = val),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: const Color(0xFF0F172A),
+                      ),
                       decoration: InputDecoration(
                         hintText: "Buscar por nombre o marca...",
-                        hintStyle: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8)),
-                        prefixIcon: const Icon(LucideIcons.search, size: 18, color: Color(0xFF94A3B8)),
+                        hintStyle: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                        prefixIcon: const Icon(
+                          LucideIcons.search,
+                          size: 18,
+                          color: Color(0xFF94A3B8),
+                        ),
                         suffixIcon: _toolSearchQuery.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF94A3B8)),
+                                icon: const Icon(
+                                  LucideIcons.x,
+                                  size: 16,
+                                  color: Color(0xFF94A3B8),
+                                ),
                                 onPressed: () {
                                   _toolSearchCtrl.clear();
                                   setSheetState(() => _toolSearchQuery = '');
@@ -694,10 +903,29 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                             : null,
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _selectedColor, width: 1.5)),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: _selectedColor,
+                            width: 1.5,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -709,9 +937,20 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(LucideIcons.searchX, size: 36, color: Color(0xFFCBD5E1)),
+                                const Icon(
+                                  LucideIcons.searchX,
+                                  size: 36,
+                                  color: Color(0xFFCBD5E1),
+                                ),
                                 const SizedBox(height: 10),
-                                Text("Sin resultados", style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+                                Text(
+                                  "Sin resultados",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: const Color(0xFF94A3B8),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ],
                             ),
                           )
@@ -720,8 +959,11 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                             itemCount: visibleTools.length,
                             itemBuilder: (_, i) {
                               final tool = visibleTools[i];
-                              final isSelected = _selectedToolIds.contains(tool.id);
-                              final isInUse = tool.status == 'En Uso' && !isSelected;
+                              final isSelected = _selectedToolIds.contains(
+                                tool.id,
+                              );
+                              final isInUse =
+                                  tool.status == 'En Uso' && !isSelected;
 
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
@@ -753,36 +995,476 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
+  // ── VEHÍCULOS: Card resumen simple ─────────────────────────────────────
+  Widget _buildVehicleSelectionCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(LucideIcons.truck, size: 16, color: Color(0xFF475569)),
+            const SizedBox(width: 8),
+            Text("VEHÍCULOS ASIGNADOS", style: _labelStyle()),
+          ],
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<Vehicle>>(
+          stream: _vehicleService.getVehicles(),
+          builder: (ctx, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return Container(
+                height: 80,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+
+            final vehicles = snap.data ?? [];
+            final hasVehicles = _selectedVehicleIds.isNotEmpty;
+
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              decoration: BoxDecoration(
+                color: hasVehicles ? _selectedColor.withOpacity(0.04) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: hasVehicles
+                      ? _selectedColor.withOpacity(0.35)
+                      : const Color(0xFFE2E8F0),
+                  width: hasVehicles ? 1.5 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Chips de vehículos seleccionados ──
+                  if (hasVehicles)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _selectedVehicleIds.map((id) {
+                          final name = _vehicleNames[id] ?? id;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _selectedColor.withOpacity(0.09),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: _selectedColor.withOpacity(0.35)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: _selectedColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(LucideIcons.truck,
+                                      size: 10, color: Colors.white),
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  name,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedColor,
+                                  ),
+                                ),
+                                if (widget.isEditable) ...[
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedVehicleIds.remove(id);
+                                        _vehicleNames.remove(id);
+                                      });
+                                      _notifyData();
+                                    },
+                                    child: Icon(LucideIcons.x,
+                                        size: 13,
+                                        color: _selectedColor.withOpacity(0.6)),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                  // ── Botón agregar ──
+                  InkWell(
+                    onTap: widget.isEditable
+                        ? () => _openVehicleSelector(vehicles)
+                        : null,
+                    borderRadius: BorderRadius.only(
+                      topLeft: hasVehicles
+                          ? Radius.zero
+                          : const Radius.circular(14),
+                      topRight: hasVehicles
+                          ? Radius.zero
+                          : const Radius.circular(14),
+                      bottomLeft: const Radius.circular(14),
+                      bottomRight: const Radius.circular(14),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: hasVehicles ? 12 : 18,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: hasVehicles
+                            ? MainAxisAlignment.center
+                            : MainAxisAlignment.start,
+                        children: [
+                          if (!hasVehicles) ...[
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(LucideIcons.truck,
+                                  size: 20, color: Color(0xFF94A3B8)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Sin vehículos asignados",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Toca para seleccionar",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      color: const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(LucideIcons.chevronRight,
+                                size: 18, color: Color(0xFFCBD5E1)),
+                          ] else ...[
+                            Icon(LucideIcons.plus,
+                                size: 14, color: _selectedColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              "Agregar otro vehículo",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _selectedColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _openVehicleSelector(List<Vehicle> vehicles) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            final selectedCount = _selectedVehicleIds.length;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Seleccionar Vehículos",
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "$selectedCount seleccionado${selectedCount == 1 ? '' : 's'}",
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(
+                            "Listo",
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: _selectedColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Divider(height: 20, color: Color(0xFFE2E8F0)),
+                  ),
+
+                  // Lista
+                  Expanded(
+                    child: vehicles.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(LucideIcons.truck,
+                                    size: 36, color: Color(0xFFCBD5E1)),
+                                const SizedBox(height: 10),
+                                Text(
+                                  "Sin vehículos disponibles",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: const Color(0xFF94A3B8),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 4),
+                            itemCount: vehicles.length,
+                            itemBuilder: (_, i) {
+                              final vehicle = vehicles[i];
+                              final isSelected =
+                                  _selectedVehicleIds.contains(vehicle.id);
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: InkWell(
+                                  onTap: widget.isEditable
+                                      ? () {
+                                          setState(() {
+                                            if (isSelected) {
+                                              _selectedVehicleIds
+                                                  .remove(vehicle.id);
+                                              _vehicleNames.remove(vehicle.id);
+                                            } else {
+                                              _selectedVehicleIds.add(vehicle.id);
+                                              _vehicleNames[vehicle.id] =
+                                                  vehicle.model;
+                                            }
+                                          });
+                                          setSheetState(() {});
+                                          _notifyData();
+                                        }
+                                      : null,
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? _selectedColor.withOpacity(0.08)
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? _selectedColor.withOpacity(0.5)
+                                            : const Color(0xFFE2E8F0),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? _selectedColor
+                                                : _selectedColor.withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(LucideIcons.truck,
+                                              size: 18,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : _selectedColor),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                vehicle.model,
+                                                style: GoogleFonts.inter(
+                                                  fontSize: 14,
+                                                  fontWeight: isSelected
+                                                      ? FontWeight.bold
+                                                      : FontWeight.w600,
+                                                  color: isSelected
+                                                      ? _selectedColor
+                                                      : const Color(0xFF0F172A),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Row(
+                                                children: [
+                                                  Icon(LucideIcons.zap,
+                                                      size: 12,
+                                                      color:
+                                                          const Color(0xFF94A3B8)),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    "${vehicle.kmPerLiter.toStringAsFixed(1)} km/L",
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 11,
+                                                      color:
+                                                          const Color(0xFF94A3B8),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isSelected)
+                                          Icon(LucideIcons.checkCircle2,
+                                              size: 20, color: _selectedColor)
+                                        else
+                                          const Icon(LucideIcons.circle,
+                                              size: 20,
+                                              color: Color(0xFFCBD5E1)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildFooterActions() {
     final colorRow = Wrap(
       spacing: 10,
       runSpacing: 10,
-      children: _colorPalette.map((color) => GestureDetector(
-        onTap: widget.isEditable ? () {
-          setState(() => _selectedColor = color);
-          _notifyData();
-        } : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutBack,
-          width: _selectedColor == color ? 28 : 22,
-          height: _selectedColor == color ? 28 : 22,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: _selectedColor == color ? 2 : 1),
-            boxShadow: [
-              if (_selectedColor == color)
-                BoxShadow(color: color.withOpacity(0.5), blurRadius: 6, offset: const Offset(0, 3))
-              else
-                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 3, offset: const Offset(0, 1))
-            ],
-          ),
-          child: _selectedColor == color
-              ? const Icon(LucideIcons.check, size: 12, color: Colors.white)
-              : null,
-        ),
-      )).toList(),
+      children: _colorPalette
+          .map(
+            (color) => GestureDetector(
+              onTap: widget.isEditable
+                  ? () {
+                      setState(() => _selectedColor = color);
+                      _notifyData();
+                    }
+                  : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutBack,
+                width: _selectedColor == color ? 28 : 22,
+                height: _selectedColor == color ? 28 : 22,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: _selectedColor == color ? 2 : 1,
+                  ),
+                  boxShadow: [
+                    if (_selectedColor == color)
+                      BoxShadow(
+                        color: color.withOpacity(0.5),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      )
+                    else
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                  ],
+                ),
+                child: _selectedColor == color
+                    ? const Icon(
+                        LucideIcons.check,
+                        size: 12,
+                        color: Colors.white,
+                      )
+                    : null,
+              ),
+            ),
+          )
+          .toList(),
     );
 
     final actionButton = SizedBox(
@@ -790,11 +1472,27 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       child: ElevatedButton.icon(
         onPressed: widget.isEditable && !_isScheduling ? _scheduleEvent : null,
         icon: _isScheduling
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-            : Icon(_scheduledEventId != null ? LucideIcons.refreshCw : LucideIcons.calendarPlus, size: 18),
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(
+                _scheduledEventId != null
+                    ? LucideIcons.refreshCw
+                    : LucideIcons.calendarPlus,
+                size: 18,
+              ),
         label: Text(
           _scheduledEventId != null ? "Sincronizar" : "Guardar Evento",
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            letterSpacing: 0.2,
+          ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _selectedColor,
@@ -802,7 +1500,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           elevation: _isScheduling ? 0 : 2,
           shadowColor: _selectedColor.withOpacity(0.5),
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       ),
     );
@@ -853,23 +1553,43 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         decoration: BoxDecoration(
           color: hasDate ? const Color(0xFFF8FAFC) : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: hasDate ? _selectedColor.withOpacity(0.3) : const Color(0xFFE2E8F0), width: hasDate ? 1.2 : 1),
+          border: Border.all(
+            color: hasDate
+                ? _selectedColor.withOpacity(0.3)
+                : const Color(0xFFE2E8F0),
+            width: hasDate ? 1.2 : 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(LucideIcons.calendar, size: 16, color: hasDate ? _selectedColor : const Color(0xFF94A3B8)),
+                Icon(
+                  LucideIcons.calendar,
+                  size: 16,
+                  color: hasDate ? _selectedColor : const Color(0xFF94A3B8),
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  hasDate ? DateFormat('dd MMM, yy').format(date) : "Seleccionar",
+                  hasDate
+                      ? DateFormat('dd MMM, yy').format(date)
+                      : "Seleccionar",
                   style: GoogleFonts.inter(
-                    fontSize: 13, 
-                    fontWeight: hasDate ? FontWeight.bold : FontWeight.w500, 
-                    color: hasDate ? const Color(0xFF0F172A) : const Color(0xFF94A3B8)
+                    fontSize: 13,
+                    fontWeight: hasDate ? FontWeight.bold : FontWeight.w500,
+                    color: hasDate
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFF94A3B8),
                   ),
                 ),
               ],
@@ -891,7 +1611,11 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       decoration: BoxDecoration(
         color: _exceedsQuotedDays ? const Color(0xFFFFF1F2) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _exceedsQuotedDays ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: _exceedsQuotedDays
+              ? const Color(0xFFFECDD3)
+              : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,12 +1623,33 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("DÍAS", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF64748B), letterSpacing: 0.5)),
+              Text(
+                "DÍAS",
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF64748B),
+                  letterSpacing: 0.5,
+                ),
+              ),
               if (_exceedsQuotedDays)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: const Color(0xFFE11D48), borderRadius: BorderRadius.circular(4)),
-                  child: Text("Excedido", style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE11D48),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    "Excedido",
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -913,8 +1658,24 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text("$_calculatedDays", style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w900, color: _exceedsQuotedDays ? const Color(0xFFBE123C) : const Color(0xFF0F172A))), // Número más pequeño
-              Text(" / ${widget.quotedDays.toInt()} cotizados", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: const Color(0xFF64748B))),
+              Text(
+                "$_calculatedDays",
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: _exceedsQuotedDays
+                      ? const Color(0xFFBE123C)
+                      : const Color(0xFF0F172A),
+                ),
+              ), // Número más pequeño
+              Text(
+                " / ${widget.quotedDays.toInt()} cotizados",
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -924,7 +1685,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
               value: progress,
               minHeight: 5,
               backgroundColor: const Color(0xFFF1F5F9),
-              valueColor: AlwaysStoppedAnimation<Color>(_exceedsQuotedDays ? const Color(0xFFE11D48) : _selectedColor),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _exceedsQuotedDays ? const Color(0xFFE11D48) : _selectedColor,
+              ),
             ),
           ),
         ],
@@ -932,7 +1695,12 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
-  Widget _buildResourceContainer<T>({required String title, required IconData icon, required Stream<List<T>> stream, required Widget Function(List<T>) builder}) {
+  Widget _buildResourceContainer<T>({
+    required String title,
+    required IconData icon,
+    required Stream<List<T>> stream,
+    required Widget Function(List<T>) builder,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -945,7 +1713,8 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         ),
         const SizedBox(height: 12),
         Container(
-          height: 170, // Altura reducida (antes 220) para que no ocupe media pantalla
+          height:
+              170, // Altura reducida (antes 220) para que no ocupe media pantalla
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(12),
@@ -955,10 +1724,17 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
             stream: stream,
             builder: (ctx, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                return const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                );
               }
               if (snap.hasError) {
-                return Center(child: Text("Error al cargar", style: GoogleFonts.inter(color: Colors.red)));
+                return Center(
+                  child: Text(
+                    "Error al cargar",
+                    style: GoogleFonts.inter(color: Colors.red),
+                  ),
+                );
               }
               return builder(snap.data ?? []);
             },
@@ -968,7 +1744,12 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
-  Widget _buildSelectableList<T>({required List<T> items, required IconData emptyIcon, required String emptyMessage, required Widget Function(T) itemBuilder}) {
+  Widget _buildSelectableList<T>({
+    required List<T> items,
+    required IconData emptyIcon,
+    required String emptyMessage,
+    required Widget Function(T) itemBuilder,
+  }) {
     if (items.isEmpty) {
       return Center(
         child: Column(
@@ -976,7 +1757,14 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           children: [
             Icon(emptyIcon, size: 32, color: const Color(0xFFCBD5E1)),
             const SizedBox(height: 8),
-            Text(emptyMessage, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: const Color(0xFF94A3B8))),
+            Text(
+              emptyMessage,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF94A3B8),
+              ),
+            ),
           ],
         ),
       );
@@ -991,17 +1779,31 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
-  Widget _buildModernTile({required String title, required String subtitle, required IconData icon, required bool isSelected, required VoidCallback onTap}) {
+  Widget _buildModernTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), // Padding interno más compacto
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ), // Padding interno más compacto
         decoration: BoxDecoration(
           color: isSelected ? _selectedColor.withOpacity(0.08) : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isSelected ? _selectedColor.withOpacity(0.5) : const Color(0xFFE2E8F0), width: isSelected ? 1.5 : 1),
+          border: Border.all(
+            color: isSelected
+                ? _selectedColor.withOpacity(0.5)
+                : const Color(0xFFE2E8F0),
+            width: isSelected ? 1.5 : 1,
+          ),
         ),
         child: Row(
           children: [
@@ -1011,23 +1813,46 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                 color: isSelected ? _selectedColor : const Color(0xFFF1F5F9),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 14, color: isSelected ? Colors.white : const Color(0xFF64748B)),
+              child: Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.w600, color: const Color(0xFF0F172A))), // Fuente reducida
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w600,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ), // Fuente reducida
                   const SizedBox(height: 2),
-                  Text(subtitle, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF64748B))),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
                 ],
               ),
             ),
             if (isSelected)
               Icon(LucideIcons.checkCircle2, color: _selectedColor, size: 18)
             else
-              const Icon(LucideIcons.circle, color: Color(0xFFCBD5E1), size: 18),
+              const Icon(
+                LucideIcons.circle,
+                color: Color(0xFFCBD5E1),
+                size: 18,
+              ),
           ],
         ),
       ),
@@ -1044,26 +1869,26 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     final Color borderColor = isSelected
         ? _selectedColor.withOpacity(0.5)
         : isInUse
-            ? const Color(0xFFFECACA)
-            : const Color(0xFFE2E8F0);
+        ? const Color(0xFFFECACA)
+        : const Color(0xFFE2E8F0);
 
     final Color bgColor = isSelected
         ? _selectedColor.withOpacity(0.08)
         : isInUse
-            ? const Color(0xFFFFF1F2)
-            : Colors.white;
+        ? const Color(0xFFFFF1F2)
+        : Colors.white;
 
     final Color iconBg = isSelected
         ? _selectedColor
         : isInUse
-            ? const Color(0xFFE11D48).withOpacity(0.1)
-            : const Color(0xFFF1F5F9);
+        ? const Color(0xFFE11D48).withOpacity(0.1)
+        : const Color(0xFFF1F5F9);
 
     final Color iconColor = isSelected
         ? Colors.white
         : isInUse
-            ? const Color(0xFFE11D48)
-            : const Color(0xFF64748B);
+        ? const Color(0xFFE11D48)
+        : const Color(0xFF64748B);
 
     return Opacity(
       opacity: isInUse ? 0.65 : 1.0,
@@ -1076,10 +1901,7 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: borderColor,
-              width: isSelected ? 1.5 : 1,
-            ),
+            border: Border.all(color: borderColor, width: isSelected ? 1.5 : 1),
           ),
           child: Row(
             children: [
@@ -1100,7 +1922,9 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                       tool.name,
                       style: GoogleFonts.inter(
                         fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.w600,
                         color: const Color(0xFF0F172A),
                       ),
                     ),
@@ -1120,11 +1944,16 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                 Icon(LucideIcons.checkCircle2, color: _selectedColor, size: 18)
               else if (isInUse)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE11D48).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE11D48).withOpacity(0.3)),
+                    border: Border.all(
+                      color: const Color(0xFFE11D48).withOpacity(0.3),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1150,7 +1979,11 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                   ),
                 )
               else
-                const Icon(LucideIcons.circle, color: Color(0xFFCBD5E1), size: 18),
+                const Icon(
+                  LucideIcons.circle,
+                  color: Color(0xFFCBD5E1),
+                  size: 18,
+                ),
             ],
           ),
         ),
@@ -1158,5 +1991,10 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
-  TextStyle _labelStyle() => GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: const Color(0xFF64748B));
-} 
+  TextStyle _labelStyle() => GoogleFonts.inter(
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.5,
+    color: const Color(0xFF64748B),
+  );
+}

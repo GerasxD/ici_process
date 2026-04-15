@@ -51,6 +51,7 @@ class _ProcessModalState extends State<ProcessModal> {
   final ProcessService _processService = ProcessService();
   final MaterialService _materialService = MaterialService();
   final ToolService _toolService = ToolService();
+  final UserService _userService = UserService();
 
   bool canEditData = false;
   bool canMoveStage = false;
@@ -62,6 +63,10 @@ class _ProcessModalState extends State<ProcessModal> {
   DateTime? _quoteSentDate;
 
   List<String> _pendingMentionIds = [];
+  bool _isPrivate = false;
+  Set<String> _selectedVisibleUserIds = {};
+
+  Map<String, String> _visibleUserNames = {};
 
   final ScrollController _modalScrollController = ScrollController();
   final Map<String, GlobalKey> _sectionKeys = {
@@ -126,8 +131,305 @@ class _ProcessModalState extends State<ProcessModal> {
       final qsd = widget.process!.quotationData?['quoteSentDate'];
       if (qsd != null && qsd.toString().isNotEmpty) {
         try { _quoteSentDate = DateTime.parse(qsd); } catch (_) {}
-      }     
+      } 
+      _isPrivate = widget.process!.isPrivate;
+      _selectedVisibleUserIds = Set.from(widget.process!.visibleToUserIds);
+            if (_selectedVisibleUserIds.isNotEmpty) {
+        _userService.getUsersStream().first.then((users) {
+          if (mounted) {
+            setState(() {
+              for (final user in users) {
+                if (_selectedVisibleUserIds.contains(user.id)) {
+                  _visibleUserNames[user.id] = user.name;
+                }
+              }
+            });
+          }
+        });
+      }    
     }
+  }
+
+  void _openUserVisibilitySelector() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Usuarios con Acceso",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "${_selectedVisibleUserIds.length} seleccionado${_selectedVisibleUserIds.length == 1 ? '' : 's'}",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text(
+                            "Listo",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF7C3AED),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Divider(height: 20, color: Color(0xFFE2E8F0)),
+                  ),
+
+                  // Nota informativa
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F3FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFDDD6FE).withOpacity(0.6),
+                        ),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(LucideIcons.eyeOff,
+                              size: 14, color: Color(0xFF7C3AED)),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Solo los usuarios seleccionados podrán ver este proceso en su tablero.",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF5B21B6),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Lista de usuarios
+                  Expanded(
+                    child: StreamBuilder<List<UserModel>>(
+                      stream: UserService().getUsersStream(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF7C3AED),
+                              strokeWidth: 2,
+                            ),
+                          );
+                        }
+
+                        final users = snapshot.data!;
+                        // Ordenar: seleccionados primero
+                        users.sort((a, b) {
+                          final aSelected =
+                              _selectedVisibleUserIds.contains(a.id) ? 0 : 1;
+                          final bSelected =
+                              _selectedVisibleUserIds.contains(b.id) ? 0 : 1;
+                          return aSelected.compareTo(bSelected);
+                        });
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: users.length,
+                          itemBuilder: (_, i) {
+                            final user = users[i];
+                            final isSelected =
+                                _selectedVisibleUserIds.contains(user.id);
+                            final initials = user.name.isNotEmpty
+                                ? user.name
+                                    .trim()
+                                    .split(' ')
+                                    .take(2)
+                                    .map((w) => w[0].toUpperCase())
+                                    .join()
+                                : '?';
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    if (isSelected) {
+                                      _selectedVisibleUserIds.remove(user.id);
+                                      _visibleUserNames.remove(user.id);
+                                    } else {
+                                      _selectedVisibleUserIds.add(user.id);
+                                      _visibleUserNames[user.id] = user.name;
+                                    }
+                                  });
+                                  setSheetState(() {});
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF7C3AED)
+                                            .withOpacity(0.06)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? const Color(0xFF7C3AED)
+                                              .withOpacity(0.4)
+                                          : const Color(0xFFE2E8F0),
+                                      width: isSelected ? 1.5 : 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Avatar
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFF7C3AED)
+                                              : const Color(0xFFF1F5F9),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            initials,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              user.name,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: isSelected
+                                                    ? const Color(0xFF7C3AED)
+                                                    : const Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              "${user.role.name.toUpperCase()} · ${user.email}",
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xFF94A3B8),
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Checkbox
+                                      AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 150),
+                                        width: 24,
+                                        height: 24,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFF7C3AED)
+                                              : Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(7),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? const Color(0xFF7C3AED)
+                                                : const Color(0xFFCBD5E1),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: isSelected
+                                            ? const Icon(Icons.check,
+                                                color: Colors.white, size: 16)
+                                            : null,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _checkPermissions() {
@@ -3843,6 +4145,11 @@ class _ProcessModalState extends State<ProcessModal> {
       logisticsStatus: _resolveLogisticsStatus(),
       reportBillingData: _currentReportBillingData,
       attachments: widget.process?.attachments ?? [],
+      isPrivate: _isPrivate,
+      visibleToUserIds: _isPrivate ? _selectedVisibleUserIds.toList() : [],
+      createdByUserId: widget.process?.createdByUserId.isNotEmpty == true
+      ? widget.process!.createdByUserId
+      : widget.user.id,
     );
   }
 
@@ -4852,94 +5159,335 @@ class _ProcessModalState extends State<ProcessModal> {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // ── Título ──────────────────────────────────────
-          Text(
-            widget.process == null ? "NUEVO PROCESO" : "EDITAR PROCESO",
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-          ),
-
-          if (!canEditData) ...[
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(4),
+          Row(
+            children: [
+              Text(
+                widget.process == null ? "NUEVO PROCESO" : "EDITAR PROCESO",
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
               ),
-              child: const Row(
-                children: [
-                  Icon(LucideIcons.lock, size: 12, color: Colors.grey),
-                  SizedBox(width: 4),
-                  Text("Solo Lectura",
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ),
-          ],
 
-          // ── Botón Eliminar / Descartar junto al título ──
-          if (widget.process != null) ...[
-            const SizedBox(width: 16),
-            Tooltip(
-              message: widget.process?.stage == ProcessStage.X
-                  ? "Eliminar Permanentemente"
-                  : "Descartar Proceso",
-              child: InkWell(
-                onTap: _handleDelete,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              if (!canEditData) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: widget.process?.stage == ProcessStage.X
-                        ? const Color(0xFFDC2626).withOpacity(0.08)
-                        : const Color(0xFF64748B).withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: widget.process?.stage == ProcessStage.X
-                          ? const Color(0xFFDC2626).withOpacity(0.25)
-                          : const Color(0xFF64748B).withOpacity(0.2),
-                    ),
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: const Row(
                     children: [
-                      Icon(
-                        LucideIcons.trash2,
-                        size: 15,
-                        color: widget.process?.stage == ProcessStage.X
-                            ? const Color(0xFFDC2626)
-                            : const Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        widget.process?.stage == ProcessStage.X
-                            ? "Eliminar"
-                            : "Descartar",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: widget.process?.stage == ProcessStage.X
-                              ? const Color(0xFFDC2626)
-                              : const Color(0xFF64748B),
-                        ),
-                      ),
+                      Icon(LucideIcons.lock, size: 12, color: Colors.grey),
+                      SizedBox(width: 4),
+                      Text("Solo Lectura",
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                 ),
+              ],
+
+              if (widget.process != null) ...[
+                const SizedBox(width: 16),
+                Tooltip(
+                  message: widget.process?.stage == ProcessStage.X
+                      ? "Eliminar Permanentemente"
+                      : "Descartar Proceso",
+                  child: InkWell(
+                    onTap: _handleDelete,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: widget.process?.stage == ProcessStage.X
+                            ? const Color(0xFFDC2626).withOpacity(0.08)
+                            : const Color(0xFF64748B).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: widget.process?.stage == ProcessStage.X
+                              ? const Color(0xFFDC2626).withOpacity(0.25)
+                              : const Color(0xFF64748B).withOpacity(0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.trash2,
+                            size: 15,
+                            color: widget.process?.stage == ProcessStage.X
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            widget.process?.stage == ProcessStage.X
+                                ? "Eliminar"
+                                : "Descartar",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: widget.process?.stage == ProcessStage.X
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              const Spacer(),
+
+              // ── Toggle Privado ──
+              _buildPrivacyToggle(),
+
+              const SizedBox(width: 8),
+
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(LucideIcons.x),
               ),
-            ),
-          ],
+            ],
+          ),
 
-          const Spacer(),
-
-          // ── Cerrar ───────────────────────────────────────
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(LucideIcons.x),
+          // ── Barra de usuarios seleccionados (expandible) ──
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.fastOutSlowIn,
+            child: _isPrivate
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Row(
+                      children: [
+                        // Chips
+                        Expanded(
+                          child: _selectedVisibleUserIds.isEmpty
+                              ? InkWell(
+                                  onTap: canEditData
+                                      ? _openUserVisibilitySelector
+                                      : null,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFEF9C3),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: const Color(0xFFFCD34D)
+                                            .withOpacity(0.5),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: const [
+                                        Icon(LucideIcons.alertTriangle,
+                                            size: 13,
+                                            color: Color(0xFFB45309)),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          "Sin usuarios asignados — toca para seleccionar",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF92400E),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    ..._selectedVisibleUserIds.map((id) {
+                                      final name =
+                                          _visibleUserNames[id] ?? id;
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF7C3AED)
+                                              .withOpacity(0.08),
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: const Color(0xFF7C3AED)
+                                                .withOpacity(0.25),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 8,
+                                              backgroundColor:
+                                                  const Color(0xFF7C3AED),
+                                              child: Text(
+                                                name.isNotEmpty
+                                                    ? name[0].toUpperCase()
+                                                    : '?',
+                                                style: const TextStyle(
+                                                  fontSize: 8,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Text(
+                                              name,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF7C3AED),
+                                              ),
+                                            ),
+                                            if (canEditData) ...[
+                                              const SizedBox(width: 4),
+                                              GestureDetector(
+                                                onTap: () => setState(() {
+                                                  _selectedVisibleUserIds
+                                                      .remove(id);
+                                                  _visibleUserNames
+                                                      .remove(id);
+                                                }),
+                                                child: Icon(
+                                                  LucideIcons.x,
+                                                  size: 12,
+                                                  color:
+                                                      const Color(0xFF7C3AED)
+                                                          .withOpacity(0.5),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                    // Botón agregar inline
+                                    if (canEditData)
+                                      InkWell(
+                                        onTap: _openUserVisibilitySelector,
+                                        borderRadius:
+                                            BorderRadius.circular(16),
+                                        child: Container(
+                                          padding:
+                                              const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: const Color(0xFF7C3AED)
+                                                  .withOpacity(0.3),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: const [
+                                              Icon(LucideIcons.userPlus,
+                                                  size: 12,
+                                                  color:
+                                                      Color(0xFF7C3AED)),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                "Agregar",
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight:
+                                                      FontWeight.w600,
+                                                  color:
+                                                      Color(0xFF7C3AED),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPrivacyToggle() {
+    return InkWell(
+      onTap: canEditData
+          ? () => setState(() {
+                _isPrivate = !_isPrivate;
+                if (!_isPrivate) _selectedVisibleUserIds.clear();
+              })
+          : null,
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: _isPrivate
+              ? const Color(0xFF7C3AED).withOpacity(0.08)
+              : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _isPrivate
+                ? const Color(0xFF7C3AED).withOpacity(0.3)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _isPrivate ? LucideIcons.lock : LucideIcons.globe,
+              size: 14,
+              color: _isPrivate
+                  ? const Color(0xFF7C3AED)
+                  : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _isPrivate ? "Privado" : "Público",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _isPrivate
+                    ? const Color(0xFF7C3AED)
+                    : const Color(0xFF64748B),
+              ),
+            ),
+            if (_isPrivate && _selectedVisibleUserIds.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C3AED),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  "${_selectedVisibleUserIds.length}",
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

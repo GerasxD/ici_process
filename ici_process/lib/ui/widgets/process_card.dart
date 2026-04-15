@@ -113,6 +113,18 @@ class _ProcessCardState extends State<ProcessCard> {
         final handled = widget.item['handledBy'] ?? '';
         if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
         break;
+      case 'E6':
+        final handled = widget.item['handledBy'] ?? '';
+        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
+        break;
+      case 'E7':
+        final handled = widget.item['handledBy'] ?? '';
+        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
+        break;
+      case 'E8':
+        final handled = widget.item['handledBy'] ?? '';
+        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
+        break;
     }
 
     return lines;
@@ -229,6 +241,36 @@ class _ProcessCardState extends State<ProcessCard> {
                         ],
                       ),
                     ),
+                    // Después del Priority Badge, agrega:
+                    if (widget.item['isPrivate'] == true) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F3FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFF7C3AED).withOpacity(0.25),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(LucideIcons.lock, size: 11, color: Color(0xFF7C3AED)),
+                            SizedBox(width: 4),
+                            Text(
+                              "PRIVADO",
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF7C3AED),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -46,7 +46,9 @@ class _EventFormDialogState extends State<EventFormDialog> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
   Color _selectedColor = const Color(0xFF2563EB);
-  String? _selectedVehicleId;
+  Set<String> _selectedVehicleIds = {};
+  Map<String, String> _vehicleModelsMap = {};
+  // ignore: unused_field
   String? _selectedVehicleModel;
   Set<String> _selectedTechIds = {};
   Map<String, String> _techNames = {}; // id → name
@@ -91,8 +93,12 @@ class _EventFormDialogState extends State<EventFormDialog> {
     _startDate = e.startDate;
     _endDate = e.endDate;
     _selectedColor = e.color;
-    _selectedVehicleId = e.vehicleId;
-    _selectedVehicleModel = e.vehicleModel;
+    _selectedVehicleIds = Set.from(e.vehicleIds);
+    for (int i = 0; i < e.vehicleIds.length; i++) {
+      if (i < e.vehicleModels.length) {
+        _vehicleModelsMap[e.vehicleIds[i]] = e.vehicleModels[i];
+      }
+    }
     _selectedTechIds = Set.from(e.technicianIds);
     for (int i = 0; i < e.technicianIds.length; i++) {
       if (i < e.technicianNames.length) {
@@ -167,8 +173,10 @@ class _EventFormDialogState extends State<EventFormDialog> {
         startDate: _startDate,
         endDate: _endDate,
         colorValue: _selectedColor.value,
-        vehicleId: _selectedVehicleId,
-        vehicleModel: _selectedVehicleModel,
+        vehicleIds: _selectedVehicleIds.toList(),
+        vehicleModels: _selectedVehicleIds
+            .map((id) => _vehicleModelsMap[id] ?? '')
+            .toList(),
         technicianIds: _selectedTechIds.toList(),
         technicianNames:
             _selectedTechIds.map((id) => _techNames[id] ?? '').toList(),
@@ -661,60 +669,155 @@ class _EventFormDialogState extends State<EventFormDialog> {
       stream: VehicleService().getVehicles(),
       builder: (ctx, snap) {
         final vehicles = snap.data ?? [];
-        return DropdownButtonFormField<String>(
-          value: _selectedVehicleId,
-          isExpanded: true,
-          hint: Text("Ninguno",
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: const Color(0xFF94A3B8))),
-          onChanged: (id) {
-            setState(() {
-              _selectedVehicleId = id;
-              if (id == null) {
-                _selectedVehicleModel = null;
-              } else {
-                try {
-                  _selectedVehicleModel =
-                      vehicles.firstWhere((v) => v.id == id).model;
-                } catch (_) {}
-              }
-            });
-          },
-          decoration: _inputDeco(),
-          items: [
-            DropdownMenuItem<String>(
-              value: null,
-              child: Text("Ninguno",
-                  style: GoogleFonts.inter(fontSize: 14)),
-            ),
-            ...vehicles.map((v) => DropdownMenuItem(
-                  value: v.id,
-                  child: Row(
-                    children: [
-                      const Icon(LucideIcons.truck,
-                          size: 14, color: Color(0xFF64748B)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(v.model,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(fontSize: 14)),
-                      ),
-                    ],
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: [
+              if (_selectedVehicleIds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _selectedVehicleIds.map((id) {
+                      final model = _vehicleModelsMap[id] ?? id;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _selectedColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: _selectedColor.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.truck,
+                                size: 11, color: _selectedColor),
+                            const SizedBox(width: 5),
+                            Text(model,
+                                style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedColor)),
+                            const SizedBox(width: 4),
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                _selectedVehicleIds.remove(id);
+                                _vehicleModelsMap.remove(id);
+                              }),
+                              child: Icon(LucideIcons.x,
+                                  size: 12,
+                                  color: _selectedColor.withOpacity(0.6)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
-                )),
-          ],
+                ),
+              ...vehicles.map((v) {
+                final isSelected = _selectedVehicleIds.contains(v.id);
+                return InkWell(
+                  onTap: () => setState(() {
+                    if (isSelected) {
+                      _selectedVehicleIds.remove(v.id);
+                      _vehicleModelsMap.remove(v.id);
+                    } else {
+                      _selectedVehicleIds.add(v.id);
+                      _vehicleModelsMap[v.id] = v.model;
+                    }
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? _selectedColor.withOpacity(0.06)
+                          : Colors.transparent,
+                      border: vehicles.last.id != v.id
+                          ? const Border(
+                              bottom: BorderSide(color: Color(0xFFF1F5F9)))
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.truck,
+                            size: 14, color: const Color(0xFF64748B)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(v.model,
+                              style: GoogleFonts.inter(
+                                  fontSize: 13, fontWeight: FontWeight.w500)),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? _selectedColor
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isSelected
+                                  ? _selectedColor
+                                  : const Color(0xFFCBD5E1),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: isSelected
+                              ? const Icon(Icons.check,
+                                  color: Colors.white, size: 14)
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
         );
       },
     );
+  }
+
+  /// Revisa si el técnico ya está asignado a un evento que se solape
+  /// con [_startDate]-[_endDate]. Devuelve el nombre del cliente del
+  /// evento que genera conflicto, o null si está libre.
+  String? _technicianConflict(String techId, List<CalendarEvent> allEvents) {
+    final editingId = widget.eventToEdit?.id;
+
+    for (final ev in allEvents) {
+      // Ignorar el evento que se está editando
+      if (editingId != null && ev.id == editingId) continue;
+
+      // ¿El técnico está en este evento?
+      if (!ev.technicianIds.contains(techId)) continue;
+
+      // ¿Las fechas se solapan?
+      final overlaps = ev.startDate.compareTo(_endDate) <= 0 &&
+          ev.endDate.compareTo(_startDate) >= 0;
+      if (!overlaps) continue;
+
+      // Hay conflicto → devolvemos el cliente de ese evento
+      return ev.clientName;
+    }
+    return null; // Sin conflicto
   }
 
   // ── TECHNICIAN SELECTOR ───────────────────────────────────
   Widget _buildTechnicianSelector() {
     return StreamBuilder<List<UserModel>>(
       stream: _userService.getUsersStream(),
-      builder: (ctx, snap) {
-        // Solo técnicos
-        final technicians = (snap.data ?? [])
+      builder: (ctx, userSnap) {
+        final technicians = (userSnap.data ?? [])
             .where((u) => u.role == UserRole.technician)
             .toList();
 
@@ -728,7 +831,7 @@ class _EventFormDialogState extends State<EventFormDialog> {
             ),
             child: Center(
               child: Text(
-                "No hay técnicos disponibles en estas fechas.",
+                "No hay técnicos disponibles.",
                 style: GoogleFonts.inter(
                     fontSize: 12, color: const Color(0xFF94A3B8)),
               ),
@@ -736,109 +839,186 @@ class _EventFormDialogState extends State<EventFormDialog> {
           );
         }
 
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            children: technicians.map((tech) {
-              final isSelected = _selectedTechIds.contains(tech.id);
-              return InkWell(
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      _selectedTechIds.remove(tech.id);
-                      _techNames.remove(tech.id);
-                    } else {
-                      _selectedTechIds.add(tech.id);
-                      _techNames[tech.id] = tech.name;
-                    }
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? _selectedColor.withOpacity(0.06)
-                        : Colors.transparent,
-                    border: technicians.last.id != tech.id
-                        ? const Border(
-                            bottom:
-                                BorderSide(color: Color(0xFFF1F5F9)))
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      // Avatar
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: isSelected
-                            ? _selectedColor.withOpacity(0.15)
-                            : const Color(0xFFF1F5F9),
-                        child: Text(
-                          tech.name.isNotEmpty
-                              ? tech.name[0].toUpperCase()
-                              : 'T',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected
-                                ? _selectedColor
-                                : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tech.name,
-                              style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF1E293B)),
-                            ),
-                            Text(
-                              tech.email,
-                              style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: const Color(0xFF94A3B8)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Checkbox visual
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? _selectedColor
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isSelected
-                                ? _selectedColor
-                                : const Color(0xFFCBD5E1),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: isSelected
-                            ? const Icon(Icons.check,
-                                color: Colors.white, size: 14)
+        // ── Segundo stream: eventos existentes ──
+        return StreamBuilder<List<CalendarEvent>>(
+          stream: _eventService.getEventsStream(),
+          builder: (ctx, evSnap) {
+            final allEvents = evSnap.data ?? [];
+
+            return Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: technicians.map((tech) {
+                  final isSelected = _selectedTechIds.contains(tech.id);
+
+                  // ── LÓGICA DE CONFLICTO ──
+                  final conflictClient =
+                      _technicianConflict(tech.id, allEvents);
+                  final hasConflict = conflictClient != null;
+                  final sameClient = hasConflict &&
+                      _currentClientName.isNotEmpty &&
+                      conflictClient.toLowerCase().trim() ==
+                          _currentClientName.toLowerCase().trim();
+
+                  // Bloqueado = tiene conflicto Y no es el mismo cliente
+                  final isBlocked = hasConflict && !sameClient;
+
+                  return InkWell(
+                    onTap: isBlocked
+                        ? null // No se puede tocar
+                        : () {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedTechIds.remove(tech.id);
+                                _techNames.remove(tech.id);
+                              } else {
+                                _selectedTechIds.add(tech.id);
+                                _techNames[tech.id] = tech.name;
+                              }
+                            });
+                          },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isBlocked
+                            ? const Color(0xFFFEF2F2)
+                            : isSelected
+                                ? _selectedColor.withOpacity(0.06)
+                                : Colors.transparent,
+                        border: technicians.last.id != tech.id
+                            ? const Border(
+                                bottom:
+                                    BorderSide(color: Color(0xFFF1F5F9)))
                             : null,
                       ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+                      child: Row(
+                        children: [
+                          // Avatar
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: isBlocked
+                                ? const Color(0xFFFECACA)
+                                : isSelected
+                                    ? _selectedColor.withOpacity(0.15)
+                                    : const Color(0xFFF1F5F9),
+                            child: isBlocked
+                                ? const Icon(LucideIcons.ban,
+                                    size: 14, color: Color(0xFFDC2626))
+                                : Text(
+                                    tech.name.isNotEmpty
+                                        ? tech.name[0].toUpperCase()
+                                        : 'T',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected
+                                          ? _selectedColor
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  tech.name,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isBlocked
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF1E293B),
+                                  ),
+                                ),
+                                // ── Línea de estado ──
+                                if (isBlocked)
+                                  Text(
+                                    "Ocupado: $conflictClient",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFFDC2626),
+                                    ),
+                                  )
+                                else if (hasConflict && sameClient)
+                                  Text(
+                                    "Ya asignado a esta empresa ✓",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    tech.email,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          // Checkbox visual
+                          if (isBlocked)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEE2E2),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                "No disponible",
+                                style: GoogleFonts.inter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFDC2626),
+                                ),
+                              ),
+                            )
+                          else
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? _selectedColor
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? _selectedColor
+                                      : const Color(0xFFCBD5E1),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check,
+                                      color: Colors.white, size: 14)
+                                  : null,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          },
         );
       },
     );
@@ -923,6 +1103,9 @@ class _EventFormDialogState extends State<EventFormDialog> {
       ),
     );
   }
+
+  String get _currentClientName =>
+    _isCustomClient ? _customClientCtrl.text.trim() : (_selectedClient?.name ?? '');
 
   // ── HELPERS UI ────────────────────────────────────────────
   Widget _buildLabel(String text) {

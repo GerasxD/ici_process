@@ -33,7 +33,10 @@ class _KanbanViewState extends State<KanbanView> {
     final bool canViewFinancials = pm.can(widget.currentUser, 'view_financials');
 
     return StreamBuilder<List<ProcessModel>>(
-      stream: service.getProcessesStream(),
+      stream: service.getProcessesStream(
+        currentUserId: widget.currentUser.id,
+        currentUserRole: widget.currentUser.role.name,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -201,6 +204,7 @@ class _KanbanViewState extends State<KanbanView> {
                       'authorizedBy': _findUserForAction(process.history, 'a etapa E3'),
                       'ocReceivedBy': _findUserForAction(process.history, 'a etapa E4'),
                       'handledBy': _findUserForAction(process.history, 'a etapa E5'),
+                      'isPrivate': process.isPrivate,
                     },
                     canViewPrices: canViewFinancials,
                     onClick: () => showDialog(

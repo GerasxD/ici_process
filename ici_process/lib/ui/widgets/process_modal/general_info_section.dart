@@ -306,6 +306,19 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
 
         const SizedBox(height: 16),
 
+        // --- CARD: Alcance del Proyecto --- ← AQUÍ lo pegas
+        _wrapCard('info',
+          _buildCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: _buildSectionTitle("Alcance del Proyecto", LucideIcons.fileText)), _buildAIButton()]),
+              const SizedBox(height: 16),
+              _buildDescriptionField(),
+            ]),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+        
         // --- SECCIÓN: COTIZACIÓN ---
         if (_showQuoteSection) ...[
           Container(
@@ -481,17 +494,6 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
           widget.extraSection!,
           const SizedBox(height: 16),
         ],
-
-        // --- CARD: Alcance del Proyecto ---
-        _wrapCard('info',
-          _buildCard(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: _buildSectionTitle("Alcance del Proyecto", LucideIcons.fileText)), _buildAIButton()]),
-              const SizedBox(height: 16),
-              _buildDescriptionField(),
-            ]),
-          ),
-        ),
       ],
     );
   }

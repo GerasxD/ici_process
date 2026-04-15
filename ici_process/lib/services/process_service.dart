@@ -27,14 +27,29 @@ class ProcessService {
   }
 
   // 1. Obtener todos los procesos en tiempo real
-  Stream<List<ProcessModel>> getProcessesStream() {
+  Stream<List<ProcessModel>> getProcessesStream({String? currentUserId, String? currentUserRole}) {
     return _db
         .collection(_collection)
         .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProcessModel.fromMap(doc.data(), doc.id))
-            .toList());
+        .map((snapshot) {
+      final allProcesses = snapshot.docs
+          .map((doc) => ProcessModel.fromMap(doc.data(), doc.id))
+          .toList();
+
+      if (currentUserId == null) return allProcesses;
+
+      // Superadmin ve todo
+      if (currentUserRole == 'superAdmin') return allProcesses;
+
+      return allProcesses.where((p) {
+        if (!p.isPrivate) return true;
+        // El creador siempre ve su proceso
+        if (p.createdByUserId == currentUserId) return true;
+        // Los asignados lo ven
+        return p.visibleToUserIds.contains(currentUserId);
+      }).toList();
+    });
   }
 
   // 2. Crear un nuevo proceso con ID correlativo

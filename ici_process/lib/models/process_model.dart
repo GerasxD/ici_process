@@ -24,6 +24,9 @@ class ProcessModel {
   final Map<String, dynamic>? materialValidationData;
   final Map<String, dynamic>? reportBillingData;
   final List<Map<String, dynamic>> attachments; 
+  final bool isPrivate;
+  final List<String> visibleToUserIds; // IDs de usuarios que pueden ver el proceso
+  final String createdByUserId;
 
   ProcessModel({
     required this.id,
@@ -48,6 +51,9 @@ class ProcessModel {
     this.materialValidationData,
     this.reportBillingData,
     this.attachments = const [], 
+    this.isPrivate = false,
+    this.visibleToUserIds = const [],
+    this.createdByUserId = '',
   });
  
   factory ProcessModel.fromMap(Map<String, dynamic> data, String docId) {
@@ -92,6 +98,9 @@ class ProcessModel {
       attachments: (data['attachments'] as List<dynamic>? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList(),
+      isPrivate: data['isPrivate'] ?? false,
+      visibleToUserIds: List<String>.from(data['visibleToUserIds'] ?? []),
+      createdByUserId: data['createdByUserId'] ?? '',
     );
   }
  
@@ -117,6 +126,9 @@ class ProcessModel {
       'logisticsData': logisticsData,
       'materialValidationData': materialValidationData,
       'reportBillingData': reportBillingData,
+      'isPrivate': isPrivate,
+      'visibleToUserIds': visibleToUserIds,
+      'createdByUserId': createdByUserId,
     };
   }
 }

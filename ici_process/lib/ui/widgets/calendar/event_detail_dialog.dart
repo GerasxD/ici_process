@@ -175,21 +175,69 @@ class EventDetailDialog extends StatelessWidget {
   }
 
   Widget _buildVehicleRow() {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8)), child: const Icon(LucideIcons.truck, size: 16, color: Color(0xFF94A3B8))),
-      const SizedBox(width: 14),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text("Vehículos Asignados", style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
-        const SizedBox(height: 6),
-        event.vehicleModel != null
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))),
-                child: Text(event.vehicleModel!, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: const Color(0xFF475569))),
-              )
-            : Text("Sin vehículo asignado", style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFCBD5E1))),
-      ])),
-    ]);
+    final hasVehicles = event.vehicleModels.isNotEmpty;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(LucideIcons.truck,
+              size: 16, color: Color(0xFF94A3B8)),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Vehículos Asignados",
+                  style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0F172A))),
+              const SizedBox(height: 6),
+              hasVehicles
+                  ? Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: event.vehicleModels
+                          .map((model) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(LucideIcons.truck,
+                                        size: 12, color: Color(0xFF64748B)),
+                                    const SizedBox(width: 6),
+                                    Text(model,
+                                        style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: const Color(0xFF475569))),
+                                  ],
+                                ),
+                              ))
+                          .toList(),
+                    )
+                  : Text("Sin vehículo asignado",
+                      style: GoogleFonts.inter(
+                          fontSize: 13, color: const Color(0xFFCBD5E1))),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildPersonnelRow(Color accentColor) {

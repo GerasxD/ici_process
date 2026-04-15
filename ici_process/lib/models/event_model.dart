@@ -93,6 +93,8 @@ class CalendarEvent {
   final int colorValue; // color.value
   final String? vehicleId;
   final String? vehicleModel;
+  final List<String> vehicleIds;
+  final List<String> vehicleModels;
   final List<String> technicianIds;
   final List<String> technicianNames;
   final String createdBy;
@@ -111,6 +113,8 @@ class CalendarEvent {
     required this.colorValue,
     this.vehicleId,
     this.vehicleModel,
+    this.vehicleIds = const [],
+    this.vehicleModels = const [],
     this.technicianIds = const [],
     this.technicianNames = const [],
     required this.createdBy,
@@ -136,6 +140,8 @@ class CalendarEvent {
       colorValue: data['colorValue'] ?? 0xFF2563EB,
       vehicleId: data['vehicleId'],
       vehicleModel: data['vehicleModel'],
+      vehicleIds: List<String>.from(data['vehicleIds'] ?? []),
+      vehicleModels: List<String>.from(data['vehicleModels'] ?? []),
       technicianIds: List<String>.from(data['technicianIds'] ?? []),
       technicianNames: List<String>.from(data['technicianNames'] ?? []),
       createdBy: data['createdBy'] ?? '',
@@ -155,6 +161,8 @@ class CalendarEvent {
         'colorValue': colorValue,
         'vehicleId': vehicleId,
         'vehicleModel': vehicleModel,
+        'vehicleIds': vehicleIds,
+        'vehicleModels': vehicleModels,
         'technicianIds': technicianIds,
         'technicianNames': technicianNames,
         'createdBy': createdBy,
