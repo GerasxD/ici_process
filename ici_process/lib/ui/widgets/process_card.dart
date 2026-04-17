@@ -80,50 +80,58 @@ class _ProcessCardState extends State<ProcessCard> {
     }
   }
 
-  List<String> get _stageLines {
+  List<Map<String, dynamic>> get _stageLines {
     final stage = (widget.item['stage'] ?? '').toString().toUpperCase();
-    final lines = <String>[];
+    final lines = <Map<String, dynamic>>[];
+
+    // Helper para línea normal (gris)
+    void addNormal(String text) {
+      lines.add({'text': text, 'isSuccess': false});
+    }
+
+    // Helper para línea de éxito (verde, con check)
+    void addSuccess(String text) {
+      lines.add({'text': text, 'isSuccess': true});
+    }
 
     switch (stage) {
       case 'E2':
         final user = widget.item['attendedBy'] ?? '';
-        if (user.toString().isNotEmpty) {
-          lines.add('Atendido por: $user');
-        }
+        if (user.toString().isNotEmpty) addNormal('Atendido por: $user');
         break;
       case 'E2A':
         final att = widget.item['attendedBy'] ?? '';
         final quot = widget.item['quotedBy'] ?? '';
-        if (att.toString().isNotEmpty) lines.add('Atendido por: $att');
-        if (quot.toString().isNotEmpty) lines.add('Cotizado por: $quot');
+        if (att.toString().isNotEmpty) addNormal('Atendido por: $att');
+        if (quot.toString().isNotEmpty) addNormal('Cotizado por: $quot');
         break;
       case 'E3':
         final att = widget.item['attendedBy'] ?? '';
         final quot = widget.item['quotedBy'] ?? '';
         final auth = widget.item['authorizedBy'] ?? '';
-        if (att.toString().isNotEmpty) lines.add('Atendido por: $att');
-        if (quot.toString().isNotEmpty) lines.add('Cotizado por: $quot');
-        if (auth.toString().isNotEmpty) lines.add('Autorizado por: $auth');
+        if (att.toString().isNotEmpty) addNormal('Atendido por: $att');
+        if (quot.toString().isNotEmpty) addNormal('Cotizado por: $quot');
+        if (auth.toString().isNotEmpty) addNormal('Autorizado por: $auth');
         break;
       case 'E4':
         final oc = widget.item['ocReceivedBy'] ?? '';
-        if (oc.toString().isNotEmpty) lines.add('O.C Recibida por: $oc');
+        if (oc.toString().isNotEmpty) addNormal('O.C Recibida por: $oc');
         break;
       case 'E5':
-        final handled = widget.item['handledBy'] ?? '';
-        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
-        break;
       case 'E6':
         final handled = widget.item['handledBy'] ?? '';
-        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
+        if (handled.toString().isNotEmpty) addNormal('Atendido por: $handled');
         break;
       case 'E7':
-        final handled = widget.item['handledBy'] ?? '';
-        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
-        break;
       case 'E8':
         final handled = widget.item['handledBy'] ?? '';
-        if (handled.toString().isNotEmpty) lines.add('Atendido por: $handled');
+        if (handled.toString().isNotEmpty) addNormal('Atendido por: $handled');
+        if (widget.item['reportSent'] == true) {
+          addSuccess('Reporte enviado al cliente');
+        }
+        if (widget.item['invoiceSent'] == true) {
+          addSuccess('Factura enviada al cliente');
+        }
         break;
     }
 
@@ -373,18 +381,39 @@ class _ProcessCardState extends State<ProcessCard> {
                     if (stageLines.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       ...stageLines.map(
-                        (line) => Padding(
-                          padding: const EdgeInsets.only(bottom: 2),
-                          child: Text(
-                            line,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
-                              height: 1.4,
+                        (line) {
+                          final bool isSuccess = line['isSuccess'] == true;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Row(
+                              children: [
+                                if (isSuccess) ...[
+                                  const Icon(
+                                    LucideIcons.checkCircle2,
+                                    size: 11,
+                                    color: Color(0xFF059669),
+                                  ),
+                                  const SizedBox(width: 5),
+                                ],
+                                Flexible(
+                                  child: Text(
+                                    line['text'] as String,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: isSuccess
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                      color: isSuccess
+                                          ? const Color(0xFF059669)
+                                          : const Color(0xFF64748B),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ],
 

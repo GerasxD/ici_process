@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/core/utils/permission_manager.dart';
+import 'package:ici_process/ui/widgets/import_export_buttons.dart';
 import 'package:ici_process/ui/widgets/material_assignments_view.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -271,6 +272,17 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
             ],
           ),
         ),
+        // ── BOTONES IMPORTAR / EXPORTAR ──
+        if (canEdit) ...[
+          ImportExportButtons(
+            onImportComplete: () {
+              // Los streams se actualizan solos, pero puedes forzar
+              // un refresh si lo necesitas:
+              setState(() {});
+            },
+          ),
+          const SizedBox(width: 12),
+        ],
         // ── TOGGLE ──
         Container(
           decoration: BoxDecoration(

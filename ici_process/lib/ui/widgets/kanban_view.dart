@@ -205,6 +205,8 @@ class _KanbanViewState extends State<KanbanView> {
                       'ocReceivedBy': _findUserForAction(process.history, 'a etapa E4'),
                       'handledBy': _findUserForAction(process.history, 'a etapa E5'),
                       'isPrivate': process.isPrivate,
+                      'reportSent': process.reportBillingData?['reportSent'] ?? false,
+                      'invoiceSent': process.reportBillingData?['invoiceSent'] ?? false,
                     },
                     canViewPrices: canViewFinancials,
                     onClick: () => showDialog(

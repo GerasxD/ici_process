@@ -190,13 +190,17 @@ class CalendarEvent {
   }
 
   /// ── NUEVO: Verifica si el usuario puede ver este evento ──
+  /// ── Verifica si el usuario puede ver este evento ──
   bool isVisibleTo(String userId, String userRole) {
-    // Admins y superadmins ven todo
+    // Solo SuperAdmin ve TODOS los eventos (incluidos privados)
+    // Los admin ya NO tienen bypass: deben estar en visibleToUserIds
     final role = userRole.toLowerCase();
-    if (role == 'admin' || role == 'superadmin') return true;
+    if (role == 'superadmin') return true;
+
     // Eventos públicos: todos los ven
     if (!isPrivate) return true;
-    // Eventos privados: solo usuarios en la lista
+
+    // Eventos privados: solo usuarios explícitamente autorizados
     return visibleToUserIds.contains(userId);
   }
 }

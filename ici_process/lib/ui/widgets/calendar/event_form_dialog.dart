@@ -680,120 +680,220 @@ class _EventFormDialogState extends State<EventFormDialog> {
       stream: VehicleService().getVehicles(),
       builder: (ctx, snap) {
         final vehicles = snap.data ?? [];
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            children: [
-              if (_selectedVehicleIds.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: _selectedVehicleIds.map((id) {
-                      final model = _vehicleModelsMap[id] ?? id;
-                      return Container(
+
+        // ── Segundo stream: eventos existentes para detectar conflictos ──
+        return StreamBuilder<List<CalendarEvent>>(
+          stream: _eventService.getEventsStream(),
+          builder: (ctx2, evSnap) {
+            final allEvents = evSnap.data ?? [];
+
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  if (_selectedVehicleIds.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _selectedVehicleIds.map((id) {
+                          final model = _vehicleModelsMap[id] ?? id;
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: _selectedColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: _selectedColor.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.truck,
+                                    size: 11, color: _selectedColor),
+                                const SizedBox(width: 5),
+                                Text(model,
+                                    style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: _selectedColor)),
+                                const SizedBox(width: 4),
+                                GestureDetector(
+                                  onTap: () => setState(() {
+                                    _selectedVehicleIds.remove(id);
+                                    _vehicleModelsMap.remove(id);
+                                  }),
+                                  child: Icon(LucideIcons.x,
+                                      size: 12,
+                                      color: _selectedColor.withOpacity(0.6)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ...vehicles.map((v) {
+                    final isSelected = _selectedVehicleIds.contains(v.id);
+
+                    // ── Detectar conflicto (sin bloquear selección) ──
+                    final conflictClient = _vehicleConflict(v.id, allEvents);
+                    final hasConflict = conflictClient != null;
+
+                    return InkWell(
+                      onTap: () => setState(() {
+                        if (isSelected) {
+                          _selectedVehicleIds.remove(v.id);
+                          _vehicleModelsMap.remove(v.id);
+                        } else {
+                          _selectedVehicleIds.add(v.id);
+                          _vehicleModelsMap[v.id] = v.model;
+                        }
+                      }),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 5),
+                            horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: _selectedColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: _selectedColor.withOpacity(0.3)),
+                          color: isSelected
+                              ? _selectedColor.withOpacity(0.06)
+                              : hasConflict
+                                  ? const Color(0xFFFEF2F2).withOpacity(0.5)
+                                  : Colors.transparent,
+                          border: vehicles.last.id != v.id
+                              ? const Border(
+                                  bottom:
+                                      BorderSide(color: Color(0xFFF1F5F9)))
+                              : null,
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(LucideIcons.truck,
-                                size: 11, color: _selectedColor),
-                            const SizedBox(width: 5),
-                            Text(model,
-                                style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: _selectedColor)),
-                            const SizedBox(width: 4),
-                            GestureDetector(
-                              onTap: () => setState(() {
-                                _selectedVehicleIds.remove(id);
-                                _vehicleModelsMap.remove(id);
-                              }),
-                              child: Icon(LucideIcons.x,
-                                  size: 12,
-                                  color: _selectedColor.withOpacity(0.6)),
+                            // Icono con indicador de estado
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Icon(LucideIcons.truck,
+                                    size: 14,
+                                    color: hasConflict
+                                        ? const Color(0xFFDC2626)
+                                        : const Color(0xFF64748B)),
+                                Positioned(
+                                  right: -3,
+                                  bottom: -3,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: hasConflict
+                                          ? const Color(0xFFDC2626)
+                                          : const Color(0xFF059669),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white, width: 1.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(v.model,
+                                      style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500)),
+                                  if (hasConflict) ...[
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        const Icon(LucideIcons.alertCircle,
+                                            size: 10,
+                                            color: Color(0xFFDC2626)),
+                                        const SizedBox(width: 3),
+                                        Flexible(
+                                          child: Text(
+                                            "Ocupado: $conflictClient",
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFFDC2626),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ] else ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      "Disponible",
+                                      style: GoogleFonts.inter(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF059669),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            // Badge de advertencia (no bloquea)
+                            if (hasConflict && !isSelected)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEE2E2),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  "⚠ Conflicto",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFDC2626),
+                                  ),
+                                ),
+                              ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? _selectedColor
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? _selectedColor
+                                      : const Color(0xFFCBD5E1),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check,
+                                      color: Colors.white, size: 14)
+                                  : null,
                             ),
                           ],
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ...vehicles.map((v) {
-                final isSelected = _selectedVehicleIds.contains(v.id);
-                return InkWell(
-                  onTap: () => setState(() {
-                    if (isSelected) {
-                      _selectedVehicleIds.remove(v.id);
-                      _vehicleModelsMap.remove(v.id);
-                    } else {
-                      _selectedVehicleIds.add(v.id);
-                      _vehicleModelsMap[v.id] = v.model;
-                    }
+                      ),
+                    );
                   }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? _selectedColor.withOpacity(0.06)
-                          : Colors.transparent,
-                      border: vehicles.last.id != v.id
-                          ? const Border(
-                              bottom: BorderSide(color: Color(0xFFF1F5F9)))
-                          : null,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(LucideIcons.truck,
-                            size: 14, color: const Color(0xFF64748B)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(v.model,
-                              style: GoogleFonts.inter(
-                                  fontSize: 13, fontWeight: FontWeight.w500)),
-                        ),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? _selectedColor
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isSelected
-                                  ? _selectedColor
-                                  : const Color(0xFFCBD5E1),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: isSelected
-                              ? const Icon(Icons.check,
-                                  color: Colors.white, size: 14)
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -822,6 +922,31 @@ class _EventFormDialogState extends State<EventFormDialog> {
       if (!overlaps) continue;
 
       return ev.clientName;
+    }
+    return null;
+  }
+
+  /// Revisa si un vehículo está ocupado en otro evento que se solape
+  /// con el rango [_startDate] - [_endDate]. Devuelve el nombre del cliente
+  /// del evento en conflicto, o null si está libre.
+  String? _vehicleConflict(String vehicleId, List<CalendarEvent> allEvents) {
+    final editingId = widget.eventToEdit?.id;
+
+    final rangeStart = DateTime(_startDate.year, _startDate.month, _startDate.day);
+    final rangeEnd = DateTime(_endDate.year, _endDate.month, _endDate.day);
+
+    for (final ev in allEvents) {
+      if (editingId != null && ev.id == editingId) continue;
+      if (!ev.vehicleIds.contains(vehicleId)) continue;
+
+      final evStart = DateTime(ev.startDate.year, ev.startDate.month, ev.startDate.day);
+      final evEnd = DateTime(ev.endDate.year, ev.endDate.month, ev.endDate.day);
+
+      final overlaps = evStart.compareTo(rangeEnd) <= 0 &&
+          evEnd.compareTo(rangeStart) >= 0;
+      if (!overlaps) continue;
+
+      return ev.clientName.isNotEmpty ? ev.clientName : ev.title;
     }
     return null;
   }

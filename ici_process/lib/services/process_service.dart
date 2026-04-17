@@ -40,13 +40,16 @@ class ProcessService {
       if (currentUserId == null) return allProcesses;
 
       // Superadmin ve todo
-      if (currentUserRole == 'superAdmin') return allProcesses;
+      // ── Solo SuperAdmin ve TODOS los procesos (incluidos privados) ──
+      // Los admin ya NO tienen acceso automático; deben estar en visibleToUserIds
+      final roleLower = (currentUserRole ?? '').toLowerCase();
+      if (roleLower == 'superadmin') return allProcesses;
 
       return allProcesses.where((p) {
+        // Procesos públicos: todos los ven
         if (!p.isPrivate) return true;
-        // El creador siempre ve su proceso
+        // Proceso privado: solo creador o usuarios autorizados
         if (p.createdByUserId == currentUserId) return true;
-        // Los asignados lo ven
         return p.visibleToUserIds.contains(currentUserId);
       }).toList();
     });

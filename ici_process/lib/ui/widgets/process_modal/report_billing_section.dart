@@ -1165,7 +1165,7 @@ class _ReportBillingSectionState extends State<ReportBillingSection> {
                 child: _buildConfirmationCheckbox(
                   label: "Reporte Enviado al Cliente",
                   subtitle:
-                      "El reporte fotográfico y editable han sido entregados",
+                      "El reporte fotográfico ha sido entregado",
                   icon: LucideIcons.fileCheck,
                   value: _reportSent,
                   onChanged: widget.isEditable

@@ -80,6 +80,7 @@ class MaterialValidationSection extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final Function(Map<String, dynamic>) onDataChanged;
   final String currentUserName;
+  final bool hasFinancialAccess;
 
   const MaterialValidationSection({
     super.key,
@@ -88,6 +89,7 @@ class MaterialValidationSection extends StatefulWidget {
     this.initialData,
     required this.onDataChanged,
     required this.currentUserName,
+    this.hasFinancialAccess = true,
   });
 
   @override
@@ -152,6 +154,15 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
   double get _validatedTotal =>
       _items.where((i) => !i.isRemoved).fold(0, (s, i) => s + i.validatedQty * i.unitPrice);
   double get _costDifference => _validatedTotal - _quotedTotal;
+
+  // ── Enmascarar valores financieros ────────────────────────
+  String _fmtMoney(double amount) =>
+      widget.hasFinancialAccess ? _currFmt.format(amount) : '***';
+
+  String _fmtMoneyWithSign(double amount) {
+    if (!widget.hasFinancialAccess) return '***';
+    return amount > 0 ? '+${_currFmt.format(amount)}' : _currFmt.format(amount);
+  }
 
   @override
   void initState() {
@@ -630,7 +641,6 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
     final priceCtrl = TextEditingController(
         text: item.unitPrice > 0 ? item.unitPrice.toStringAsFixed(2) : '');
     final qtyCtrl = TextEditingController(text: _fmtQty(item.validatedQty));
-    final providerCtrl = TextEditingController(text: item.providerName);
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -655,11 +665,12 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Handle
+                    // ── Handle ──────────────────────────────────────
                     Center(
                       child: Container(
-                        margin: const EdgeInsets.only(top: 12),
-                        width: 40, height: 4,
+                        margin: const EdgeInsets.only(top: 12, bottom: 4),
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: const Color(0xFFCBD5E1),
                           borderRadius: BorderRadius.circular(2),
@@ -667,58 +678,64 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                       ),
                     ),
 
-                    // Header con gradiente
+                    // ── Header ───────────────────────────────────────
                     Container(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 20, 20),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
+                      width: double.infinity,
+                      // 1. Agregamos un margen para despegarlo de las orillas (Opcional pero recomendado)
+                      margin: const EdgeInsets.symmetric(horizontal: 16), 
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      decoration: BoxDecoration(
+                        // 2. Aquí redondeamos la franja morada
+                        borderRadius: BorderRadius.circular(16), 
+                        gradient: const LinearGradient(
                           colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
-                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
                       ),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(11),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: _accentMid.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(12),
+                              color: _accentMid.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Icon(LucideIcons.penTool,
-                                color: _accentMid, size: 22),
+                                color: _accentMid, size: 20),
                           ),
-                          const SizedBox(width: 14),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text("Editar Material",
-                                    style: GoogleFonts.inter(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                        color: const Color(0xFF0F172A))),
-                                const SizedBox(height: 2),
-                                Row(children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF059669).withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text("Nuevo",
-                                        style: GoogleFonts.inter(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF059669))),
+                                Text(
+                                  "Editar Material",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF0F172A),
                                   ),
-                                  const SizedBox(width: 6),
-                                  Text("Material agregado manualmente",
-                                      style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          color: _accentMid,
-                                          fontWeight: FontWeight.w500)),
-                                ]),
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF059669).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    "Material agregado manualmente",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -726,19 +743,25 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                             onPressed: () => Navigator.pop(ctx),
                             icon: const Icon(LucideIcons.x,
                                 color: Color(0xFF94A3B8), size: 20),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 32, minHeight: 32),
                           ),
                         ],
                       ),
                     ),
 
+                    // ── Campos ───────────────────────────────────────
                     Flexible(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Nombre
-                            _editFieldLabel("Nombre del material", LucideIcons.package, required: true),
+                            _editFieldLabel("Nombre del material",
+                                LucideIcons.package,
+                                required: true),
                             const SizedBox(height: 8),
                             _editField(
                               controller: nameCtrl,
@@ -754,7 +777,8 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      _editFieldLabel("Unidad", LucideIcons.ruler),
+                                      _editFieldLabel(
+                                          "Unidad", LucideIcons.ruler),
                                       const SizedBox(height: 8),
                                       _editField(
                                         controller: unitCtrl,
@@ -768,7 +792,9 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      _editFieldLabel("Cantidad validada", LucideIcons.layers, required: true),
+                                      _editFieldLabel("Cantidad validada",
+                                          LucideIcons.layers,
+                                          required: true),
                                       const SizedBox(height: 8),
                                       _editField(
                                         controller: qtyCtrl,
@@ -784,7 +810,9 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                             const SizedBox(height: 16),
 
                             // Precio unitario
-                            _editFieldLabel("Precio unitario", LucideIcons.dollarSign, required: true),
+                            _editFieldLabel(
+                                "Precio unitario", LucideIcons.dollarSign,
+                                required: true),
                             const SizedBox(height: 8),
                             _editField(
                               controller: priceCtrl,
@@ -793,18 +821,9 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                               prefixText: '\$ ',
                               onChanged: (_) => setSheetState(() {}),
                             ),
-                            const SizedBox(height: 16),
-
-                            // Proveedor
-                            _editFieldLabel("Proveedor", LucideIcons.truck),
-                            const SizedBox(height: 8),
-                            _editField(
-                              controller: providerCtrl,
-                              hint: "Opcional",
-                            ),
                             const SizedBox(height: 20),
 
-                            // Preview de subtotal (live)
+                            // Subtotal en vivo
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
@@ -818,76 +837,96 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                                 ),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                    color: const Color(0xFF059669).withOpacity(0.2)),
+                                    color: const Color(0xFF059669)
+                                        .withOpacity(0.2)),
                               ),
                               child: Row(
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.all(9),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF059669).withOpacity(0.15),
+                                      color: const Color(0xFF059669)
+                                          .withOpacity(0.15),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: const Icon(LucideIcons.calculator,
-                                        size: 18, color: Color(0xFF059669)),
+                                        size: 18,
+                                        color: Color(0xFF059669)),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text("SUBTOTAL CALCULADO",
-                                            style: GoogleFonts.inter(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF059669),
-                                                letterSpacing: 0.6)),
+                                        Text(
+                                          "SUBTOTAL CALCULADO",
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFF059669),
+                                            letterSpacing: 0.6,
+                                          ),
+                                        ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          "${_fmtQty(currentQty)} × ${_currFmt.format(currentPrice)}",
+                                        widget.hasFinancialAccess
+                                            ? "${_fmtQty(currentQty)} × ${_currFmt.format(currentPrice)}"
+                                            : "${_fmtQty(currentQty)} × ***",
                                           style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color: const Color(0xFF065F46),
-                                              fontWeight: FontWeight.w500),
+                                            fontSize: 11,
+                                            color: const Color(0xFF065F46),
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  Text(_currFmt.format(liveSubtotal),
-                                      style: GoogleFonts.inter(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF059669))),
+                                  Text(
+                                    _fmtMoney(liveSubtotal),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
+                            const SizedBox(height: 20),
                           ],
                         ),
                       ),
                     ),
 
-                    // Botones inferiores
+                    // ── Botones ──────────────────────────────────────
                     Container(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                       decoration: const BoxDecoration(
-                        border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+                        border: Border(
+                            top: BorderSide(color: Color(0xFFF1F5F9))),
                       ),
                       child: Row(children: [
                         Expanded(
                           child: TextButton(
                             onPressed: () => Navigator.pop(ctx),
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                side: const BorderSide(
+                                    color: Color(0xFFE2E8F0)),
                               ),
                             ),
-                            child: Text("Cancelar",
-                                style: GoogleFonts.inter(
-                                    color: const Color(0xFF64748B),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14)),
+                            child: Text(
+                              "Cancelar",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -897,30 +936,40 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                             onPressed: () {
                               final name = nameCtrl.text.trim();
                               if (name.isEmpty) {
-                                _showSnack("El nombre es obligatorio", isError: true);
+                                _showSnack("El nombre es obligatorio",
+                                    isError: true);
                                 return;
                               }
-                              final qty = double.tryParse(qtyCtrl.text) ?? 0;
+                              final qty =
+                                  double.tryParse(qtyCtrl.text) ?? 0;
                               if (qty <= 0) {
-                                _showSnack("La cantidad debe ser mayor a 0", isError: true);
+                                _showSnack(
+                                    "La cantidad debe ser mayor a 0",
+                                    isError: true);
                                 return;
                               }
                               Navigator.pop(ctx, {
                                 'name': name,
                                 'unit': unitCtrl.text.trim(),
                                 'qty': qty,
-                                'price': double.tryParse(priceCtrl.text) ?? 0,
-                                'provider': providerCtrl.text.trim(),
+                                'price':
+                                    double.tryParse(priceCtrl.text) ?? 0,
                               });
                             },
-                            icon: const Icon(LucideIcons.checkCircle2, size: 18),
-                            label: Text("Guardar cambios",
-                                style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w700, fontSize: 14)),
+                            icon: const Icon(LucideIcons.checkCircle2,
+                                size: 18),
+                            label: Text(
+                              "Guardar cambios",
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _accentMid,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 14),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
                               elevation: 0,
@@ -942,7 +991,6 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
     unitCtrl.dispose();
     priceCtrl.dispose();
     qtyCtrl.dispose();
-    providerCtrl.dispose();
 
     // Aplicar cambios
     if (result != null) {
@@ -951,9 +999,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
         item.unit = result['unit'];
         item.validatedQty = result['qty'];
         item.unitPrice = result['price'];
-        item.providerName = result['provider'];
 
-        // Actualizar el controller de cantidad (en la tabla) para que refleje el nuevo valor
         final qtyKey = 'qty_$index';
         if (_qtyControllers.containsKey(qtyKey)) {
           _qtyControllers[qtyKey]!.text = _fmtQty(item.validatedQty);
@@ -1158,13 +1204,13 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                         if (_removedItems > 0) _summaryRow("Eliminados", "-$_removedItems", const Color(0xFFDC2626)),
                         if (_modifiedItems > 0) _summaryRow("Modificados", "$_modifiedItems", const Color(0xFFF59E0B)),
                         const Divider(height: 16),
-                        _summaryRow("Costo validado", _currFmt.format(_validatedTotal), _accentDark),
-                        if (_costDifference.abs() > 0.01)
-                          _summaryRow(
-                            "Diferencia vs cotizado",
-                            "${_costDifference > 0 ? '+' : ''}${_currFmt.format(_costDifference)}",
-                            _costDifference > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                          ),
+                        _summaryRow("Costo validado", _fmtMoney(_validatedTotal), _accentDark),
+                      if (_costDifference.abs() > 0.01)
+                        _summaryRow(
+                          "Diferencia vs cotizado",
+                          _fmtMoneyWithSign(_costDifference),
+                          _costDifference > 0 ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                        ),
                       ]),
                     ),
                     const SizedBox(height: 16),
@@ -1827,12 +1873,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
   }
 
   Widget _buildCostCard(String label, double amount, Color color, {bool showSign = false}) {
-    String displayAmount;
-    if (showSign && amount > 0) {
-      displayAmount = "+${_currFmt.format(amount)}";
-    } else {
-      displayAmount = _currFmt.format(amount);
-    }
+    final displayAmount = showSign ? _fmtMoneyWithSign(amount) : _fmtMoney(amount);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -2073,17 +2114,21 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
           // Precio unitario
           Expanded(
             flex: 2,
-            child: Text(_currFmt.format(item.unitPrice),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569))),
+            child: Text(
+              _fmtMoney(item.unitPrice),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF475569)),
+            ),
           ),
           // Subtotal
           Expanded(
             flex: 2,
-            child: Text(_currFmt.format(subtotal),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF059669))),
+            child: Text(
+              _fmtMoney(subtotal),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF059669)),
+            ),
           ),
           // Eliminar/Restaurar
           if (widget.isEditable && !_isValidated)
@@ -2298,9 +2343,9 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                 ]),
                 const SizedBox(height: 8),
                 Row(children: [
-                  Expanded(child: _miniCell("P. Unitario", _currFmt.format(item.unitPrice), const Color(0xFF475569))),
+                  Expanded(child: _miniCell("P. Unitario", _fmtMoney(item.unitPrice), const Color(0xFF475569))),
                   const SizedBox(width: 8),
-                  Expanded(child: _miniCell("Subtotal", _currFmt.format(subtotal), const Color(0xFF059669))),
+                  Expanded(child: _miniCell("Subtotal", _fmtMoney(subtotal), const Color(0xFF059669))),
                 ]),
               ],
             ),

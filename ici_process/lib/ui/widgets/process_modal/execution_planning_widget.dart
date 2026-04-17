@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/core/constants/app_constants.dart';
+import 'package:ici_process/models/user_model.dart';
+import 'package:ici_process/ui/pdf/tools_checkout_pdf_generator.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -252,6 +254,67 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //  DESCARGAR PDF DE HERRAMIENTAS ASIGNADAS
+  // ═══════════════════════════════════════════════════════════════
+  Future<void> _downloadToolsPdf() async {
+    // Validación mínima
+    if (_selectedToolIds.isEmpty) {
+      _showSnackBar(
+        "No hay herramientas seleccionadas para descargar",
+        isError: true,
+      );
+      return;
+    }
+
+    try {
+      // 1) Obtener herramientas completas desde el stream (snapshot)
+      final allTools = await _toolService.getTools().first;
+      final selectedTools = allTools
+          .where((t) => _selectedToolIds.contains(t.id))
+          .toList();
+
+      // 2) Convertir a formato que entiende el generador de PDF
+      final toolsForPdf = selectedTools.map<Map<String, String>>((tool) {
+        return {
+          'name': tool.name,
+          'brand': tool.brand,
+          // Si la herramienta no tiene número de serie, usamos el ID como respaldo
+          'serial': tool.serialNumber.isNotEmpty ? tool.serialNumber : tool.id,
+        };
+      }).toList();
+
+      // 3) Responsable: quien creó el proceso o el usuario actual
+      final responsibleName = widget.process.requestedBy.isNotEmpty
+          ? widget.process.requestedBy
+          : (widget.process.history.isNotEmpty
+              ? widget.process.history.first.userName
+              : 'Sin asignar');
+
+      // 4) Técnicos asignados
+      final technicianNames = _selectedTechIds
+          .map((id) => _techNames[id] ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      // 5) Generar y abrir PDF
+      await ToolsCheckoutPdfGenerator.generateAndPrint(
+        projectId: widget.process.id,
+        projectTitle: widget.process.title,
+        clientName: widget.process.client,
+        responsibleName: responsibleName,
+        technicianNames: technicianNames,
+        tools: toolsForPdf,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+
+      _showSnackBar("PDF generado correctamente");
+    } catch (e) {
+      _showSnackBar("Error al generar el PDF: $e", isError: true);
+    }
+  }
+
   Future<void> _pickDate(bool isStart) async {
     final initialDate = isStart
         ? (_startDate ?? DateTime.now())
@@ -299,6 +362,33 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       }
     });
     _notifyData();
+  }
+
+  /// Revisa si un técnico tiene conflicto de fechas con los eventos existentes.
+  /// Devuelve el nombre del cliente/proyecto que lo tiene ocupado, o null si está libre.
+  String? _technicianConflict(String techId, List<CalendarEvent> allEvents) {
+    if (_startDate == null || _endDate == null) return null;
+
+    final rangeStart = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+    final rangeEnd = DateTime(_endDate!.year, _endDate!.month, _endDate!.day);
+
+    // Evitar auto-conflicto con el evento actual de ejecución (si ya fue agendado)
+    final currentEventId = _scheduledEventId;
+
+    for (final ev in allEvents) {
+      if (currentEventId != null && ev.id == currentEventId) continue;
+      if (!ev.technicianIds.contains(techId)) continue;
+
+      final evStart = DateTime(ev.startDate.year, ev.startDate.month, ev.startDate.day);
+      final evEnd = DateTime(ev.endDate.year, ev.endDate.month, ev.endDate.day);
+
+      final overlaps = evStart.compareTo(rangeEnd) <= 0 &&
+          evEnd.compareTo(rangeStart) >= 0;
+      if (overlaps) {
+        return ev.clientName.isNotEmpty ? ev.clientName : ev.title;
+      }
+    }
+    return null;
   }
 
   @override
@@ -551,7 +641,8 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         if (!widget.process.isPrivate) return users;
         return users.where((u) {
           final role = u.role.name.toLowerCase();
-          if (role == 'admin' || role == 'superadmin') return true;
+          // Solo SuperAdmin tiene acceso automático
+          if (role == 'superadmin') return true;
           if (widget.process.visibleToUserIds.contains(u.id)) return true;
           if (u.id == widget.process.createdByUserId) return true;
           return false;
@@ -559,29 +650,44 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
       }),
       builder: (data) {
         final techs = data.where((u) => u.role == UserRole.technician).toList();
-        return _buildSelectableList(
-          items: techs,
-          emptyIcon: LucideIcons.userX,
-          emptyMessage: "No hay técnicos",
-          itemBuilder: (tech) => _buildModernTile(
-            title: tech.name,
-            subtitle: "Técnico",
-            icon: LucideIcons.userCheck,
-            isSelected: _selectedTechIds.contains(tech.id),
-            onTap: () {
-              if (!widget.isEditable) return;
-              setState(() {
-                if (_selectedTechIds.contains(tech.id)) {
-                  _selectedTechIds.remove(tech.id);
-                  _techNames.remove(tech.id);
-                } else {
-                  _selectedTechIds.add(tech.id);
-                  _techNames[tech.id] = tech.name;
-                }
-              });
-              _notifyData();
-            },
-          ),
+
+        // ── Stream anidado: eventos del calendario para detectar conflictos ──
+        return StreamBuilder<List<CalendarEvent>>(
+          stream: _eventService.getEventsStream(),
+          builder: (ctx, evSnap) {
+            final allEvents = evSnap.data ?? [];
+
+            return _buildSelectableList(
+              items: techs,
+              emptyIcon: LucideIcons.userX,
+              emptyMessage: "No hay técnicos",
+              itemBuilder: (tech) {
+                final conflictClient = _technicianConflict(tech.id, allEvents);
+                final hasConflict = conflictClient != null;
+                final isSelected = _selectedTechIds.contains(tech.id);
+
+                return _buildTechnicianTileWithStatus(
+                  tech: tech,
+                  isSelected: isSelected,
+                  hasConflict: hasConflict,
+                  conflictClient: conflictClient,
+                  onTap: () {
+                    if (!widget.isEditable) return;
+                    setState(() {
+                      if (isSelected) {
+                        _selectedTechIds.remove(tech.id);
+                        _techNames.remove(tech.id);
+                      } else {
+                        _selectedTechIds.add(tech.id);
+                        _techNames[tech.id] = tech.name;
+                      }
+                    });
+                    _notifyData();
+                  },
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -692,46 +798,94 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
                     ),
 
                   // Botón para abrir selector
+                  // Botón para abrir selector
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: InkWell(
-                      onTap: widget.isEditable
-                          ? () => _openToolSelector(allTools)
-                          : null,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
+                    child: Column(
+                      children: [
+                        InkWell(
+                          onTap: widget.isEditable
+                              ? () => _openToolSelector(allTools)
+                              : null,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _selectedColor.withOpacity(0.3),
-                            style: BorderStyle.solid,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              LucideIcons.plus,
-                              size: 16,
-                              color: _selectedColor,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              selectedTools.isEmpty
-                                  ? "Seleccionar herramientas"
-                                  : "Agregar o quitar herramientas",
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _selectedColor,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _selectedColor.withOpacity(0.3),
+                                style: BorderStyle.solid,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  LucideIcons.plus,
+                                  size: 16,
+                                  color: _selectedColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  selectedTools.isEmpty
+                                      ? "Seleccionar herramientas"
+                                      : "Agregar o quitar herramientas",
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+
+                        // ── NUEVO: Botón descargar PDF ──
+                        if (selectedTools.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: _downloadToolsPdf,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0F172A),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0F172A).withOpacity(0.15),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    LucideIcons.fileDown,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Descargar listado en PDF",
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -1797,72 +1951,141 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     );
   }
 
-  Widget _buildModernTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
+  /// Tile personalizado para técnicos con indicador visual de disponibilidad.
+  /// NO restringe la selección, solo muestra un badge verde/rojo informativo.
+  Widget _buildTechnicianTileWithStatus({
+    required UserModel tech,
     required bool isSelected,
+    required bool hasConflict,
+    required String? conflictClient,
     required VoidCallback onTap,
   }) {
+    // Colores según estado
+    final Color statusColor = hasConflict
+        ? const Color(0xFFDC2626) // Rojo: ocupado
+        : const Color(0xFF059669); // Verde: disponible
+
+    final Color statusBg = hasConflict
+        ? const Color(0xFFFEF2F2)
+        : const Color(0xFFECFDF5);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ), // Padding interno más compacto
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? _selectedColor.withOpacity(0.08) : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isSelected
                 ? _selectedColor.withOpacity(0.5)
-                : const Color(0xFFE2E8F0),
+                : hasConflict
+                    ? const Color(0xFFFECACA)
+                    : const Color(0xFFE2E8F0),
             width: isSelected ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isSelected ? _selectedColor : const Color(0xFFF1F5F9),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 14,
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
-              ),
+            // Avatar con icono de estado
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? _selectedColor : const Color(0xFFF1F5F9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    LucideIcons.userCheck,
+                    size: 14,
+                    color: isSelected ? Colors.white : const Color(0xFF64748B),
+                  ),
+                ),
+                // Puntito de estado (verde/rojo)
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w600,
-                      color: const Color(0xFF0F172A),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          tech.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w600,
+                            color: const Color(0xFF0F172A),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  // Badge de estado (DISPONIBLE / OCUPADO)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: statusColor.withOpacity(0.25)),
                     ),
-                  ), // Fuente reducida
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: const Color(0xFF64748B),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          hasConflict
+                              ? LucideIcons.alertCircle
+                              : LucideIcons.checkCircle2,
+                          size: 9,
+                          color: statusColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            hasConflict
+                                ? "Ocupado: $conflictClient"
+                                : "Disponible",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             if (isSelected)
               Icon(LucideIcons.checkCircle2, color: _selectedColor, size: 18)
             else

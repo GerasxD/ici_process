@@ -4976,6 +4976,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                         isEditable: widget.process!.stage == ProcessStage.E4 ? canEditData : false,
                                         initialData: _currentMaterialValidationData,
                                         currentUserName: widget.user.name,
+                                        hasFinancialAccess: canViewFinancials,
                                         onDataChanged: (data) {
                                           _currentMaterialValidationData = data;
                                         },
@@ -5081,7 +5082,8 @@ class _ProcessModalState extends State<ProcessModal> {
 
     return allUsers.where((u) {
       final role = u.role.name.toLowerCase();
-      if (role == 'admin' || role == 'superadmin') return true;
+      // Solo SuperAdmin tiene acceso automático
+      if (role == 'superadmin') return true;
       if (_selectedVisibleUserIds.contains(u.id)) return true;
       if (widget.process != null && u.id == widget.process!.createdByUserId) return true;
       if (u.id == widget.user.id) return true; // el usuario actual siempre
