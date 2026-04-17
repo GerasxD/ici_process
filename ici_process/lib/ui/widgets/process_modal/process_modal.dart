@@ -460,7 +460,7 @@ class _ProcessModalState extends State<ProcessModal> {
             targetKey = 'tracking';
             break;
           case ProcessStage.E4:
-            targetKey = 'materialValidation';
+            targetKey = 'oc';
             break;
           case ProcessStage.E5:
             targetKey = 'logistics';
@@ -4441,7 +4441,7 @@ class _ProcessModalState extends State<ProcessModal> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(14),
                           child: StreamBuilder<List<UserModel>>(
-                            stream: UserService().getUsersStream(),
+                            stream: _getFilteredUsersStream(),
                             builder: (context, snapshot) {
                               if (!snapshot.hasData) {
                                 return const Padding(
@@ -5069,6 +5069,29 @@ class _ProcessModalState extends State<ProcessModal> {
         ),
       ),
     );
+  }
+
+
+  // ── HELPER: Filtrar usuarios según privacidad del proceso ──
+  /// Si el proceso es privado, devuelve solo los usuarios con acceso
+  /// (visibleToUserIds + admin/superadmin + creador del proceso).
+  /// Si es público, devuelve todos.
+  List<UserModel> _filterUsersByPrivacy(List<UserModel> allUsers) {
+    if (!_isPrivate) return allUsers;
+
+    return allUsers.where((u) {
+      final role = u.role.name.toLowerCase();
+      if (role == 'admin' || role == 'superadmin') return true;
+      if (_selectedVisibleUserIds.contains(u.id)) return true;
+      if (widget.process != null && u.id == widget.process!.createdByUserId) return true;
+      if (u.id == widget.user.id) return true; // el usuario actual siempre
+      return false;
+    }).toList();
+  }
+
+  /// Stream que devuelve solo usuarios filtrados por privacidad
+  Stream<List<UserModel>> _getFilteredUsersStream() {
+    return _userService.getUsersStream().map(_filterUsersByPrivacy);
   }
 
   Widget _buildStageHighlight({
@@ -5788,6 +5811,14 @@ class _ProcessModalState extends State<ProcessModal> {
                     onMentionsChanged: (ids) {
                       _pendingMentionIds = ids;
                     },
+                    // ── Si el proceso es privado, solo permite mencionar a los autorizados ──
+                    allowedUserIds: _isPrivate
+                        ? [
+                            ..._selectedVisibleUserIds,
+                            if (widget.process != null) widget.process!.createdByUserId,
+                            widget.user.id,
+                          ]
+                        : null,
                   ),
                 ),
               ],

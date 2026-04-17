@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
@@ -116,6 +117,12 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
   // ── Controllers persistentes para cantidades validadas ────
   final Map<String, TextEditingController> _qtyControllers = {};
 
+  // ── Controllers persistentes para materiales NUEVOS editables ────
+  final Map<String, TextEditingController> _nameControllers = {};
+  final Map<String, TextEditingController> _unitControllers = {};
+  final Map<String, TextEditingController> _priceControllers = {};
+  final Map<String, TextEditingController> _providerControllers = {};
+
   TextEditingController _getQtyController(String key, double value) {
     if (!_qtyControllers.containsKey(key)) {
       _qtyControllers[key] = TextEditingController(text: _fmtQty(value));
@@ -154,9 +161,11 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
 
   @override
   void dispose() {
-    for (final c in _qtyControllers.values) {
-      c.dispose();
-    }
+    for (final c in _qtyControllers.values) { c.dispose(); }
+    for (final c in _nameControllers.values) { c.dispose(); }
+    for (final c in _unitControllers.values) { c.dispose(); }
+    for (final c in _priceControllers.values) { c.dispose(); }
+    for (final c in _providerControllers.values) { c.dispose(); }
     super.dispose();
   }
 
@@ -271,12 +280,14 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
     final nameCtrl = TextEditingController();
     final unitCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
+    final searchCtrl = TextEditingController();
 
     // Filtrar materiales que no están ya en la lista
     final existingIds = _items.map((i) => i.materialId).toSet();
-    final availableMats = _materialsDB.where((m) => !existingIds.contains(m.id)).toList();
+    final allAvailableMats = _materialsDB.where((m) => !existingIds.contains(m.id)).toList();
 
     MaterialItem? selectedMat;
+    String searchQuery = '';
 
     showModalBottomSheet(
       context: context,
@@ -285,8 +296,18 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (sheetCtx, setSheetState) {
+            // Filtrado dinámico por búsqueda
+            final filteredMats = searchQuery.isEmpty
+                ? allAvailableMats
+                : allAvailableMats.where((m) {
+                    final q = searchQuery.toLowerCase();
+                    return m.name.toLowerCase().contains(q) ||
+                        m.unit.toLowerCase().contains(q) ||
+                        m.prices.any((p) => p.providerName.toLowerCase().contains(q));
+                  }).toList();
+
             return Container(
-              height: MediaQuery.of(context).size.height * 0.65,
+              height: MediaQuery.of(context).size.height * 0.75,
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -328,35 +349,119 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("SELECCIONAR DEL CATÁLOGO",
-                              style: GoogleFonts.inter(
-                                  fontSize: 11, fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF94A3B8),
-                                  letterSpacing: 0.6)),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text("SELECCIONAR DEL CATÁLOGO",
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11, fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF94A3B8),
+                                      letterSpacing: 0.6)),
+                              Text("${filteredMats.length} disponibles",
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11, fontWeight: FontWeight.w600,
+                                      color: _accentMid)),
+                            ],
+                          ),
                           const SizedBox(height: 10),
 
-                          // ── Lista de materiales como tiles ───────
+                          // ── 🔍 BARRA DE BÚSQUEDA ─────────────────
                           Container(
-                            constraints: const BoxConstraints(maxHeight: 180),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: searchQuery.isNotEmpty
+                                    ? _accentMid.withOpacity(0.4)
+                                    : const Color(0xFFE2E8F0),
+                                width: searchQuery.isNotEmpty ? 1.5 : 1,
+                              ),
+                            ),
+                            child: TextField(
+                              controller: searchCtrl,
+                              style: GoogleFonts.inter(fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: "Buscar por nombre, unidad o proveedor...",
+                                hintStyle: GoogleFonts.inter(
+                                    fontSize: 13, color: const Color(0xFF94A3B8)),
+                                prefixIcon: Icon(LucideIcons.search,
+                                    size: 18,
+                                    color: searchQuery.isNotEmpty
+                                        ? _accentMid
+                                        : const Color(0xFF94A3B8)),
+                                suffixIcon: searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(LucideIcons.x,
+                                            size: 16, color: Color(0xFF94A3B8)),
+                                        onPressed: () {
+                                          searchCtrl.clear();
+                                          setSheetState(() => searchQuery = '');
+                                        },
+                                      )
+                                    : null,
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 14),
+                              ),
+                              onChanged: (val) {
+                                setSheetState(() => searchQuery = val.trim());
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+
+                          // ── Lista de materiales filtrada ─────────
+                          Container(
+                            constraints: const BoxConstraints(maxHeight: 240),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: const Color(0xFFE2E8F0)),
                             ),
-                            child: availableMats.isEmpty
+                            child: filteredMats.isEmpty
                                 ? Padding(
-                                    padding: const EdgeInsets.all(20),
+                                    padding: const EdgeInsets.all(24),
                                     child: Center(
-                                      child: Text("Todos los materiales ya están en la lista",
-                                          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            searchQuery.isNotEmpty
+                                                ? LucideIcons.searchX
+                                                : LucideIcons.packageCheck,
+                                            size: 28,
+                                            color: const Color(0xFFCBD5E1),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            searchQuery.isNotEmpty
+                                                ? "Sin resultados para \"$searchQuery\""
+                                                : "Todos los materiales ya están en la lista",
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                color: const Color(0xFF94A3B8)),
+                                          ),
+                                          if (searchQuery.isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              "Puedes agregarlo manualmente abajo ↓",
+                                              style: GoogleFonts.inter(
+                                                  fontSize: 11,
+                                                  color: _accentMid,
+                                                  fontWeight: FontWeight.w600),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                     ),
                                   )
                                 : ListView.builder(
                                     padding: const EdgeInsets.symmetric(vertical: 4),
                                     shrinkWrap: true,
-                                    itemCount: availableMats.length,
+                                    itemCount: filteredMats.length,
                                     itemBuilder: (_, i) {
-                                      final mat = availableMats[i];
+                                      final mat = filteredMats[i];
                                       final isSelected = selectedMat?.id == mat.id;
                                       final bestPrice = mat.prices.isNotEmpty
                                           ? mat.prices.map((p) => p.price).reduce((a, b) => a < b ? a : b)
@@ -378,7 +483,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                                           decoration: BoxDecoration(
                                             color: isSelected ? _accentMid.withOpacity(0.06) : Colors.transparent,
                                             border: Border(
-                                              bottom: BorderSide(color: const Color(0xFFF1F5F9), width: i < availableMats.length - 1 ? 1 : 0),
+                                              bottom: BorderSide(color: const Color(0xFFF1F5F9), width: i < filteredMats.length - 1 ? 1 : 0),
                                             ),
                                           ),
                                           child: Row(children: [
@@ -514,13 +619,431 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
       nameCtrl.dispose();
       unitCtrl.dispose();
       priceCtrl.dispose();
+      searchCtrl.dispose();
     });
+  }
+
+  // ── EDITAR MATERIAL NUEVO (modal profesional) ─────────────
+  Future<void> _editNewMaterial(MaterialValidationItem item, int index) async {
+    final nameCtrl = TextEditingController(text: item.materialName);
+    final unitCtrl = TextEditingController(text: item.unit);
+    final priceCtrl = TextEditingController(
+        text: item.unitPrice > 0 ? item.unitPrice.toStringAsFixed(2) : '');
+    final qtyCtrl = TextEditingController(text: _fmtQty(item.validatedQty));
+    final providerCtrl = TextEditingController(text: item.providerName);
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            final currentQty = double.tryParse(qtyCtrl.text) ?? 0;
+            final currentPrice = double.tryParse(priceCtrl.text) ?? 0;
+            final liveSubtotal = currentQty * currentPrice;
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    // Header con gradiente
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 20, 20),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
+                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(11),
+                            decoration: BoxDecoration(
+                              color: _accentMid.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(LucideIcons.penTool,
+                                color: _accentMid, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Editar Material",
+                                    style: GoogleFonts.inter(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F172A))),
+                                const SizedBox(height: 2),
+                                Row(children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF059669).withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text("Nuevo",
+                                        style: GoogleFonts.inter(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF059669))),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text("Material agregado manualmente",
+                                      style: GoogleFonts.inter(
+                                          fontSize: 12,
+                                          color: _accentMid,
+                                          fontWeight: FontWeight.w500)),
+                                ]),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(LucideIcons.x,
+                                color: Color(0xFF94A3B8), size: 20),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Nombre
+                            _editFieldLabel("Nombre del material", LucideIcons.package, required: true),
+                            const SizedBox(height: 8),
+                            _editField(
+                              controller: nameCtrl,
+                              hint: "Ej: Cable calibre 12",
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Unidad + Cantidad
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _editFieldLabel("Unidad", LucideIcons.ruler),
+                                      const SizedBox(height: 8),
+                                      _editField(
+                                        controller: unitCtrl,
+                                        hint: "Ej: pza, m, kg",
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _editFieldLabel("Cantidad validada", LucideIcons.layers, required: true),
+                                      const SizedBox(height: 8),
+                                      _editField(
+                                        controller: qtyCtrl,
+                                        hint: "0",
+                                        isNumber: true,
+                                        onChanged: (_) => setSheetState(() {}),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Precio unitario
+                            _editFieldLabel("Precio unitario", LucideIcons.dollarSign, required: true),
+                            const SizedBox(height: 8),
+                            _editField(
+                              controller: priceCtrl,
+                              hint: "0.00",
+                              isNumber: true,
+                              prefixText: '\$ ',
+                              onChanged: (_) => setSheetState(() {}),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Proveedor
+                            _editFieldLabel("Proveedor", LucideIcons.truck),
+                            const SizedBox(height: 8),
+                            _editField(
+                              controller: providerCtrl,
+                              hint: "Opcional",
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Preview de subtotal (live)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF059669).withOpacity(0.08),
+                                    const Color(0xFF10B981).withOpacity(0.04),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: const Color(0xFF059669).withOpacity(0.2)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(9),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF059669).withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(LucideIcons.calculator,
+                                        size: 18, color: Color(0xFF059669)),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("SUBTOTAL CALCULADO",
+                                            style: GoogleFonts.inter(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF059669),
+                                                letterSpacing: 0.6)),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          "${_fmtQty(currentQty)} × ${_currFmt.format(currentPrice)}",
+                                          style: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              color: const Color(0xFF065F46),
+                                              fontWeight: FontWeight.w500),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(_currFmt.format(liveSubtotal),
+                                      style: GoogleFonts.inter(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF059669))),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Botones inferiores
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+                      ),
+                      child: Row(children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                            child: Text("Cancelar",
+                                style: GoogleFonts.inter(
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              final name = nameCtrl.text.trim();
+                              if (name.isEmpty) {
+                                _showSnack("El nombre es obligatorio", isError: true);
+                                return;
+                              }
+                              final qty = double.tryParse(qtyCtrl.text) ?? 0;
+                              if (qty <= 0) {
+                                _showSnack("La cantidad debe ser mayor a 0", isError: true);
+                                return;
+                              }
+                              Navigator.pop(ctx, {
+                                'name': name,
+                                'unit': unitCtrl.text.trim(),
+                                'qty': qty,
+                                'price': double.tryParse(priceCtrl.text) ?? 0,
+                                'provider': providerCtrl.text.trim(),
+                              });
+                            },
+                            icon: const Icon(LucideIcons.checkCircle2, size: 18),
+                            label: Text("Guardar cambios",
+                                style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w700, fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accentMid,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    nameCtrl.dispose();
+    unitCtrl.dispose();
+    priceCtrl.dispose();
+    qtyCtrl.dispose();
+    providerCtrl.dispose();
+
+    // Aplicar cambios
+    if (result != null) {
+      setState(() {
+        item.materialName = result['name'];
+        item.unit = result['unit'];
+        item.validatedQty = result['qty'];
+        item.unitPrice = result['price'];
+        item.providerName = result['provider'];
+
+        // Actualizar el controller de cantidad (en la tabla) para que refleje el nuevo valor
+        final qtyKey = 'qty_$index';
+        if (_qtyControllers.containsKey(qtyKey)) {
+          _qtyControllers[qtyKey]!.text = _fmtQty(item.validatedQty);
+        }
+      });
+      _notifyChanged();
+      _showSnack("Material actualizado correctamente");
+    }
+  }
+
+  // Helpers del modal de edición
+  Widget _editFieldLabel(String label, IconData icon, {bool required = false}) {
+    return Row(children: [
+      Icon(icon, size: 14, color: const Color(0xFF64748B)),
+      const SizedBox(width: 6),
+      Text(label.toUpperCase(),
+          style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF64748B),
+              letterSpacing: 0.6)),
+      if (required) ...[
+        const SizedBox(width: 4),
+        const Text("*",
+            style: TextStyle(
+                color: Color(0xFFDC2626),
+                fontWeight: FontWeight.w800,
+                fontSize: 14)),
+      ],
+    ]);
+  }
+
+  Widget _editField({
+    required TextEditingController controller,
+    required String hint,
+    bool isNumber = false,
+    String? prefixText,
+    void Function(String)? onChanged,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: isNumber
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
+      inputFormatters: isNumber
+          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))]
+          : null,
+      onChanged: onChanged,
+      style: GoogleFonts.inter(
+          fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF0F172A)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.inter(
+            fontSize: 14,
+            color: const Color(0xFFCBD5E1),
+            fontWeight: FontWeight.w500),
+        prefixText: prefixText,
+        prefixStyle: GoogleFonts.inter(
+            fontSize: 14,
+            color: const Color(0xFF64748B),
+            fontWeight: FontWeight.w600),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: _accentMid, width: 1.5),
+        ),
+      ),
+    );
   }
 
   Widget _sheetInput(TextEditingController ctrl, String hint, IconData icon, {bool isNumber = false}) {
     return TextField(
       controller: ctrl,
       keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+      inputFormatters: isNumber
+          ? [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ]
+          : null,
       style: GoogleFonts.inter(fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
@@ -1099,8 +1622,17 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
               const Divider(height: 20),
               Expanded(
                 child: StreamBuilder<List<UserModel>>(
-                  stream: _userService.getUsersStream(),
-                  builder: (context, snap) {
+                    stream: _userService.getUsersStream().map((users) {
+                      if (!widget.process.isPrivate) return users;
+                      return users.where((u) {
+                        final role = u.role.name.toLowerCase();
+                        if (role == 'admin' || role == 'superadmin') return true;
+                        if (widget.process.visibleToUserIds.contains(u.id)) return true;
+                        if (u.id == widget.process.createdByUserId) return true;
+                        return false;
+                      }).toList();
+                    }),
+                    builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator(color: _accentMid, strokeWidth: 2));
                     }
@@ -1390,6 +1922,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
     final isNew = item.isNew;
     final subtotal = item.validatedQty * item.unitPrice;
     final qtyKey = 'qty_$index';
+    final canEditNew = widget.isEditable && !_isValidated && isNew && !isRemoved;
 
     Color? rowBg;
     if (isRemoved) {
@@ -1413,16 +1946,18 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
             flex: 4,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(children: [
                   Expanded(
                     child: Text(item.materialName,
                         style: GoogleFonts.inter(
-                            fontSize: 13, fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                             color: const Color(0xFF1E293B),
                             decoration: isRemoved ? TextDecoration.lineThrough : null)),
                   ),
-                  if (isNew)
+                  if (isNew) ...[
                     Container(
                       margin: const EdgeInsets.only(left: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1431,8 +1966,33 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text("Nuevo",
-                          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF059669))),
+                          style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF059669))),
                     ),
+                    // ✏️ BOTÓN DE EDITAR (solo en materiales nuevos)
+                    if (canEditNew)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Tooltip(
+                          message: "Editar material",
+                          child: InkWell(
+                            onTap: () => _editNewMaterial(item, index),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: _accentMid.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(LucideIcons.pencil,
+                                  size: 12, color: _accentMid),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                   if (isRemoved)
                     Container(
                       margin: const EdgeInsets.only(left: 6),
@@ -1442,14 +2002,19 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text("Eliminado",
-                          style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFFDC2626))),
+                          style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFDC2626))),
                     ),
                 ]),
                 if (item.unit.isNotEmpty)
-                  Text(item.unit, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
+                  Text(item.unit,
+                      style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
                 if (item.providerName.isNotEmpty)
                   Text(item.providerName,
-                      style: GoogleFonts.inter(fontSize: 10, color: _accentMid, fontWeight: FontWeight.w500)),
+                      style: GoogleFonts.inter(
+                          fontSize: 10, color: _accentMid, fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -1460,7 +2025,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B))),
           ),
-          // Validado (editable con controller persistente)
+          // Validado (editable con restricción numérica)
           Expanded(
             flex: 2,
             child: (widget.isEditable && !_isValidated && !isRemoved)
@@ -1469,8 +2034,12 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                     child: TextField(
                       controller: _getQtyController(qtyKey, item.validatedQty),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                      ],
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: _accentDark),
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700, color: _accentDark),
                       decoration: InputDecoration(
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -1498,7 +2067,8 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                   )
                 : Text(_fmtQty(item.validatedQty),
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: _accentDark)),
+                    style: GoogleFonts.inter(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: _accentDark)),
           ),
           // Precio unitario
           Expanded(
@@ -1512,7 +2082,8 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
             flex: 2,
             child: Text(_currFmt.format(subtotal),
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF059669))),
+                style: GoogleFonts.inter(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF059669))),
           ),
           // Eliminar/Restaurar
           if (widget.isEditable && !_isValidated)
@@ -1558,6 +2129,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
         final item = entry.value;
         final subtotal = item.validatedQty * item.unitPrice;
         final qtyKey = 'qty_$i';
+        final canEditNew = widget.isEditable && !_isValidated && item.isNew && !item.isRemoved;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -1590,15 +2162,60 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.materialName,
-                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A),
-                                decoration: item.isRemoved ? TextDecoration.lineThrough : null)),
+                        Row(children: [
+                          Flexible(
+                            child: Text(item.materialName,
+                                style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF0F172A),
+                                    decoration: item.isRemoved ? TextDecoration.lineThrough : null),
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                          if (item.isNew) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF059669).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text("Nuevo",
+                                  style: GoogleFonts.inter(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF059669))),
+                            ),
+                          ],
+                        ]),
+                        if (item.unit.isNotEmpty)
+                          Text(item.unit,
+                              style: GoogleFonts.inter(
+                                  fontSize: 10, color: const Color(0xFF94A3B8))),
                         if (item.providerName.isNotEmpty)
                           Text(item.providerName,
                               style: GoogleFonts.inter(fontSize: 10, color: _accentMid)),
                       ],
                     ),
                   ),
+                  // ✏️ BOTÓN DE EDITAR (solo si es nuevo y editable)
+                  if (canEditNew)
+                    Tooltip(
+                      message: "Editar material",
+                      child: InkWell(
+                        onTap: () => _editNewMaterial(item, i),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          margin: const EdgeInsets.only(left: 4),
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: _accentMid.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(LucideIcons.pencil, size: 14, color: _accentMid),
+                        ),
+                      ),
+                    ),
                   if (widget.isEditable && !_isValidated)
                     item.isRemoved
                         ? IconButton(
@@ -1635,15 +2252,24 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text("Validado",
-                                  style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _accentDark.withOpacity(0.7))),
+                                  style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: _accentDark.withOpacity(0.7))),
                               const SizedBox(height: 4),
                               SizedBox(
                                 height: 36,
                                 child: TextField(
                                   controller: _getQtyController(qtyKey, item.validatedQty),
                                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                                  ],
                                   textAlign: TextAlign.center,
-                                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: _accentDark),
+                                  style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: _accentDark),
                                   decoration: InputDecoration(
                                     isDense: true,
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),

@@ -208,6 +208,10 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
             .toList(),
         createdBy: "Logística",
         createdAt: DateTime.now(),
+        // ── Heredar privacidad del proceso padre ──
+        processId: widget.process.id,
+        isPrivate: widget.process.isPrivate,
+        visibleToUserIds: widget.process.visibleToUserIds,
       );
 
       if (_scheduledEventId != null && _scheduledEventId!.isNotEmpty) {
@@ -231,6 +235,10 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           vehicleModels: event.vehicleModels,   
           createdBy: event.createdBy,
           createdAt: event.createdAt,
+          // ── Heredar privacidad del proceso padre ──
+          processId: widget.process.id,
+          isPrivate: widget.process.isPrivate,
+          visibleToUserIds: widget.process.visibleToUserIds,
         );
         await docRef.set(newEvent.toMap());
         _scheduledEventId = docRef.id;
@@ -538,7 +546,17 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
     final techWidget = _buildResourceContainer(
       title: "EQUIPO TÉCNICO",
       icon: LucideIcons.users,
-      stream: _userService.getUsersStream(),
+      stream: _userService.getUsersStream().map((users) {
+        // Si el proceso es privado, filtrar solo a usuarios autorizados
+        if (!widget.process.isPrivate) return users;
+        return users.where((u) {
+          final role = u.role.name.toLowerCase();
+          if (role == 'admin' || role == 'superadmin') return true;
+          if (widget.process.visibleToUserIds.contains(u.id)) return true;
+          if (u.id == widget.process.createdByUserId) return true;
+          return false;
+        }).toList();
+      }),
       builder: (data) {
         final techs = data.where((u) => u.role == UserRole.technician).toList();
         return _buildSelectableList(

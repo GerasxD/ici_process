@@ -42,6 +42,10 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   final _priceDisplayFormat = NumberFormat('#,##0.00');
 
+  // ─── FLAG PARA DETECTAR CAMBIOS ───
+  bool _hasUnsavedChanges = false;
+  late String _initialDataSnapshot;
+
   // --- PALETA DE COLORES ---
   final Color _primaryColor = const Color(0xFF0F172A);
   final Color _accentColor = const Color(0xFF2563EB);
@@ -51,6 +55,10 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   final Color _textColor = const Color(0xFF334155);
   final Color _labelColor = const Color(0xFF64748B);
 
+  // ─── NUEVO: color de borde más oscuro para dropdowns ───
+  final Color _dropdownBorderColor = const Color(0xFF475569); // slate-600
+  final Color _dropdownFillColor = const Color(0xFFF8FAFC);  // slate-50
+
   // Colores por sección (accent lateral)
   static const Color _matColor   = Color(0xFF2563EB); // azul
   static const Color _specColor  = Color(0xFF7C3AED); // violeta
@@ -59,9 +67,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   static const Color _laborColor = Color(0xFF16A34A); // verde
 
   // Colores semánticos unificados
-  // — todos los totales en header de sección: verde
   static const Color _sectionTotalColor  = Color(0xFF16A34A);
-  // — todos los subtotales internos: slate-blue
   static const Color _subtotalColor      = Color(0xFF475569);
 
   // Secciones expandidas
@@ -76,6 +82,35 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   // Controllers
   final Map<String, TextEditingController> _priceControllers = {};
   final Map<String, TextEditingController> _qtyControllers = {};
+
+  // ─── NUEVO: formatters reutilizables para campos numéricos ───
+  // Solo enteros positivos
+  List<TextInputFormatter> get _intOnlyFormatters => [
+        FilteringTextInputFormatter.digitsOnly,
+      ];
+
+  // Números decimales (permite un solo punto)
+  List<TextInputFormatter> get _decimalFormatters => [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          final text = newValue.text;
+          // Solo permite un punto decimal
+          if (text.split('.').length > 2) return oldValue;
+          return newValue;
+        }),
+      ];
+
+  // Precios con formato de miles (comas permitidas mientras se edita)
+  List<TextInputFormatter> get _priceFormatters => [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          final text = newValue.text;
+          // No permitir más de un punto decimal (ignorando comas)
+          final withoutCommas = text.replaceAll(',', '');
+          if (withoutCommas.split('.').length > 2) return oldValue;
+          return newValue;
+        }),
+      ];
 
   String _formatNumber(double value) {
     if (value == 0) return '';
@@ -95,6 +130,8 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
       data.travel.peopleCount      = 0;
       data.travel.days             = 0;
     }
+    // Snapshot inicial para detectar cambios
+    _initialDataSnapshot = data.toMap().toString();
     _loadCatalogs();
   }
 
@@ -103,6 +140,18 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     for (final c in _priceControllers.values) c.dispose();
     for (final c in _qtyControllers.values) c.dispose();
     super.dispose();
+  }
+
+  // ─── NUEVO: marca cambios pendientes ───
+  void _markAsChanged() {
+    if (!_hasUnsavedChanges) {
+      _hasUnsavedChanges = true;
+    }
+  }
+
+  bool _checkHasChanges() {
+    return _hasUnsavedChanges ||
+        data.toMap().toString() != _initialDataSnapshot;
   }
 
   TextEditingController _getPriceController(String id, double value) {
@@ -165,6 +214,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   }
 
   void _onMaterialSelected(int index, MaterialItem item) {
+    _markAsChanged();
     setState(() {
       data.materials[index].name = item.name;
       if (item.prices.isNotEmpty) {
@@ -180,6 +230,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   }
 
   void _onServiceSelected(int index, ServiceItem item) {
+    _markAsChanged();
     setState(() {
       data.indirects[index].name = item.name;
       if (item.prices.isNotEmpty) {
@@ -256,7 +307,317 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
       quotationData: data.toMap(),
     );
     await _processService.updateProcess(updated);
+    _hasUnsavedChanges = false;
     if (mounted) Navigator.pop(context);
+  }
+
+  // ─── NUEVO: DIÁLOGO DE CONFIRMACIÓN AL CERRAR SIN GUARDAR ───
+  Future<bool> _confirmClose() async {
+    if (!_checkHasChanges()) return true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 460,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 40,
+                offset: const Offset(0, 20),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              // ── HEADER ──────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFFF7ED), Color(0xFFFEF2F2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEA580C).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        LucideIcons.alertTriangle,
+                        color: Color(0xFFEA580C),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Cambios sin guardar',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: _primaryColor,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'La cotización tiene modificaciones pendientes',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFEA580C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      icon: const Icon(
+                        LucideIcons.x,
+                        color: Color(0xFF94A3B8),
+                        size: 18,
+                      ),
+                      splashRadius: 18,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── CONTENIDO ────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    // Tarjeta identificadora del proceso
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _accentColor.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Icon(
+                              LucideIcons.calculator,
+                              size: 16,
+                              color: _accentColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.process.title,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _primaryColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Cotizador activo · cambios no confirmados',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: _labelColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Advertencia de pérdida de datos
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            LucideIcons.alertCircle,
+                            size: 15,
+                            color: Color(0xFFDC2626),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Si sales ahora, todos los cambios realizados en materiales, costos, mano de obra y viáticos se perderán de forma permanente.',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF991B1B),
+                                fontWeight: FontWeight.w500,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Tip informativo
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F9FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: const Color(0xFFBAE6FD).withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            LucideIcons.info,
+                            size: 14,
+                            color: Color(0xFF0369A1),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: const Color(0xFF0C4A6E),
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.5,
+                                ),
+                                children: const [
+                                  TextSpan(text: 'Presiona '),
+                                  TextSpan(
+                                    text: '"Guardar Cotización"',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w800),
+                                  ),
+                                  TextSpan(
+                                      text: ' antes de cerrar para conservar tu trabajo.'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── FOOTER ───────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: Text(
+                          'Seguir editando',
+                          style: GoogleFonts.inter(
+                            color: _labelColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(LucideIcons.logOut, size: 16),
+                        label: Text(
+                          'Salir sin guardar',
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _handleClose() async {
+    final canClose = await _confirmClose();
+    if (canClose && mounted) Navigator.pop(context);
   }
 
   // --- DIALOG PROVEEDOR ---
@@ -335,6 +696,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               final isBest = p.price == bestPrice;
               return InkWell(
                 onTap: () {
+                  _markAsChanged();
                   setState(() => item.unitPrice = p.price);
                   if (priceControllerId != null)
                     _updatePriceController(priceControllerId, p.price);
@@ -426,19 +788,28 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     final screenWidth = MediaQuery.of(context).size.width;
     final bool mobile = screenWidth < 800;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: _bgColor,
-      insetPadding: EdgeInsets.all(mobile ? 0 : 20),
-      child: SizedBox(
-        width: mobile ? double.infinity : 900,
-        height: mobile ? double.infinity : 920,
-        child: Column(children: [
-          _buildHeader(),
-          Expanded(child: _buildBody(mobile)),
-          _buildStickyTotalBar(),
-          _buildFooter(mobile),
-        ]),
+    // ─── NUEVO: PopScope para interceptar el back del sistema/ESC ───
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final canClose = await _confirmClose();
+        if (canClose && mounted) Navigator.pop(context);
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: _bgColor,
+        insetPadding: EdgeInsets.all(mobile ? 0 : 20),
+        child: SizedBox(
+          width: mobile ? double.infinity : 900,
+          height: mobile ? double.infinity : 920,
+          child: Column(children: [
+            _buildHeader(),
+            Expanded(child: _buildBody(mobile)),
+            _buildStickyTotalBar(),
+            _buildFooter(mobile),
+          ]),
+        ),
       ),
     );
   }
@@ -485,20 +856,19 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           ]),
         ),
         IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _handleClose,
             icon: Icon(LucideIcons.x, color: _labelColor, size: 20)),
       ]),
     );
   }
 
   // ────────────────────────────────────────────────────────────────
-  //  BODY — Acordeón unificado (mobile y desktop comparten estructura)
+  //  BODY
   // ────────────────────────────────────────────────────────────────
   Widget _buildBody(bool mobile) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(mobile ? 14 : 24),
       child: Column(children: [
-        // 1. Materiales
         _buildAccordionSection(
           key: 'mat',
           title: 'Insumos y Materiales',
@@ -509,7 +879,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           child: _buildMaterialList(data.materials),
         ),
         const SizedBox(height: 10),
-        // 2. Especialidades
         _buildAccordionSection(
           key: 'spec',
           title: 'Especialidades / Subcontratos',
@@ -520,7 +889,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           child: _buildSpecialtiesList(data.specialties),
         ),
         const SizedBox(height: 10),
-        // 3. Servicios Indirectos
         _buildAccordionSection(
           key: 'ind',
           title: 'Servicios Indirectos (Rentas)',
@@ -531,7 +899,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           child: _buildIndirectList(data.indirects),
         ),
         const SizedBox(height: 10),
-        // 4. Logística
         _buildAccordionSection(
           key: 'veh',
           title: 'Logística y Transporte',
@@ -542,7 +909,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           child: _buildVehiclesSection(),
         ),
         const SizedBox(height: 10),
-        // 5. Mano de Obra (siempre visible, sin acordeón extra)
         _buildAccordionSection(
           key: 'labor',
           title: 'Mano de Obra y Viáticos',
@@ -558,7 +924,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   }
 
   // ────────────────────────────────────────────────────────────────
-  //  ACORDEÓN — wrapper genérico
+  //  ACORDEÓN
   // ────────────────────────────────────────────────────────────────
   Widget _buildAccordionSection({
     required String key,
@@ -584,7 +950,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
         ],
       ),
       child: Column(children: [
-        // Header del acordeón
         InkWell(
           onTap: () => setState(() => _expanded[key] = !expanded),
           borderRadius: expanded
@@ -597,10 +962,8 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               borderRadius: expanded
                   ? const BorderRadius.vertical(top: Radius.circular(13))
                   : BorderRadius.circular(13),
-              // Barra izquierda de color
             ),
             child: Row(children: [
-              // Acento lateral
               Container(
                 width: 3,
                 height: 36,
@@ -633,7 +996,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                           fontSize: 11, color: _labelColor)),
                 ]),
               ),
-              // Subtotal
               if (subtotal > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -665,7 +1027,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
             ]),
           ),
         ),
-        // Cuerpo expandible
         AnimatedCrossFade(
           firstChild: const SizedBox(width: double.infinity, height: 0),
           secondChild: Column(children: [
@@ -708,7 +1069,8 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               if (ctrl.text.isEmpty && item.name.isNotEmpty && !fn.hasFocus)
                 ctrl.text = item.name;
               return _buildInput(ctrl, 'Buscar material...',
-                  focusNode: fn, onChanged: (v) => item.name = v);
+                  focusNode: fn,
+                  onChanged: (v) { _markAsChanged(); item.name = v; });
             },
             optionsViewBuilder: (ctx, onSel, opts) =>
                 _buildDropdownOptions(ctx, onSel, opts),
@@ -749,7 +1111,8 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               if (ctrl.text.isEmpty && item.name.isNotEmpty && !fn.hasFocus)
                 ctrl.text = item.name;
               return _buildInput(ctrl, 'Buscar servicio...',
-                  focusNode: fn, onChanged: (v) => item.name = v);
+                  focusNode: fn,
+                  onChanged: (v) { _markAsChanged(); item.name = v; });
             },
             optionsViewBuilder: (ctx, onSel, opts) =>
                 _buildDropdownOptions(ctx, onSel, opts),
@@ -777,7 +1140,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
       accentColor: _specColor,
       itemBuilder: (index, item) => TextFormField(
         initialValue: item.name,
-        onChanged: (val) => item.name = val,
+        onChanged: (val) { _markAsChanged(); item.name = val; },
         decoration: _inputDecoration('Descripción...'),
         style: GoogleFonts.inter(fontSize: 13),
       ),
@@ -785,7 +1148,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   }
 
   // ────────────────────────────────────────────────────────────────
-  //  LISTA GENÉRICA — desktop y mobile
+  //  LISTA GENÉRICA
   // ────────────────────────────────────────────────────────────────
   Widget _buildGenericList({
     required List<QuoteItem> items,
@@ -799,7 +1162,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     final mobile = MediaQuery.of(context).size.width < 800;
 
     return Column(children: [
-      // Cabecera de columnas (solo desktop)
       if (!mobile && items.isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
@@ -844,6 +1206,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               Row(children: [
                 Expanded(child: itemBuilder(i, item)),
                 _deleteButton(() {
+                  _markAsChanged();
                   _priceControllers.remove('${idPrefix}_price_$i')?.dispose();
                   _qtyControllers.remove('${idPrefix}_qty_$i')?.dispose();
                   setState(() => items.removeAt(i));
@@ -854,9 +1217,13 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                 Expanded(
                   child: TextFormField(
                     controller: qtyCtrl,
-                    keyboardType: TextInputType.number,
-                    onChanged: (v) =>
-                        setState(() => item.quantity = double.tryParse(v) ?? 0),
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    inputFormatters: _decimalFormatters, // ← SOLO NÚMEROS
+                    onChanged: (v) {
+                      _markAsChanged();
+                      setState(() => item.quantity = double.tryParse(v) ?? 0);
+                    },
                     decoration:
                         _inputDecoration('Cantidad', isCenter: true),
                     textAlign: TextAlign.center,
@@ -869,8 +1236,12 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                     controller: priceCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
-                    onChanged: (v) => setState(
-                        () => item.unitPrice = _parsePriceText(v)),
+                    inputFormatters: _priceFormatters, // ← SOLO NÚMEROS
+                    onChanged: (v) {
+                      _markAsChanged();
+                      setState(
+                          () => item.unitPrice = _parsePriceText(v));
+                    },
                     onEditingComplete: () {
                       priceCtrl.text = item.unitPrice == 0
                           ? ''
@@ -901,9 +1272,13 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               width: 80,
               child: TextFormField(
                 controller: qtyCtrl,
-                keyboardType: TextInputType.number,
-                onChanged: (v) =>
-                    setState(() => item.quantity = double.tryParse(v) ?? 0),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: _decimalFormatters, // ← SOLO NÚMEROS
+                onChanged: (v) {
+                  _markAsChanged();
+                  setState(() => item.quantity = double.tryParse(v) ?? 0);
+                },
                 decoration: _inputDecoration('Cant.', isCenter: true),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13),
@@ -916,8 +1291,11 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                 controller: priceCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (v) =>
-                    setState(() => item.unitPrice = _parsePriceText(v)),
+                inputFormatters: _priceFormatters, // ← SOLO NÚMEROS
+                onChanged: (v) {
+                  _markAsChanged();
+                  setState(() => item.unitPrice = _parsePriceText(v));
+                },
                 onEditingComplete: () {
                   priceCtrl.text = item.unitPrice == 0
                       ? ''
@@ -938,6 +1316,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
             ),
             const SizedBox(width: 4),
             _deleteButton(() {
+              _markAsChanged();
               _priceControllers.remove('${idPrefix}_price_$i')?.dispose();
               _qtyControllers.remove('${idPrefix}_qty_$i')?.dispose();
               setState(() => items.removeAt(i));
@@ -946,13 +1325,15 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
         },
       ),
       const SizedBox(height: 12),
-      // Footer: agregar + subtotal
       Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
         TextButton.icon(
-          onPressed: () => setState(
-              () => items.add(QuoteItem(id: DateTime.now().toString()))),
+          onPressed: () {
+            _markAsChanged();
+            setState(
+                () => items.add(QuoteItem(id: DateTime.now().toString())));
+          },
           icon: Icon(LucideIcons.plusCircle, size: 15, color: accentColor),
           label: Text(
             mobile ? 'Agregar' : addButtonText,
@@ -1002,49 +1383,100 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           return Column(children: [
             Row(children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _vehiclesDB.any((x) => x.id == v.vehicleId)
+                child: DropdownMenu<String>(
+                  initialSelection: _vehiclesDB.any((x) => x.id == v.vehicleId)
                       ? v.vehicleId
                       : null,
-                  isDense: true,
-                  isExpanded: true,
-                  items: _vehiclesDB
-                      .map((db) => DropdownMenuItem(
-                          value: db.id,
-                          child: Text(
-                              mobile
-                                  ? db.model
-                                  : '${db.model} (${db.kmPerLiter}km/l)',
-                              style: GoogleFonts.inter(fontSize: 13),
-                              overflow: TextOverflow.ellipsis)))
+                  expandedInsets: EdgeInsets.zero,
+                  menuStyle: MenuStyle(
+                    backgroundColor: WidgetStateProperty.all(_surfaceColor),
+                    elevation: WidgetStateProperty.all(8),
+                    shape: WidgetStateProperty.all(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: Colors.black, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  inputDecorationTheme: InputDecorationTheme(
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    filled: true,
+                    fillColor: _surfaceColor,          // ← blanco, igual que los otros campos
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,     // ← sin borde por defecto
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: _borderColor, width: 1.0), // ← gris suave
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: _accentColor, width: 1.8), // ← azul al enfocar
+                    ),
+                  ),
+                  textStyle: GoogleFonts.inter(fontSize: 13, color: _textColor),
+                  trailingIcon: Icon(
+                      LucideIcons.chevronDown, size: 16, color: _dropdownBorderColor),
+                  selectedTrailingIcon: Icon(
+                      LucideIcons.chevronUp, size: 16, color: _dropdownBorderColor),
+                  dropdownMenuEntries: _vehiclesDB
+                      .map((db) => DropdownMenuEntry<String>(
+                            value: db.id,
+                            label: mobile
+                                ? db.model
+                                : '${db.model} (${db.kmPerLiter}km/l)',
+                            style: MenuItemButton.styleFrom(
+                              textStyle: GoogleFonts.inter(fontSize: 13),
+                            ),
+                          ))
                       .toList(),
-                  onChanged: (val) =>
-                      setState(() => v.vehicleId = val!),
-                  decoration: _inputDecoration('Vehículo'),
+                  onSelected: (val) {
+                    if (val != null) {
+                      _markAsChanged();
+                      setState(() => v.vehicleId = val);
+                    }
+                  },
                 ),
               ),
-              _deleteButton(() =>
-                  setState(() => data.vehicles.remove(v))),
+              _deleteButton(() {
+                _markAsChanged();
+                setState(() => data.vehicles.remove(v));
+              }),
             ]),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(
                   child: _buildInput(null, 'Días',
                       initialValue: _formatNumber(v.days),
-                      onChanged: (val) => setState(
-                          () => v.days = double.tryParse(val) ?? 0))),
+                      numericType: NumericType.decimal,
+                      onChanged: (val) {
+                        _markAsChanged();
+                        setState(
+                            () => v.days = double.tryParse(val) ?? 0);
+                      })),
               const SizedBox(width: 8),
               Expanded(
                   child: _buildInput(null, 'Km Total',
                       initialValue: _formatNumber(v.distance),
-                      onChanged: (val) => setState(
-                          () => v.distance = double.tryParse(val) ?? 0))),
+                      numericType: NumericType.decimal,
+                      onChanged: (val) {
+                        _markAsChanged();
+                        setState(
+                            () => v.distance = double.tryParse(val) ?? 0);
+                      })),
               const SizedBox(width: 8),
               Expanded(
                   child: _buildInput(null, 'Casetas \$',
                       initialValue: _formatNumber(v.tolls),
-                      onChanged: (val) => setState(
-                          () => v.tolls = double.tryParse(val) ?? 0))),
+                      numericType: NumericType.decimal,
+                      onChanged: (val) {
+                        _markAsChanged();
+                        setState(
+                            () => v.tolls = double.tryParse(val) ?? 0);
+                      })),
             ]),
             if (rowTotal > 0)
               Align(
@@ -1064,9 +1496,12 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
       ),
       const SizedBox(height: 12),
       TextButton.icon(
-        onPressed: () => setState(() => data.vehicles.add(VehicleQuote(
-            id: DateTime.now().toString(),
-            vehicleId: _vehiclesDB.isNotEmpty ? _vehiclesDB.first.id : ''))),
+        onPressed: () {
+          _markAsChanged();
+          setState(() => data.vehicles.add(VehicleQuote(
+              id: DateTime.now().toString(),
+              vehicleId: _vehiclesDB.isNotEmpty ? _vehiclesDB.first.id : '')));
+        },
         icon: Icon(LucideIcons.plusCircle, size: 15, color: _vehColor),
         label: Text('Agregar Vehículo',
             style: GoogleFonts.inter(
@@ -1098,11 +1533,10 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
   }
 
   // ────────────────────────────────────────────────────────────────
-  //  MANO DE OBRA (cuerpo sin el card wrapper — lo da el acordeón)
+  //  MANO DE OBRA
   // ────────────────────────────────────────────────────────────────
   Widget _buildLaborBody() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Cabecera de columnas
       Padding(
         padding: const EdgeInsets.only(bottom: 8, left: 4, right: 44),
         child: Row(children: [
@@ -1135,21 +1569,61 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           return Row(children: [
             Expanded(
               flex: 4,
-              child: DropdownButtonFormField<String>(
-                value: _laborCategoriesDB.any((c) => c.id == l.categoryId)
-                    ? l.categoryId
-                    : null,
-                isDense: true,
-                isExpanded: true,
-                items: _laborCategoriesDB
-                    .map((c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name,
-                            style: GoogleFonts.inter(fontSize: 13))))
+              child: DropdownMenu<String>(
+                initialSelection:
+                    _laborCategoriesDB.any((c) => c.id == l.categoryId)
+                        ? l.categoryId
+                        : null,
+                expandedInsets: EdgeInsets.zero,
+                menuStyle: MenuStyle(
+                  backgroundColor: WidgetStateProperty.all(_surfaceColor),
+                  elevation: WidgetStateProperty.all(8),
+                  shape: WidgetStateProperty.all(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: Colors.black, width: 1.5),
+                    ),
+                  ),
+                ),
+                inputDecorationTheme: InputDecorationTheme(
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  filled: true,
+                  fillColor: _surfaceColor,          // ← blanco, igual que los otros campos
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,     // ← sin borde por defecto
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: _borderColor, width: 1.0), // ← gris suave
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: _accentColor, width: 1.8), // ← azul al enfocar
+                  ),
+                ),
+                textStyle: GoogleFonts.inter(fontSize: 13, color: _textColor),
+                trailingIcon: Icon(
+                    LucideIcons.chevronDown, size: 16, color: _dropdownBorderColor),
+                selectedTrailingIcon: Icon(
+                    LucideIcons.chevronUp, size: 16, color: _dropdownBorderColor),
+                dropdownMenuEntries: _laborCategoriesDB
+                    .map((c) => DropdownMenuEntry<String>(
+                          value: c.id,
+                          label: c.name,
+                          style: MenuItemButton.styleFrom(
+                            textStyle: GoogleFonts.inter(fontSize: 13),
+                          ),
+                        ))
                     .toList(),
-                onChanged: (val) =>
-                    setState(() => l.categoryId = val!),
-                decoration: _inputDecoration(''),
+                onSelected: (val) {
+                  if (val != null) {
+                    _markAsChanged();
+                    setState(() => l.categoryId = val);
+                  }
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -1158,16 +1632,24 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                 child: _buildInput(null, '1',
                     isCenter: true,
                     initialValue: _formatNumber(l.quantity),
-                    onChanged: (val) => setState(
-                        () => l.quantity = double.tryParse(val) ?? 0))),
+                    numericType: NumericType.decimal,
+                    onChanged: (val) {
+                      _markAsChanged();
+                      setState(
+                          () => l.quantity = double.tryParse(val) ?? 0);
+                    })),
             const SizedBox(width: 8),
             Expanded(
                 flex: 2,
                 child: _buildInput(null, '1',
                     isCenter: true,
                     initialValue: _formatNumber(l.days),
-                    onChanged: (val) => setState(
-                        () => l.days = double.tryParse(val) ?? 0))),
+                    numericType: NumericType.decimal,
+                    onChanged: (val) {
+                      _markAsChanged();
+                      setState(
+                          () => l.days = double.tryParse(val) ?? 0);
+                    })),
             const SizedBox(width: 8),
             Expanded(
               flex: 3,
@@ -1178,18 +1660,23 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                       fontWeight: FontWeight.bold,
                       color: _sectionTotalColor)),
             ),
-            _deleteButton(
-                () => setState(() => data.labor.remove(l))),
+            _deleteButton(() {
+              _markAsChanged();
+              setState(() => data.labor.remove(l));
+            }),
           ]);
         },
       ),
       const SizedBox(height: 12),
       TextButton.icon(
-        onPressed: () => setState(() => data.labor.add(LaborQuote(
-            id: DateTime.now().toString(),
-            categoryId: _laborCategoriesDB.isNotEmpty
-                ? _laborCategoriesDB.first.id
-                : ''))),
+        onPressed: () {
+          _markAsChanged();
+          setState(() => data.labor.add(LaborQuote(
+              id: DateTime.now().toString(),
+              categoryId: _laborCategoriesDB.isNotEmpty
+                  ? _laborCategoriesDB.first.id
+                  : '')));
+        },
         icon: Icon(LucideIcons.plusCircle, size: 15, color: _laborColor),
         label: Text('Agregar Puesto',
             style: GoogleFonts.inter(
@@ -1218,8 +1705,10 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                 activeColor: _laborColor,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(4)),
-                onChanged: (v) =>
-                    setState(() => data.travel.enabled = v!),
+                onChanged: (v) {
+                  _markAsChanged();
+                  setState(() => data.travel.enabled = v!);
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -1236,17 +1725,25 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                   child: _buildInput(null, 'Comidas (\$/día/pers)',
                       initialValue: _formatNumber(
                           data.travel.foodCostPerDay),
-                      onChanged: (v) => setState(() =>
-                          data.travel.foodCostPerDay =
-                              double.tryParse(v) ?? 0))),
+                      numericType: NumericType.decimal,
+                      onChanged: (v) {
+                        _markAsChanged();
+                        setState(() =>
+                            data.travel.foodCostPerDay =
+                                double.tryParse(v) ?? 0);
+                      })),
               const SizedBox(width: 12),
               Expanded(
                   child: _buildInput(null, 'Hospedaje (\$/día/pers)',
                       initialValue: _formatNumber(
                           data.travel.lodgingCostPerDay),
-                      onChanged: (v) => setState(() =>
-                          data.travel.lodgingCostPerDay =
-                              double.tryParse(v) ?? 0))),
+                      numericType: NumericType.decimal,
+                      onChanged: (v) {
+                        _markAsChanged();
+                        setState(() =>
+                            data.travel.lodgingCostPerDay =
+                                double.tryParse(v) ?? 0);
+                      })),
             ]),
             const SizedBox(height: 10),
             Row(children: [
@@ -1254,16 +1751,24 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                   child: _buildInput(null, 'No. Personas',
                       initialValue:
                           _formatNumber(data.travel.peopleCount),
-                      onChanged: (v) => setState(() =>
-                          data.travel.peopleCount =
-                              double.tryParse(v) ?? 0))),
+                      numericType: NumericType.integer,
+                      onChanged: (v) {
+                        _markAsChanged();
+                        setState(() =>
+                            data.travel.peopleCount =
+                                double.tryParse(v) ?? 0);
+                      })),
               const SizedBox(width: 12),
               Expanded(
                   child: _buildInput(null, 'No. Días',
                       initialValue: _formatNumber(data.travel.days),
-                      onChanged: (v) => setState(() =>
-                          data.travel.days =
-                              double.tryParse(v) ?? 0))),
+                      numericType: NumericType.integer,
+                      onChanged: (v) {
+                        _markAsChanged();
+                        setState(() =>
+                            data.travel.days =
+                                double.tryParse(v) ?? 0);
+                      })),
             ]),
             const SizedBox(height: 12),
             Align(
@@ -1433,6 +1938,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
               ..selection = TextSelection.collapsed(
                   offset: marginPercent.toString().length),
             keyboardType: TextInputType.number,
+            inputFormatters: _intOnlyFormatters, // ← SOLO ENTEROS
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
                 fontSize: 13,
@@ -1448,9 +1954,12 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
                   borderRadius: BorderRadius.circular(6),
                   borderSide: BorderSide.none),
             ),
-            onChanged: (val) => setState(() =>
-                data.protectionRate =
-                    (double.tryParse(val) ?? 0) / 100),
+            onChanged: (val) {
+              _markAsChanged();
+              setState(() =>
+                  data.protectionRate =
+                      (double.tryParse(val) ?? 0) / 100);
+            },
           ),
         ),
         Text(' %',
@@ -1524,7 +2033,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
           border: Border(top: BorderSide(color: _borderColor))),
       child: Row(children: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _handleClose, // ← USA CONFIRMACIÓN
           style: TextButton.styleFrom(foregroundColor: _labelColor),
           child: Text(mobile ? 'Cancelar' : 'Descartar cambios',
               style:
@@ -1618,6 +2127,7 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     );
   }
 
+  /// ─── NUEVO: helper extendido con tipo numérico e indicador de dropdown ───
   Widget _buildInput(
     TextEditingController? ctrl,
     String hint, {
@@ -1625,19 +2135,42 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     Function(String)? onChanged,
     FocusNode? focusNode,
     bool isCenter = false,
+    bool isDropdown = false,
+    NumericType? numericType,
   }) {
+    List<TextInputFormatter>? formatters;
+    TextInputType? kbType;
+    if (numericType == NumericType.integer) {
+      formatters = _intOnlyFormatters;
+      kbType = TextInputType.number;
+    } else if (numericType == NumericType.decimal) {
+      formatters = _decimalFormatters;
+      kbType = const TextInputType.numberWithOptions(decimal: true);
+    }
+
     return TextFormField(
       controller: ctrl,
       initialValue: initialValue,
       onChanged: onChanged,
       focusNode: focusNode,
+      keyboardType: kbType,
+      inputFormatters: formatters,
       textAlign: isCenter ? TextAlign.center : TextAlign.start,
       style: GoogleFonts.inter(fontSize: 13),
-      decoration: _inputDecoration(hint, isCenter: isCenter),
+      decoration:
+          _inputDecoration(hint, isCenter: isCenter, isDropdown: isDropdown),
     );
   }
 
-  InputDecoration _inputDecoration(String hint, {bool isCenter = false}) {
+  /// ─── MODIFICADO: isDropdown aplica marco más oscuro ───
+  InputDecoration _inputDecoration(String hint,
+      {bool isCenter = false, bool isDropdown = false}) {
+    final Color effectiveBorderColor =
+        isDropdown ? _dropdownBorderColor : _borderColor;
+    final Color effectiveFillColor =
+        isDropdown ? _dropdownFillColor : _surfaceColor;
+    final double borderWidth = isDropdown ? 1.4 : 1.0;
+
     return InputDecoration(
       labelText: hint,
       isDense: true,
@@ -1648,14 +2181,15 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none),
-      fillColor: _surfaceColor,
+      fillColor: effectiveFillColor,
       filled: true,
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _borderColor)),
+          borderSide:
+              BorderSide(color: effectiveBorderColor, width: borderWidth)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _accentColor, width: 1.5)),
+          borderSide: BorderSide(color: _accentColor, width: 1.8)),
     );
   }
 
@@ -1671,6 +2205,10 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
         child: Container(
           width: 300,
           constraints: const BoxConstraints(maxHeight: 240),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black, width: 1.5),
+          ),
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 6),
             itemCount: options.length,
@@ -1709,3 +2247,6 @@ class _QuoteFormModalState extends State<QuoteFormModal> {
     );
   }
 }
+
+// ─── NUEVO: enum para tipo numérico ───
+enum NumericType { integer, decimal }

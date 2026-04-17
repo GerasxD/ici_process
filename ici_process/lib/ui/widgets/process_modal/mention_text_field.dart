@@ -11,6 +11,7 @@ class MentionTextField extends StatefulWidget {
   final VoidCallback onSubmit;
   final Function(List<String> mentionedUserIds) onMentionsChanged;
   final int maxLines;
+  final List<String>? allowedUserIds;
 
   const MentionTextField({
     super.key,
@@ -19,6 +20,7 @@ class MentionTextField extends StatefulWidget {
     required this.onMentionsChanged,
     this.hintText = "Escribe una actualización o nota...",
     this.maxLines = 1,
+    this.allowedUserIds,
   });
 
   @override
@@ -48,12 +50,22 @@ class _MentionTextFieldState extends State<MentionTextField> {
   }
 
   Future<void> _loadUsers() async {
-  final snapshot = await FirebaseFirestore.instance.collection('users').get();
+    final snapshot = await FirebaseFirestore.instance.collection('users').get();
     if (mounted) {
+      final all = snapshot.docs
+          .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+          .toList();
       setState(() {
-        _allUsers = snapshot.docs
-            .map((doc) => UserModel.fromMap(doc.data(), doc.id))
-            .toList();
+        // Si hay lista de permitidos, filtrar. Si no, dejar todos.
+        if (widget.allowedUserIds != null) {
+          _allUsers = all.where((u) {
+            final role = u.role.name.toLowerCase();
+            if (role == 'admin' || role == 'superadmin') return true;
+            return widget.allowedUserIds!.contains(u.id);
+          }).toList();
+        } else {
+          _allUsers = all;
+        }
       });
     }
   }

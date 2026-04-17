@@ -409,43 +409,7 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
           const SizedBox(height: 16),
         ],
 
-        // --- SECCIÓN: ORDEN DE COMPRA ---
-        if (_showOCSection) ...[
-          Container(
-            key: widget.ocKey,
-              child: _wrapCard('oc',
-              _buildCard(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Expanded(child: _buildSectionTitle("Datos de Orden de Compra", LucideIcons.shoppingBag)),
-                    if (_showNotifyButton) IconButton(onPressed: widget.onNotifyUsers, icon: const Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)), tooltip: "Notificar usuarios sobre O.C.", style: IconButton.styleFrom(backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-                  ]),
-                  const SizedBox(height: 20),
-                  if (mobile) ...[_buildOCNumberField(), const SizedBox(height: 16), _buildOCDateField()]
-                  else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: _buildOCNumberField()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildOCDateField())]),
-                if (widget.processId.isNotEmpty)
-                  FileAttachmentsWidget(
-                    processId: widget.processId,
-                    section: 'oc',
-                    currentUser: widget.currentUser,
-                    canView: canViewFilesOc,
-                    canUpload: canUploadFilesOc,
-                  )
-                else
-                  Container(
-                    margin: const EdgeInsets.only(top: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: Text("Guarda el proceso para habilitar los archivos de O.C.", style: TextStyle(color: Colors.amber.shade800, fontSize: 12)),
-                  ),
-                ]),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-
-       // --- CARD: Seguimiento ---
+       // --- CARD: Seguimiento (MOVIDO AQUÍ, DEBAJO DE COTIZACIÓN) ---
        Container(
           key: widget.trackingKey,
           child: _wrapCard('tracking',
@@ -488,6 +452,42 @@ class _GeneralInfoSectionState extends State<GeneralInfoSection> {
           ),
         ),
         const SizedBox(height: 16),
+
+        // --- SECCIÓN: ORDEN DE COMPRA (MOVIDA DEBAJO DE SEGUIMIENTO) ---
+        if (_showOCSection) ...[
+          Container(
+            key: widget.ocKey,
+              child: _wrapCard('oc',
+              _buildCard(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Expanded(child: _buildSectionTitle("Datos de Orden de Compra", LucideIcons.shoppingBag)),
+                    if (_showNotifyButton) IconButton(onPressed: widget.onNotifyUsers, icon: const Icon(LucideIcons.bellRing, color: Color(0xFF7C3AED)), tooltip: "Notificar usuarios sobre O.C.", style: IconButton.styleFrom(backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+                  ]),
+                  const SizedBox(height: 20),
+                  if (mobile) ...[_buildOCNumberField(), const SizedBox(height: 16), _buildOCDateField()]
+                  else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 3, child: _buildOCNumberField()), const SizedBox(width: 16), Expanded(flex: 2, child: _buildOCDateField())]),
+                if (widget.processId.isNotEmpty)
+                  FileAttachmentsWidget(
+                    processId: widget.processId,
+                    section: 'oc',
+                    currentUser: widget.currentUser,
+                    canView: canViewFilesOc,
+                    canUpload: canUploadFilesOc,
+                  )
+                else
+                  Container(
+                    margin: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+                    child: Text("Guarda el proceso para habilitar los archivos de O.C.", style: TextStyle(color: Colors.amber.shade800, fontSize: 12)),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // ── extraSection SIN opacity (tiene su propia lógica de highlight) ──
         if (widget.extraSection != null) ...[

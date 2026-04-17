@@ -52,6 +52,7 @@ class _EventFormDialogState extends State<EventFormDialog> {
   String? _selectedVehicleModel;
   Set<String> _selectedTechIds = {};
   Map<String, String> _techNames = {}; // id → name
+  String _editingClientName = '';
 
   bool _isSaving = false;
 
@@ -88,6 +89,8 @@ class _EventFormDialogState extends State<EventFormDialog> {
     if (_isCustomClient) {
       _customClientCtrl.text = e.clientName;
     }
+    // ✅ FIX: Guardamos el nombre del cliente para la comparación
+    _editingClientName = e.clientName;
     _contactNameCtrl.text = e.contactName;
     _contactPhoneCtrl.text = e.contactPhone;
     _startDate = e.startDate;
@@ -465,6 +468,14 @@ class _EventFormDialogState extends State<EventFormDialog> {
                   stream: _clientService.getClients(),
                   builder: (ctx, snap) {
                     final clients = snap.data ?? [];
+                    if (_selectedClient == null && _editingClientName.isNotEmpty && !_isCustomClient) {
+                      try {
+                        // Buscamos en la lista el objeto completo que coincida con el nombre
+                        _selectedClient = clients.firstWhere((c) => c.name == _editingClientName);
+                      } catch (_) {
+                        // Por si el cliente ya no existe en la base de datos
+                      }
+                    }
                     return DropdownButtonFormField<Client>(
                       value: _selectedClient,
                       isExpanded: true,
@@ -794,22 +805,25 @@ class _EventFormDialogState extends State<EventFormDialog> {
   String? _technicianConflict(String techId, List<CalendarEvent> allEvents) {
     final editingId = widget.eventToEdit?.id;
 
-    for (final ev in allEvents) {
-      // Ignorar el evento que se está editando
-      if (editingId != null && ev.id == editingId) continue;
+    // ✅ FIX: Normalizamos a medianoche para comparar solo la fecha
+    final rangeStart = DateTime(_startDate.year, _startDate.month, _startDate.day);
+    final rangeEnd = DateTime(_endDate.year, _endDate.month, _endDate.day);
 
-      // ¿El técnico está en este evento?
+    for (final ev in allEvents) {
+      if (editingId != null && ev.id == editingId) continue;
       if (!ev.technicianIds.contains(techId)) continue;
 
-      // ¿Las fechas se solapan?
-      final overlaps = ev.startDate.compareTo(_endDate) <= 0 &&
-          ev.endDate.compareTo(_startDate) >= 0;
+      // Normalizamos las fechas del evento guardado también
+      final evStart = DateTime(ev.startDate.year, ev.startDate.month, ev.startDate.day);
+      final evEnd = DateTime(ev.endDate.year, ev.endDate.month, ev.endDate.day);
+
+      final overlaps = evStart.compareTo(rangeEnd) <= 0 &&
+          evEnd.compareTo(rangeStart) >= 0;
       if (!overlaps) continue;
 
-      // Hay conflicto → devolvemos el cliente de ese evento
       return ev.clientName;
     }
-    return null; // Sin conflicto
+    return null;
   }
 
   // ── TECHNICIAN SELECTOR ───────────────────────────────────
@@ -1104,8 +1118,13 @@ class _EventFormDialogState extends State<EventFormDialog> {
     );
   }
 
-  String get _currentClientName =>
-    _isCustomClient ? _customClientCtrl.text.trim() : (_selectedClient?.name ?? '');
+  String get _currentClientName {
+    if (_isCustomClient) return _customClientCtrl.text.trim();
+    if (_selectedClient != null) return _selectedClient!.name;
+    // Al editar evento con cliente de catálogo, _selectedClient es null
+    // pero _editingClientName tiene el nombre guardado
+    return _editingClientName;
+  }
 
   // ── HELPERS UI ────────────────────────────────────────────
   Widget _buildLabel(String text) {

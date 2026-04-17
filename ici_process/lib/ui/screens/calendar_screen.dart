@@ -225,12 +225,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: StreamBuilder<List<ProcessModel>>(
-        stream: _processService.getProcessesStream(),
+        stream: _processService.getProcessesStream(
+          currentUserId: widget.currentUser.id,
+          currentUserRole: widget.currentUser.role.name,
+        ),
         builder: (context, procSnap) {
           final allProcesses = procSnap.data ?? [];
           return StreamBuilder<List<CalendarEvent>>(
-            stream: _eventService.getEventsStream(),
-            builder: (context, evSnap) {
+              stream: _eventService.getEventsStreamForUser(
+                userId: widget.currentUser.id,
+                userRole: widget.currentUser.role.name,
+              ),
+              builder: (context, evSnap) {
               final allEvents = evSnap.data ?? [];
               // ── NUEVO STREAM: días deshabilitados ──
               return StreamBuilder<List<DisabledDay>>(

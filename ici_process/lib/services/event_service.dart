@@ -20,6 +20,19 @@ class EventService {
             .toList());
   }
 
+  // ── LEER FILTRADO POR USUARIO ───────────────────────────
+  /// Devuelve eventos visibles para el usuario según su rol y privacidad.
+  /// Admins/Superadmins ven todo. Otros usuarios ven eventos públicos
+  /// y los privados donde están incluidos en visibleToUserIds.
+  Stream<List<CalendarEvent>> getEventsStreamForUser({
+    required String userId,
+    required String userRole,
+  }) {
+    return getEventsStream().map((events) {
+      return events.where((e) => e.isVisibleTo(userId, userRole)).toList();
+    });
+  }
+
   // ── CREAR ───────────────────────────────────────────────
   Future<String> createEvent(CalendarEvent event) async {
     // Al usar .add(), Firebase nos devuelve la referencia del nuevo documento

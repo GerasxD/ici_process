@@ -87,10 +87,10 @@ class CalendarEvent {
   final String clientName;
   final String contactName;
   final String contactPhone;
-  final bool isCustomClient; // cliente fuera del catálogo
+  final bool isCustomClient;
   final DateTime startDate;
   final DateTime endDate;
-  final int colorValue; // color.value
+  final int colorValue;
   final String? vehicleId;
   final String? vehicleModel;
   final List<String> vehicleIds;
@@ -99,6 +99,10 @@ class CalendarEvent {
   final List<String> technicianNames;
   final String createdBy;
   final DateTime createdAt;
+  // ── NUEVOS CAMPOS DE PRIVACIDAD ──
+  final String? processId;          // ID del proceso padre (si aplica)
+  final bool isPrivate;             // Heredado del proceso
+  final List<String> visibleToUserIds; // IDs de usuarios con acceso
 
   CalendarEvent({
     required this.id,
@@ -119,6 +123,9 @@ class CalendarEvent {
     this.technicianNames = const [],
     required this.createdBy,
     required this.createdAt,
+    this.processId,
+    this.isPrivate = false,
+    this.visibleToUserIds = const [],
   });
 
   Color get color => Color(colorValue);
@@ -146,6 +153,9 @@ class CalendarEvent {
       technicianNames: List<String>.from(data['technicianNames'] ?? []),
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      processId: data['processId'],
+      isPrivate: data['isPrivate'] ?? false,
+      visibleToUserIds: List<String>.from(data['visibleToUserIds'] ?? []),
     );
   }
 
@@ -167,13 +177,26 @@ class CalendarEvent {
         'technicianNames': technicianNames,
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
+        'processId': processId,
+        'isPrivate': isPrivate,
+        'visibleToUserIds': visibleToUserIds,
       };
 
-  /// True si el evento cubre el día dado
   bool coversDay(DateTime day) {
     final d = DateTime(day.year, day.month, day.day);
     final s = DateTime(startDate.year, startDate.month, startDate.day);
     final e = DateTime(endDate.year, endDate.month, endDate.day);
     return !d.isBefore(s) && !d.isAfter(e);
+  }
+
+  /// ── NUEVO: Verifica si el usuario puede ver este evento ──
+  bool isVisibleTo(String userId, String userRole) {
+    // Admins y superadmins ven todo
+    final role = userRole.toLowerCase();
+    if (role == 'admin' || role == 'superadmin') return true;
+    // Eventos públicos: todos los ven
+    if (!isPrivate) return true;
+    // Eventos privados: solo usuarios en la lista
+    return visibleToUserIds.contains(userId);
   }
 }
