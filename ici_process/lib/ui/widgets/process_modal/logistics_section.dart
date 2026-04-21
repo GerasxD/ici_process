@@ -156,7 +156,7 @@
     final Function(Map<String, dynamic>) onDataChanged;
     final bool canViewFinancials;
     final String currentUserName;
-    final UserRole currentUserRole;
+    final String currentUserRole;
 
     const LogisticsSection({
       super.key,
@@ -1170,7 +1170,12 @@
         );
       }
 
-      final allowedRoles = [UserRole.superAdmin, UserRole.admin, UserRole.accountant, UserRole.purchasing];
+      final allowedRoles = [
+        SystemRoles.superAdmin,
+        SystemRoles.admin,
+        SystemRoles.accountant,
+        SystemRoles.purchasing,
+      ];
 
       final bool canViewPurchases = allowedRoles.contains(widget.currentUserRole);
 

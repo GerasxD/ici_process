@@ -3,8 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../models/user_model.dart';
 import '../../models/admin_config_model.dart';
+import '../../models/role_model.dart';
 import '../../services/user_service.dart';
 import '../../services/admin_service.dart';
+import '../../services/role_service.dart';
 import '../../core/constants/app_constants.dart';
 
 class AdminPanelScreen extends StatefulWidget {
@@ -18,9 +20,10 @@ class AdminPanelScreen extends StatefulWidget {
 class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerProviderStateMixin {
   final AdminService _adminService = AdminService();
   final UserService _userService = UserService();
-  
+  final RoleService _roleService = RoleService();
+
   late TabController _tabController;
-  String _selectedRoleForEdit = UserRole.admin.name;
+  String _selectedRoleForEdit = SystemRoles.admin;
 
   // Mapa de traducción para los grupos de permisos
   final Map<String, String> _groupTitles = {
@@ -72,6 +75,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _roleService.ensureDefaultRolesSeeded();
   }
 
   @override
@@ -82,21 +86,43 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
         children: [
           _buildHeader(),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _UsersTab(userService: _userService, currentUser: widget.currentUser),
-                _RolesTab(
-                  adminService: _adminService, 
-                  selectedRole: _selectedRoleForEdit,
-                  permissionGroups: _permissionGroups,
-                  groupTitles: _groupTitles,
-                  permissionLabels: _permissionLabels,
-                  onRoleChanged: (r) => setState(() => _selectedRoleForEdit = r),
-                ),
-                _CatalogsTab(adminService: _adminService),
-              ],
+            child: StreamBuilder<List<RoleModel>>(
+              stream: _roleService.getRolesStream(),
+              builder: (context, roleSnap) {
+                final roles = roleSnap.data ?? [];
+                final hasSelected = roles.any((r) => r.id == _selectedRoleForEdit);
+                if (!hasSelected && roles.isNotEmpty) {
+                  final fallback = roles.firstWhere(
+                    (r) => r.id == SystemRoles.admin,
+                    orElse: () => roles.first,
+                  );
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) setState(() => _selectedRoleForEdit = fallback.id);
+                  });
+                }
+                return TabBarView(
+                  controller: _tabController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _UsersTab(
+                      userService: _userService,
+                      currentUser: widget.currentUser,
+                      roles: roles,
+                    ),
+                    _RolesTab(
+                      adminService: _adminService,
+                      roleService: _roleService,
+                      roles: roles,
+                      selectedRole: _selectedRoleForEdit,
+                      permissionGroups: _permissionGroups,
+                      groupTitles: _groupTitles,
+                      permissionLabels: _permissionLabels,
+                      onRoleChanged: (r) => setState(() => _selectedRoleForEdit = r),
+                    ),
+                    _CatalogsTab(adminService: _adminService),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -198,8 +224,13 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
 class _UsersTab extends StatefulWidget {
   final UserService userService;
   final UserModel currentUser;
+  final List<RoleModel> roles;
 
-  const _UsersTab({required this.userService, required this.currentUser});
+  const _UsersTab({
+    required this.userService,
+    required this.currentUser,
+    required this.roles,
+  });
 
   @override
   State<_UsersTab> createState() => _UsersTabState();
@@ -724,11 +755,18 @@ class _UsersTabState extends State<_UsersTab> {
 
   // --- LÓGICA: CREAR O EDITAR USUARIO ---
   void _showUserDialog({UserModel? userToEdit}) {
+    if (widget.roles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Cargando roles, intenta de nuevo en un segundo..."),
+      ));
+      return;
+    }
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _UserFormDialog(
         userToEdit: userToEdit,
+        availableRoles: widget.roles,
         onSave: (user, password) async {
           try {
             setState(() => _isProcessing = true);
@@ -753,15 +791,20 @@ class _UsersTabState extends State<_UsersTab> {
   }
 
   Map<String, dynamic> _getRoleStyle(String role) {
-    switch (role.toLowerCase()) {
-      case 'superadmin': return {'text': 'Super Admin', 'bg': const Color(0xFF312E81), 'fg': Colors.white};
-      case 'admin': return {'text': 'Administrador', 'bg': const Color(0xFF1E40AF), 'fg': Colors.white};
-      case 'manager': return {'text': 'Gerente Operativo', 'bg': const Color(0xFF0369A1), 'fg': Colors.white};
-      case 'technician': return {'text': 'Técnico', 'bg': const Color(0xFF0D9488), 'fg': Colors.white};
-      case 'purchasing': return {'text': 'Compras', 'bg': const Color(0xFFB45309), 'fg': Colors.white};
-      case 'accountant': return {'text': 'Contador', 'bg': const Color(0xFF059669), 'fg': Colors.white};
-      default: return {'text': role, 'bg': Colors.grey, 'fg': Colors.white};
-    }
+    final found = widget.roles.firstWhere(
+      (r) => r.id == role,
+      orElse: () => RoleModel(
+        id: role,
+        displayName: role.isEmpty ? 'Sin rol' : role,
+        colorHex: '#64748B',
+        iconKey: 'user',
+      ),
+    );
+    return {
+      'text': found.displayName,
+      'bg': found.color,
+      'fg': Colors.white,
+    };
   }
 
   @override
@@ -808,9 +851,9 @@ class _UsersTabState extends State<_UsersTab> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final user = users[index];
-                    final roleStyle = _getRoleStyle(user.role.toString().split('.').last);
+                    final roleStyle = _getRoleStyle(user.role);
                     final isMe = user.id == widget.currentUser.id;
-                    final isSuper = widget.currentUser.role == UserRole.superAdmin;
+                    final isSuper = widget.currentUser.role == SystemRoles.superAdmin;
 
                     return Container(
                       padding: const EdgeInsets.all(20),
@@ -893,9 +936,14 @@ class _UsersTabState extends State<_UsersTab> {
 // -----------------------------------------------------------------------------
 class _UserFormDialog extends StatefulWidget {
   final UserModel? userToEdit;
+  final List<RoleModel> availableRoles;
   final Function(UserModel, String?) onSave;
 
-  const _UserFormDialog({this.userToEdit, required this.onSave});
+  const _UserFormDialog({
+    this.userToEdit,
+    required this.availableRoles,
+    required this.onSave,
+  });
 
   @override
   State<_UserFormDialog> createState() => _UserFormDialogState();
@@ -906,39 +954,43 @@ class _UserFormDialogState extends State<_UserFormDialog> {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  UserRole _selectedRole = UserRole.technician;
+  late String _selectedRole;
   bool _obscurePassword = true;
 
   bool get isEditing => widget.userToEdit != null;
 
-  // Config visual por rol
-  Map<String, dynamic> _getRoleConfig(UserRole role) {
-    switch (role) {
-      case UserRole.superAdmin:
-        return {'label': 'Super Admin', 'color': const Color(0xFF312E81), 'icon': LucideIcons.shieldAlert};
-      case UserRole.admin:
-        return {'label': 'Administrador', 'color': const Color(0xFF1E40AF), 'icon': LucideIcons.shield};
-      case UserRole.manager:
-        return {'label': 'Gerente Operativo', 'color': const Color(0xFF0369A1), 'icon': LucideIcons.briefcase};
-      case UserRole.technician:
-        return {'label': 'Técnico', 'color': const Color(0xFF0D9488), 'icon': LucideIcons.wrench};
-      case UserRole.purchasing:
-        return {'label': 'Compras', 'color': const Color(0xFFB45309), 'icon': LucideIcons.shoppingCart};
-      case UserRole.accountant:
-        return {'label': 'Contador', 'color': const Color(0xFF059669), 'icon': LucideIcons.dollarSign};
-      // ignore: unreachable_switch_default
-      default:
-        return {'label': role.name, 'color': Colors.grey, 'icon': LucideIcons.user};
-    }
+  RoleModel _roleFor(String id) {
+    return widget.availableRoles.firstWhere(
+      (r) => r.id == id,
+      orElse: () => RoleModel(
+        id: id,
+        displayName: id.isEmpty ? 'Sin rol' : id,
+        colorHex: '#64748B',
+        iconKey: 'user',
+      ),
+    );
   }
 
   @override
   void initState() {
     super.initState();
+    final defaultRole = widget.availableRoles
+        .firstWhere(
+          (r) => r.id == SystemRoles.technician,
+          orElse: () => widget.availableRoles.isNotEmpty
+              ? widget.availableRoles.last
+              : const RoleModel(
+                  id: 'technician',
+                  displayName: 'Técnico',
+                  colorHex: '#0D9488',
+                  iconKey: 'wrench',
+                ),
+        )
+        .id;
+    _selectedRole = isEditing ? widget.userToEdit!.role : defaultRole;
     if (isEditing) {
       _nameCtrl.text = widget.userToEdit!.name;
       _emailCtrl.text = widget.userToEdit!.email;
-      _selectedRole = widget.userToEdit!.role;
     }
   }
 
@@ -965,8 +1017,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final roleConfig = _getRoleConfig(_selectedRole);
-    final Color roleColor = roleConfig['color'];
+    final roleConfig = _roleFor(_selectedRole);
+    final Color roleColor = roleConfig.color;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -1182,13 +1234,12 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
-                        children: UserRole.values.map((role) {
-                          final config = _getRoleConfig(role);
-                          final Color color = config['color'];
-                          final bool isSelected = _selectedRole == role;
+                        children: widget.availableRoles.map((role) {
+                          final Color color = role.color;
+                          final bool isSelected = _selectedRole == role.id;
 
                           return GestureDetector(
-                            onTap: () => setState(() => _selectedRole = role),
+                            onTap: () => setState(() => _selectedRole = role.id),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 180),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1207,13 +1258,13 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    config['icon'],
+                                    role.icon,
                                     size: 15,
                                     color: isSelected ? Colors.white : color,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    config['label'],
+                                    role.displayName,
                                     style: GoogleFonts.inter(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -1238,14 +1289,14 @@ class _UserFormDialogState extends State<_UserFormDialog> {
                         ),
                         child: Row(
                           children: [
-                            Icon(roleConfig['icon'], size: 16, color: roleColor),
+                            Icon(roleConfig.icon, size: 16, color: roleColor),
                             const SizedBox(width: 10),
                             Text(
                               "Acceso asignado como: ",
                               style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)),
                             ),
                             Text(
-                              roleConfig['label'],
+                              roleConfig.displayName,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -1385,6 +1436,8 @@ class _UserFormDialogState extends State<_UserFormDialog> {
 
 class _RolesTab extends StatelessWidget {
   final AdminService adminService;
+  final RoleService roleService;
+  final List<RoleModel> roles;
   final String selectedRole;
   final Map<String, List<String>> permissionGroups;
   final Map<String, String> groupTitles;
@@ -1393,6 +1446,8 @@ class _RolesTab extends StatelessWidget {
 
   const _RolesTab({
     required this.adminService,
+    required this.roleService,
+    required this.roles,
     required this.selectedRole,
     required this.permissionGroups,
     required this.groupTitles,
@@ -1400,40 +1455,55 @@ class _RolesTab extends StatelessWidget {
     required this.onRoleChanged,
   });
 
+  RoleModel _currentRoleModel() {
+    return roles.firstWhere(
+      (r) => r.id == selectedRole,
+      orElse: () => RoleModel(
+        id: selectedRole,
+        displayName: selectedRole,
+        colorHex: '#64748B',
+        iconKey: 'user',
+      ),
+    );
+  }
+
   String _translateRole(String role) {
-    switch (role.toLowerCase()) {
-      case 'superadmin': return 'Super Admin';
-      case 'admin': return 'Administrador';
-      case 'technician': return 'Técnico';
-      case 'manager': return 'Gerente Operativo';
-      case 'purchasing': return 'Compras';
-      case 'accountant': return 'Contador';
-      default: return role;
-    }
+    final model = roles.firstWhere(
+      (r) => r.id == role,
+      orElse: () => RoleModel(
+        id: role,
+        displayName: role,
+        colorHex: '#64748B',
+        iconKey: 'user',
+      ),
+    );
+    return model.displayName;
   }
 
   Color _roleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'superadmin': return const Color(0xFF312E81);
-      case 'admin': return const Color(0xFF1E40AF);
-      case 'manager': return const Color(0xFF0369A1);
-      case 'technician': return const Color(0xFF0D9488);
-      case 'purchasing': return const Color(0xFFB45309);
-      case 'accountant': return const Color(0xFF059669);
-      default: return const Color(0xFF64748B);
-    }
+    final model = roles.firstWhere(
+      (r) => r.id == role,
+      orElse: () => const RoleModel(
+        id: '',
+        displayName: '',
+        colorHex: '#64748B',
+        iconKey: 'user',
+      ),
+    );
+    return model.color;
   }
 
   IconData _roleIcon(String role) {
-    switch (role.toLowerCase()) {
-      case 'superadmin': return LucideIcons.shieldAlert;
-      case 'admin': return LucideIcons.shield;
-      case 'manager': return LucideIcons.briefcase;
-      case 'technician': return LucideIcons.wrench;
-      case 'purchasing': return LucideIcons.shoppingCart;
-      case 'accountant': return LucideIcons.dollarSign;
-      default: return LucideIcons.user;
-    }
+    final model = roles.firstWhere(
+      (r) => r.id == role,
+      orElse: () => const RoleModel(
+        id: '',
+        displayName: '',
+        colorHex: '#64748B',
+        iconKey: 'user',
+      ),
+    );
+    return model.icon;
   }
 
   void _togglePermission(List<String> currentPerms, String code, bool active) {
@@ -1485,20 +1555,29 @@ class _RolesTab extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text("SELECCIONAR ROL",
-                  style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF94A3B8),
-                      letterSpacing: 1.0)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("SELECCIONAR ROL",
+                      style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF94A3B8),
+                          letterSpacing: 1.0)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _NewRoleButton(
+                onPressed: () => _showCreateRoleDialog(context),
+              ),
               const SizedBox(height: 16),
-              ...UserRole.values.map((roleEnum) {
-                final roleStr = roleEnum.toString().split('.').last;
-                final isSelected = roleStr == selectedRole;
+              ...roles.map((role) {
+                final isSelected = role.id == selectedRole;
+                final isSuper = role.isSuperAdmin;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
-                    onTap: () => onRoleChanged(roleStr),
+                    onTap: () => onRoleChanged(role.id),
                     borderRadius: BorderRadius.circular(10),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
@@ -1510,14 +1589,49 @@ class _RolesTab extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            _translateRole(roleStr),
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: isSelected ? Colors.white : const Color(0xFF64748B),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  role.icon,
+                                  size: 16,
+                                  color: isSelected ? Colors.white : role.color,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    role.displayName,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                      color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                          if (isSuper)
+                            Icon(
+                              LucideIcons.lock,
+                              size: 14,
+                              color: isSelected ? Colors.white70 : const Color(0xFF94A3B8),
+                            )
+                          else
+                            InkWell(
+                              onTap: () => _confirmDeleteRole(context, role),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  LucideIcons.trash2,
+                                  size: 15,
+                                  color: isSelected ? Colors.white70 : const Color(0xFFEF4444),
+                                ),
+                              ),
+                            ),
+                          if (isSelected) const SizedBox(width: 4),
                           if (isSelected)
                             const Icon(LucideIcons.chevronRight, size: 16, color: Colors.white70),
                         ],
@@ -1579,15 +1693,45 @@ class _RolesTab extends StatelessWidget {
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  children: UserRole.values.map((roleEnum) {
-                    final roleStr = roleEnum.toString().split('.').last;
-                    final isSelected = roleStr == selectedRole;
-                    final rColor = _roleColor(roleStr);
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => _showCreateRoleDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(LucideIcons.plus, size: 14, color: Color(0xFF2563EB)),
+                              const SizedBox(width: 6),
+                              Text(
+                                "Nuevo",
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF2563EB),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    ...roles.map((role) {
+                    final isSelected = role.id == selectedRole;
+                    final rColor = role.color;
 
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(
-                        onTap: () => onRoleChanged(roleStr),
+                        onTap: () => onRoleChanged(role.id),
+                        onLongPress: role.isSuperAdmin ? null : () => _confirmDeleteRole(context, role),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1603,13 +1747,13 @@ class _RolesTab extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                _roleIcon(roleStr),
+                                role.icon,
                                 size: 14,
                                 color: isSelected ? Colors.white : rColor,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                _translateRole(roleStr),
+                                role.displayName,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -1894,6 +2038,534 @@ class _RolesTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  CREAR / ELIMINAR ROLES
+  // ═══════════════════════════════════════════════════════════════
+  Future<void> _showCreateRoleDialog(BuildContext context) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _RoleFormDialog(
+        existingIds: roles.map((r) => r.id).toList(),
+        onSave: (role) async {
+          try {
+            await roleService.createRole(role);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text("Rol '${role.displayName}' creado"),
+                backgroundColor: const Color(0xFF059669),
+                behavior: SnackBarBehavior.floating,
+              ));
+              onRoleChanged(role.id);
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text("Error: ${e.toString().replaceFirst('Exception: ', '')}"),
+                backgroundColor: const Color(0xFFDC2626),
+                behavior: SnackBarBehavior.floating,
+              ));
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteRole(BuildContext context, RoleModel role) async {
+    if (role.isSuperAdmin) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Container(
+          width: 440,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFEF2F2), Color(0xFFFEE2E2)],
+                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(LucideIcons.trash2, color: Color(0xFFDC2626)),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Eliminar Rol",
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0F172A),
+                              )),
+                          const SizedBox(height: 2),
+                          Text(role.displayName,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF991B1B),
+                                fontWeight: FontWeight.w600,
+                              )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                child: Text(
+                  "Se eliminará el rol y sus permisos asignados. Esta acción no se puede deshacer.\n\nSi algún usuario tiene asignado este rol, la operación fallará.",
+                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.5),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: Text("Cancelar",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            )),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                        child: Text("Eliminar Rol",
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await roleService.deleteRole(role.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Rol '${role.displayName}' eliminado"),
+            backgroundColor: const Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+          ));
+          if (selectedRole == role.id) {
+            final fallback = roles.firstWhere(
+              (r) => r.id == SystemRoles.admin,
+              orElse: () => roles.firstWhere(
+                (r) => r.id != role.id,
+                orElse: () => role,
+              ),
+            );
+            onRoleChanged(fallback.id);
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+    }
+  }
+}
+
+class _NewRoleButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _NewRoleButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFBFDBFE), style: BorderStyle.solid),
+        ),
+        child: Row(
+          children: [
+            const Icon(LucideIcons.plus, size: 16, color: Color(0xFF2563EB)),
+            const SizedBox(width: 10),
+            Text(
+              "Crear Nuevo Rol",
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF2563EB),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleFormDialog extends StatefulWidget {
+  final List<String> existingIds;
+  final Function(RoleModel) onSave;
+
+  const _RoleFormDialog({
+    required this.existingIds,
+    required this.onSave,
+  });
+
+  @override
+  State<_RoleFormDialog> createState() => _RoleFormDialogState();
+}
+
+class _RoleFormDialogState extends State<_RoleFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _idCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  String _selectedColor = kRoleColorPalette.first;
+  String _selectedIcon = kRoleIconOptions.keys.first;
+
+  @override
+  void dispose() {
+    _idCtrl.dispose();
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    final role = RoleModel(
+      id: _idCtrl.text.trim(),
+      displayName: _nameCtrl.text.trim(),
+      colorHex: _selectedColor,
+      iconKey: _selectedIcon,
+    );
+    widget.onSave(role);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final previewColor = RoleModel(
+      id: 'preview',
+      displayName: _nameCtrl.text.trim().isEmpty ? 'Nombre del Rol' : _nameCtrl.text.trim(),
+      colorHex: _selectedColor,
+      iconKey: _selectedIcon,
+    );
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        width: 520,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(28, 24, 20, 20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: previewColor.color,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(previewColor.icon, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Nuevo Rol",
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              )),
+                          Text("Define un rol personalizado para tu equipo",
+                              style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(LucideIcons.x, color: Colors.white38, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label("Nombre visible"),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameCtrl,
+                        onChanged: (_) => setState(() {}),
+                        style: GoogleFonts.inter(fontSize: 14),
+                        decoration: _inputDecoration(
+                          hint: "Ej. Coordinador de Obra",
+                          icon: LucideIcons.tag,
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return "Campo obligatorio";
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      _label("Identificador interno (ID)"),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _idCtrl,
+                        style: GoogleFonts.inter(fontSize: 14),
+                        decoration: _inputDecoration(
+                          hint: "coordinador_obra",
+                          icon: LucideIcons.hash,
+                        ),
+                        validator: (v) {
+                          final value = (v ?? '').trim();
+                          if (value.isEmpty) return "Campo obligatorio";
+                          if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9_]*$').hasMatch(value)) {
+                            return "Debe iniciar con letra; solo letras, números y _";
+                          }
+                          if (widget.existingIds.contains(value)) {
+                            return "Ya existe un rol con ese ID";
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Este ID se usa internamente (no se puede cambiar después).",
+                        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                      ),
+                      const SizedBox(height: 20),
+                      _label("Color"),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: kRoleColorPalette.map((hex) {
+                          final isSelected = hex == _selectedColor;
+                          final color = RoleModel(
+                            id: '',
+                            displayName: '',
+                            colorHex: hex,
+                            iconKey: 'user',
+                          ).color;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedColor = hex),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected ? Colors.black : Colors.transparent,
+                                  width: 2,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: color.withOpacity(0.4),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        )
+                                      ]
+                                    : [],
+                              ),
+                              child: isSelected
+                                  ? const Icon(LucideIcons.check, color: Colors.white, size: 18)
+                                  : null,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      _label("Icono"),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: kRoleIconOptions.entries.map((entry) {
+                          final isSelected = entry.key == _selectedIcon;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedIcon = entry.key),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: isSelected ? previewColor.color : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected ? previewColor.color : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              child: Icon(
+                                entry.value,
+                                size: 20,
+                                color: isSelected ? Colors.white : const Color(0xFF475569),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        child: Text("Cancelar",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            )),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _submit,
+                        icon: const Icon(LucideIcons.plus, size: 18),
+                        label: Text("Crear Rol",
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String text) => Text(
+        text.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF94A3B8),
+          letterSpacing: 0.8,
+        ),
+      );
+
+  InputDecoration _inputDecoration({required String hint, required IconData icon}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13),
+      prefixIcon: Icon(icon, size: 18, color: Colors.grey.shade400),
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
     );
   }
 }

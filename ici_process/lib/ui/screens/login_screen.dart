@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
         print("Bienvenido ${user.name} con rol ${user.role}");
 
         // Ejemplo de navegación basada en rol:
-        // if (user.role == UserRole.admin) Navigator.pushReplacementNamed(context, '/admin');
+        // if (user.role == SystemRoles.admin) Navigator.pushReplacementNamed(context, '/admin');
       }
     } on FirebaseAuthException catch (e) {
       setState(() {

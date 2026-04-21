@@ -35,7 +35,7 @@ class _KanbanViewState extends State<KanbanView> {
     return StreamBuilder<List<ProcessModel>>(
       stream: service.getProcessesStream(
         currentUserId: widget.currentUser.id,
-        currentUserRole: widget.currentUser.role.name,
+        currentUserRole: widget.currentUser.role,
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
