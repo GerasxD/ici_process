@@ -389,12 +389,9 @@ class WorkOrderPdfGenerator {
                               pw.Text('PRIORIDAD',
                                   style: pw.TextStyle(fontSize: 5, color: _grey600, fontWeight: pw.FontWeight.bold)),
                               pw.SizedBox(height: 2),
-                              pw.Container(
-                                padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                color: _grey800,
-                                child: pw.Text(priority,
-                                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: _white)),
-                              ),
+                              // 👇 Se eliminó el Container con fondo _grey800 y se dejó el texto en _black igual que "TIPO"
+                              pw.Text(priority,
+                                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black)),
                             ],
                           ),
                         ),

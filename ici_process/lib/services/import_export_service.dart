@@ -1,11 +1,9 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:file_saver/file_saver.dart';
 
 import '../models/material_model.dart';
 import 'material_service.dart';
@@ -468,22 +466,25 @@ class ImportExportService {
     sheet.setColumnWidth(11, 14);
     sheet.setColumnWidth(12, 14);
 
-    // ── Guardar y abrir ──
+    // ── Guardar y abrir (multiplataforma con FileSaver) ──
     final bytes = excel.save();
     if (bytes == null) throw Exception("No se pudo generar el archivo");
 
-    final dir = await getApplicationDocumentsDirectory();
     final timestamp = DateTime.now().toIso8601String().split('T').first;
-    final path = '${dir.path}/MATERIALES_$timestamp.xlsx';
-    final file = File(path);
-    await file.writeAsBytes(bytes, flush: true);
+    final fileName = 'MATERIALES_$timestamp';
 
-    // Intentar abrirlo automáticamente (silencioso si falla)
-    try {
-      await OpenFilex.open(path);
-    } catch (_) {}
+    // FileSaver funciona en TODAS las plataformas:
+    // - Web: descarga vía navegador
+    // - Android/iOS: abre diálogo de guardado
+    // - Windows/Mac/Linux: abre "Guardar como"
+    final savedPath = await FileSaver.instance.saveFile(
+      name: fileName,
+      bytes: Uint8List.fromList(bytes),
+      ext: 'xlsx',
+      mimeType: MimeType.microsoftExcel,
+    );
 
-    return path;
+    return savedPath;
   }
 
   // ─────────────────────────────────────────────────────────────────────

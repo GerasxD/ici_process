@@ -31,6 +31,7 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  final String appVersion = "v1.0.0";
   int _selectedIndex = 0;
   bool _isSidebarOpen = true;
 
@@ -227,8 +228,44 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               const Icon(LucideIcons.layout, color: Color(0xFF3B82F6), size: 32),
               if (showText) ...[
                 const SizedBox(width: 12),
-                const Text("ICI-PROCESS", 
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "ICI-PROCESS", 
+                      style: TextStyle(
+                        color: Colors.white, 
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 18,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4), // Aumenté un poquito el espacio entre el título y la versión
+                    
+                    // 📌 Etiqueta de la versión: Más grande pero proporcionada
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), // Más espacio interior para que respire
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6), // Borde un poco más suave al ser más grande
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6).withOpacity(0.3), 
+                          width: 0.5,
+                        ), // Este micro-borde evita que se vea borroso contra el fondo oscuro
+                      ),
+                      child: Text(
+                        "v$appVersion", 
+                        style: const TextStyle(
+                          color: Color(0xFF60A5FA), 
+                          fontSize: 12, // Subimos de 10 a 12 (un buen tamaño para subtítulos)
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5, // Separar un poco las letras le da un look de sistema moderno
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ],
           ),
