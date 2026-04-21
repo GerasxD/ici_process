@@ -13,6 +13,7 @@ import '../../models/file_vault_model.dart';
 import '../../models/user_model.dart';
 import '../../services/file_vault_service.dart';
 import '../widgets/file_vault/folder_form_dialog.dart';
+import '../../../services/role_service.dart';
 
 class FileVaultScreen extends StatefulWidget {
   final UserModel currentUser;
@@ -24,6 +25,7 @@ class FileVaultScreen extends StatefulWidget {
 
 class _FileVaultScreenState extends State<FileVaultScreen> {
   final FileVaultService _service = FileVaultService();
+  final RoleService _roleService = RoleService();
 
   // Navegación tipo "pila": la última carpeta es donde estás.
   // Si está vacía, estás en la raíz.
@@ -100,11 +102,16 @@ class _FileVaultScreenState extends State<FileVaultScreen> {
   // ═══════════════════════════════════════════════════════════════════════
   Future<void> _handleNewFolder() async {
     if (!_canUploadHere) return;
+
+    final roles = await _roleService.getRolesOnce();
+
+    if (!mounted) return;
     final result = await showDialog<FolderFormResult>(
       context: context,
       builder: (_) => FolderFormDialog(
         parentFolder: _currentFolder,
         currentUser: widget.currentUser,
+        availableRoles: roles,
       ),
     );
     if (result == null) return;
@@ -127,12 +134,16 @@ class _FileVaultScreenState extends State<FileVaultScreen> {
   }
 
   Future<void> _handleEditFolder(VaultFolder folder) async {
+    final roles = await _roleService.getRolesOnce();
+
+    if (!mounted) return;
     final result = await showDialog<FolderFormResult>(
       context: context,
       builder: (_) => FolderFormDialog(
         parentFolder: null, // no mostramos selector de padre
         folderToEdit: folder,
         currentUser: widget.currentUser,
+        availableRoles: roles,
       ),
     );
     if (result == null) return;
@@ -151,6 +162,7 @@ class _FileVaultScreenState extends State<FileVaultScreen> {
       _showSnack("Error al actualizar: $e", isSuccess: false);
     }
   }
+
 
   Future<void> _handleDeleteFolder(VaultFolder folder) async {
     final confirmed = await _confirmDialog(

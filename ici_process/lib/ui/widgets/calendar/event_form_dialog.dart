@@ -957,7 +957,7 @@ class _EventFormDialogState extends State<EventFormDialog> {
       stream: _userService.getUsersStream(),
       builder: (ctx, userSnap) {
         final technicians = (userSnap.data ?? [])
-            .where((u) => u.role == UserRole.technician)
+            .where((u) => u.role == SystemRoles.technician)
             .toList();
 
         if (technicians.isEmpty) {

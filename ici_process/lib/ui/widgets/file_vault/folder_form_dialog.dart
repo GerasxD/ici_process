@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:ici_process/core/constants/app_constants.dart';
+import 'package:ici_process/models/role_model.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../models/file_vault_model.dart';
@@ -29,10 +29,12 @@ class FolderFormDialog extends StatefulWidget {
   final UserModel currentUser;
   final VaultFolder? parentFolder;    // null si es raíz
   final VaultFolder? folderToEdit;    // null si es creación
+  final List<RoleModel> availableRoles; // NUEVO: roles dinámicos desde Firestore
 
   const FolderFormDialog({
     super.key,
     required this.currentUser,
+    required this.availableRoles,
     this.parentFolder,
     this.folderToEdit,
   });
@@ -40,6 +42,7 @@ class FolderFormDialog extends StatefulWidget {
   @override
   State<FolderFormDialog> createState() => _FolderFormDialogState();
 }
+
 
 class _FolderFormDialogState extends State<FolderFormDialog> {
   final _formKey = GlobalKey<FormState>();
@@ -78,67 +81,6 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
     {'name': 'star', 'icon': LucideIcons.star, 'label': 'Destacado'},
     {'name': 'archive', 'icon': LucideIcons.archive, 'label': 'Archivo'},
   ];
-
-  // Todos los roles del sistema con su config visual
-  List<Map<String, dynamic>> get _availableRoles => UserRole.values.map((r) {
-        return {
-          'name': r.name,
-          'label': _labelForRole(r),
-          'color': _colorForRole(r),
-          'icon': _iconForRole(r),
-        };
-      }).toList();
-
-  String _labelForRole(UserRole r) {
-    switch (r) {
-      case UserRole.superAdmin:
-        return 'Super Admin';
-      case UserRole.admin:
-        return 'Administrador';
-      case UserRole.manager:
-        return 'Gerente';
-      case UserRole.technician:
-        return 'Técnico';
-      case UserRole.purchasing:
-        return 'Compras';
-      case UserRole.accountant:
-        return 'Contador';
-    }
-  }
-
-  Color _colorForRole(UserRole r) {
-    switch (r) {
-      case UserRole.superAdmin:
-        return const Color(0xFF312E81);
-      case UserRole.admin:
-        return const Color(0xFF1E40AF);
-      case UserRole.manager:
-        return const Color(0xFF0369A1);
-      case UserRole.technician:
-        return const Color(0xFF0D9488);
-      case UserRole.purchasing:
-        return const Color(0xFFB45309);
-      case UserRole.accountant:
-        return const Color(0xFF059669);
-    }
-  }
-
-  IconData _iconForRole(UserRole r) {
-    switch (r) {
-      case UserRole.superAdmin:
-        return LucideIcons.shieldAlert;
-      case UserRole.admin:
-        return LucideIcons.shield;
-      case UserRole.manager:
-        return LucideIcons.briefcase;
-      case UserRole.technician:
-        return LucideIcons.wrench;
-      case UserRole.purchasing:
-        return LucideIcons.shoppingCart;
-      case UserRole.accountant:
-        return LucideIcons.dollarSign;
-    }
-  }
 
   @override
   void initState() {
@@ -441,12 +383,10 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
                               icon: LucideIcons.upload,
                               selected: _uploadRoles,
                               color: const Color(0xFF059669),
-                              disabledRoles:
-                                  _availableRoles // los que NO están en _viewRoles
-                                      .where((r) =>
-                                          !_viewRoles.contains(r['name']))
-                                      .map((r) => r['name'] as String)
-                                      .toSet(),
+                              disabledRoles: widget.availableRoles
+                                .where((r) => !_viewRoles.contains(r.id))
+                                .map((r) => r.id)
+                                .toSet(),
                               onChange: (set) =>
                                   setState(() => _uploadRoles = set),
                             ),
@@ -456,10 +396,9 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
                               icon: LucideIcons.trash2,
                               selected: _deleteRoles,
                               color: const Color(0xFFDC2626),
-                              disabledRoles: _availableRoles
-                                  .where(
-                                      (r) => !_viewRoles.contains(r['name']))
-                                  .map((r) => r['name'] as String)
+                              disabledRoles: widget.availableRoles
+                                  .where((r) => !_viewRoles.contains(r.id))
+                                  .map((r) => r.id)
                                   .toSet(),
                               onChange: (set) =>
                                   setState(() => _deleteRoles = set),
@@ -582,11 +521,11 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children: _availableRoles.map((r) {
-            final roleName = r['name'] as String;
-            final isSelected = selected.contains(roleName);
-            final isDisabled = disabledRoles.contains(roleName);
-            final rColor = r['color'] as Color;
+          children: widget.availableRoles.map((role) {
+            final roleId = role.id;
+            final isSelected = selected.contains(roleId);
+            final isDisabled = disabledRoles.contains(roleId);
+            final rColor = role.color;
 
             return GestureDetector(
               onTap: isDisabled
@@ -594,9 +533,9 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
                   : () {
                       final next = Set<String>.from(selected);
                       if (isSelected) {
-                        next.remove(roleName);
+                        next.remove(roleId);
                       } else {
-                        next.add(roleName);
+                        next.add(roleId);
                       }
                       onChange(next);
                     },
@@ -604,22 +543,19 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
                 opacity: isDisabled ? 0.35 : 1,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: isSelected ? rColor : Colors.white,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: isSelected
-                            ? rColor
-                            : const Color(0xFFE2E8F0)),
+                        color: isSelected ? rColor : const Color(0xFFE2E8F0)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(r['icon'] as IconData,
+                    Icon(role.icon,
                         size: 11,
                         color: isSelected ? Colors.white : rColor),
                     const SizedBox(width: 5),
-                    Text(r['label'] as String,
+                    Text(role.displayName,
                         style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -628,8 +564,7 @@ class _FolderFormDialogState extends State<FolderFormDialog> {
                                 : const Color(0xFF475569))),
                     if (isSelected) ...[
                       const SizedBox(width: 5),
-                      const Icon(LucideIcons.check,
-                          size: 11, color: Colors.white),
+                      const Icon(LucideIcons.check, size: 11, color: Colors.white),
                     ],
                   ]),
                 ),

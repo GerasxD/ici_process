@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:ici_process/core/constants/app_constants.dart';
 import 'package:mime/mime.dart';
 
 import '../models/file_vault_model.dart';
@@ -239,14 +240,11 @@ class FileVaultService {
 //  Úsalo en la UI para decidir qué botones mostrar.
 // ═══════════════════════════════════════════════════════════════════════════
 class VaultAccess {
-  /// Nombre del rol del usuario como string ("admin", "manager", etc.)
-  static String _roleName(UserModel user) => user.role.name;
+  /// ID del rol del usuario (ya es String en el nuevo modelo)
+  static String _roleId(UserModel user) => user.role;
 
-  /// ¿Es super-admin con acceso total? Ajusta según tu modelo.
-  static bool _isGod(UserModel user) {
-    final role = _roleName(user).toLowerCase();
-    return role == 'superadmin';
-  }
+  /// ¿Es super-admin con acceso total?
+  static bool _isGod(UserModel user) => user.role == SystemRoles.superAdmin;
 
   /// Puede ver el contenido de una carpeta
   static bool canView(UserModel user, VaultFolder folder,
@@ -254,7 +252,7 @@ class VaultAccess {
     if (_isGod(user) || hasGlobalOverride) return true;
     // Carpeta sin roles definidos = acceso abierto a todos los que lleguen
     if (folder.viewRoles.isEmpty) return true;
-    return folder.viewRoles.contains(_roleName(user));
+    return folder.viewRoles.contains(_roleId(user));
   }
 
   /// Puede subir archivos / crear subcarpetas
@@ -262,7 +260,7 @@ class VaultAccess {
       {bool hasGlobalOverride = false}) {
     if (_isGod(user) || hasGlobalOverride) return true;
     if (folder.uploadRoles.isEmpty) return false; // más estricto por defecto
-    return folder.uploadRoles.contains(_roleName(user));
+    return folder.uploadRoles.contains(_roleId(user));
   }
 
   /// Puede eliminar archivos, renombrar carpeta, cambiar permisos, borrar carpeta
@@ -270,6 +268,6 @@ class VaultAccess {
       {bool hasGlobalOverride = false}) {
     if (_isGod(user) || hasGlobalOverride) return true;
     if (folder.deleteRoles.isEmpty) return false;
-    return folder.deleteRoles.contains(_roleName(user));
+    return folder.deleteRoles.contains(_roleId(user));
   }
 }

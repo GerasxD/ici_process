@@ -1671,7 +1671,7 @@ class _MaterialValidationSectionState extends State<MaterialValidationSection> {
                     stream: _userService.getUsersStream().map((users) {
                       if (!widget.process.isPrivate) return users;
                       return users.where((u) {
-                        final role = u.role.name.toLowerCase();
+                        final role = u.role.toLowerCase();
                         if (role == 'admin' || role == 'superadmin') return true;
                         if (widget.process.visibleToUserIds.contains(u.id)) return true;
                         if (u.id == widget.process.createdByUserId) return true;

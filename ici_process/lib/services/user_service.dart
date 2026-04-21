@@ -101,7 +101,7 @@ class UserService {
   }
   
   // 7. VERIFICAR PERMISOS (Helper opcional)
-  bool canEdit(UserRole userRole, ProcessStage stage) {
+  bool canEdit(String userRole, ProcessStage stage) {
     final config = stageConfigs[stage];
     if (config == null) return false;
     return config.editing.contains(userRole);

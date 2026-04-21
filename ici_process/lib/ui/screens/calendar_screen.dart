@@ -35,7 +35,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   // ── HELPERS DE ROL ────────────────────────────────────────
   bool get _isAdminOrSuperAdmin {
-    final role = widget.currentUser.role.name.toLowerCase();
+    final role = widget.currentUser.role.toLowerCase();
     return role == 'admin' || role == 'superadmin';
   }
 
@@ -227,14 +227,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
       body: StreamBuilder<List<ProcessModel>>(
         stream: _processService.getProcessesStream(
           currentUserId: widget.currentUser.id,
-          currentUserRole: widget.currentUser.role.name,
+          currentUserRole: widget.currentUser.role,
         ),
         builder: (context, procSnap) {
           final allProcesses = procSnap.data ?? [];
           return StreamBuilder<List<CalendarEvent>>(
               stream: _eventService.getEventsStreamForUser(
                 userId: widget.currentUser.id,
-                userRole: widget.currentUser.role.name,
+                userRole: widget.currentUser.role,
               ),
               builder: (context, evSnap) {
               final allEvents = evSnap.data ?? [];

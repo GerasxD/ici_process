@@ -588,7 +588,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   Text(widget.user.name, 
                     style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), 
                     overflow: TextOverflow.ellipsis),
-                  Text(widget.user.role.name.toUpperCase(), 
+                  Text(widget.user.role.toUpperCase(),
                     style: const TextStyle(color: Colors.white30, fontSize: 10)),
                 ],
               ),
