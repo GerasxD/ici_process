@@ -7,6 +7,8 @@ import 'package:ici_process/services/admin_service.dart';
 import 'package:ici_process/ui/screens/admin_panel_screen.dart';
 import 'package:ici_process/ui/screens/calendar_screen.dart';
 import 'package:ici_process/ui/screens/client_managment_screen.dart';
+import 'package:ici_process/ui/screens/company_profile_screen.dart';
+import 'package:ici_process/ui/screens/file_vault_screen.dart';
 import 'package:ici_process/ui/screens/material_catalog_screen.dart';
 import 'package:ici_process/ui/screens/provider_management_screen.dart';
 import 'package:ici_process/ui/screens/service_catalog_screen.dart';
@@ -73,6 +75,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       VehicleManagementScreen(currentUser: widget.user),       // 8
       WorkerManagementScreen(currentUser: widget.user),        // 9  
       AdminPanelScreen(currentUser: widget.user),              // 10
+      CompanyProfileScreen(currentUser: widget.user), 
+      FileVaultScreen(currentUser: widget.user), 
     ];
   }
 
@@ -321,9 +325,30 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               if (pm.can(widget.user, 'view_workers'))
                 _buildNavItem(9, "Personal", LucideIcons.hardHat, isMobile),
                 
-              // Admin Panel (Usamos manage_users como llave maestra para ver el panel)
+              const SizedBox(height: 20),
+              if (showText)
+                const Padding(
+                  padding: EdgeInsets.only(left: 12, bottom: 10),
+                  child: Text(
+                    "SISTEMA",
+                    style: TextStyle(
+                      color: Colors.white30,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              
+              // Administración
               if (pm.can(widget.user, 'manage_users'))
                 _buildNavItem(10, "Administración", LucideIcons.settings, isMobile),
+              
+              // Empresa
+              if (pm.can(widget.user, 'view_company_profile'))
+                _buildNavItem(11, "Empresa", LucideIcons.building2, isMobile),
+                
+              if (pm.can(widget.user, 'view_file_vault'))
+                _buildNavItem(12, "Archivos", LucideIcons.folderTree, isMobile),
             ],
           ),
         ),

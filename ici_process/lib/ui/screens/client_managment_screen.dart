@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:ici_process/models/client_model.dart';
 import 'package:ici_process/models/user_model.dart';
 import 'package:ici_process/services/client_service.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class ClientManagementScreen extends StatefulWidget {
@@ -23,8 +26,15 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _billingController = TextEditingController();
   List<TextEditingController> _branchControllers = [TextEditingController()];
-
   final TextEditingController _searchCtrl = TextEditingController();
+  // --- CONTROLADORES NUEVOS ---
+  final TextEditingController _businessNameController = TextEditingController();
+  final TextEditingController _contactNameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  // Logo seleccionado
+  Uint8List? _selectedLogoBytes;
+
   String _searchQuery = '';
   
   final ClientService _clientService = ClientService();
@@ -67,8 +77,29 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     final q = _searchQuery.toLowerCase();
     return clients.where((c) =>
       c.name.toLowerCase().contains(q) ||
+      c.businessName.toLowerCase().contains(q) ||
+      c.contactName.toLowerCase().contains(q) ||
+      c.email.toLowerCase().contains(q) ||
       c.billingAddress.toLowerCase().contains(q)
     ).toList();
+  }
+
+  Future<void> _pickLogo() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        setState(() => _selectedLogoBytes = bytes);
+      }
+    } catch (e) {
+      _showSnack("No se pudo cargar la imagen", isSuccess: false);
+    }
   }
 
   Future<void> _handleAdd() async {
@@ -83,31 +114,35 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     if (name.isNotEmpty && billing.isNotEmpty) {
       setState(() => _isUploading = true);
       try {
-        await _clientService.addClient(name, billing, branches);
-        
-        // --- CORRECCIÓN AQUÍ ---
-        // 1. Guardamos la referencia de los controladores viejos
+        await _clientService.addClient(
+          name: name,
+          businessName: _businessNameController.text.trim(),
+          contactName: _contactNameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          email: _emailController.text.trim(),
+          billingAddress: billing,
+          branchAddresses: branches,
+          logoBytes: _selectedLogoBytes,
+        );
+
         final oldBranchControllers = List<TextEditingController>.from(_branchControllers);
-        
-        // 2. Limpiamos los textos básicos
+
         _nameController.clear();
         _billingController.clear();
-        
-        // 3. Reasignamos la lista dentro de un setState para actualizar la UI
+        _businessNameController.clear();
+        _contactNameController.clear();
+        _phoneController.clear();
+        _emailController.clear();
+
         setState(() {
           _branchControllers = [TextEditingController()];
+          _selectedLogoBytes = null;
         });
-        
-        // 4. Hacemos dispose de los viejos de forma segura, ahora que ya no están en la UI
-        for (var c in oldBranchControllers) { 
-          c.dispose(); 
-        }
-        // ------------------------
+
+        for (var c in oldBranchControllers) { c.dispose(); }
 
         FocusScope.of(context).unfocus();
-        if (mounted) {
-          _showSnack("Cliente registrado correctamente", isSuccess: true);
-        }
+        if (mounted) _showSnack("Cliente registrado correctamente", isSuccess: true);
       } catch (e) {
         if (mounted) _showSnack("Error: $e", isSuccess: false);
       } finally {
@@ -133,6 +168,10 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   void dispose() {
     _nameController.dispose();
     _billingController.dispose();
+    _businessNameController.dispose();
+    _contactNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
     for (var c in _branchControllers) { c.dispose(); }
     super.dispose();
   }
@@ -364,20 +403,31 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
           tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           leading: Container(
-            width: 48,
-            height: 48,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_primaryBlue.withOpacity(0.1), _primaryBlue.withOpacity(0.05)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _primaryBlue.withOpacity(0.15)),
+              border: Border.all(color: _borderColor),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
             ),
-            child: Center(
-              child: Text(initials, style: GoogleFonts.inter(color: _primaryBlue, fontWeight: FontWeight.w800, fontSize: 15)),
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: client.logoUrl.isNotEmpty
+                ? Image.network(
+                    client.logoUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _fallbackInitials(initials),
+                    loadingBuilder: (ctx, child, progress) {
+                      if (progress == null) return child;
+                      return Center(
+                        child: SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: _primaryBlue),
+                        ),
+                      );
+                    },
+                  )
+                : _fallbackInitials(initials),
           ),
           title: Text(client.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 15)),
           subtitle: Padding(
@@ -464,6 +514,32 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // --- INFO DE CONTACTO ---
+                  if (client.businessName.isNotEmpty ||
+                      client.contactName.isNotEmpty ||
+                      client.phone.isNotEmpty ||
+                      client.email.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(LucideIcons.fileText, size: 14, color: const Color(0xFF94A3B8)),
+                        const SizedBox(width: 8),
+                        Text("INFORMACIÓN DE CONTACTO",
+                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (client.businessName.isNotEmpty)
+                      _buildInfoRow(LucideIcons.fileText, "Razón Social", client.businessName),
+                    if (client.contactName.isNotEmpty)
+                      _buildInfoRow(LucideIcons.user, "Contacto", client.contactName),
+                    if (client.phone.isNotEmpty)
+                      _buildInfoRow(LucideIcons.phone, "Teléfono", client.phone),
+                    if (client.email.isNotEmpty)
+                      _buildInfoRow(LucideIcons.mail, "Correo", client.email),
+                    const SizedBox(height: 16),
+                    Container(height: 1, color: _borderColor),
+                    const SizedBox(height: 16),
+                  ],
                   // Dirección fiscal
                   Row(
                     children: [
@@ -539,6 +615,57 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
     );
   }
 
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: _primaryBlue),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 80,
+              child: Text(
+                label,
+                style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _textSecondary, letterSpacing: 0.3),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: GoogleFonts.inter(fontSize: 13, color: _textPrimary, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackInitials(String initials) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_primaryBlue.withOpacity(0.12), _primaryBlue.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: GoogleFonts.inter(color: _primaryBlue, fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+      ),
+    );
+  }
 
   Widget _buildActionIcon(IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
@@ -620,15 +747,67 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
 
                 // Sección: Información general
                 _buildSectionLabel("Información General", Icons.info_outline_rounded),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                _buildInputLabel("Nombre Comercial / Razón Social"),
+                // --- SELECTOR DE LOGO ---
+                Center(child: _buildLogoPicker()),
+                const SizedBox(height: 20),
+
+                _buildInputLabel("Nombre Comercial"),
                 const SizedBox(height: 6),
-                _buildModernTextField(_nameController, "Ej. Grupo Modelo S.A. de C.V.", Icons.business_outlined),
+                _buildModernTextField(_nameController, "Ej. Grupo Modelo", Icons.business_outlined),
 
                 const SizedBox(height: 16),
-                _buildInputLabel("Dirección Fiscal"),
+                _buildInputLabel("Razón Social"),
                 const SizedBox(height: 6),
+                _buildModernTextField(_businessNameController, "Ej. Grupo Modelo S.A. de C.V.", Icons.description_outlined),
+
+                const SizedBox(height: 28),
+                _buildDivider(),
+                const SizedBox(height: 24),
+
+                // Sección: Contacto
+                _buildSectionLabel("Datos de Contacto", Icons.person_outline_rounded),
+                const SizedBox(height: 12),
+
+                _buildInputLabel("Nombre del Contacto"),
+                const SizedBox(height: 6),
+                _buildModernTextField(_contactNameController, "Ej. Juan Pérez", Icons.person_outline),
+
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInputLabel("Teléfono"),
+                          const SizedBox(height: 6),
+                          _buildModernTextField(_phoneController, "449 123 4567", Icons.phone_outlined),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInputLabel("Correo"),
+                          const SizedBox(height: 6),
+                          _buildModernTextField(_emailController, "correo@empresa.com", Icons.mail_outline),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 28),
+                _buildDivider(),
+                const SizedBox(height: 24),
+
+                // Sección: Dirección
+                _buildSectionLabel("Dirección Fiscal", Icons.location_on_outlined),
+                const SizedBox(height: 12),
                 _buildModernTextField(_billingController, "Calle, Número, Colonia, CP...", Icons.location_on_outlined),
 
                 const SizedBox(height: 28),
@@ -745,55 +924,117 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
 
 // ── Helpers de apoyo ──────────────────────────────────────────
 
-Widget _buildSectionLabel(String label, IconData icon) {
-  return Row(
-    children: [
-      Icon(icon, size: 14, color: _textSecondary),
-      const SizedBox(width: 6),
-      Text(
-        label.toUpperCase(),
-        style: GoogleFonts.inter(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          color: _textSecondary,
-          letterSpacing: 0.8,
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _buildDivider() {
-  return Row(
-    children: [
-      Expanded(child: Divider(color: _borderColor, thickness: 1, height: 1)),
-    ],
-  );
-}
-
-Widget _buildAddBranchButton() {
-  return Material(
-    color: _primaryBlue.withOpacity(0.07),
-    borderRadius: BorderRadius.circular(8),
-    child: InkWell(
-      onTap: _addBranchField,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          children: [
-            Icon(Icons.add_rounded, size: 15, color: _primaryBlue),
-            const SizedBox(width: 4),
-            Text(
-              "Agregar",
-              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryBlue),
+Widget _buildLogoPicker() {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _pickLogo,
+          child: Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              color: _inputFill,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _selectedLogoBytes != null ? _primaryBlue : _borderColor,
+                width: _selectedLogoBytes != null ? 2 : 1.5,
+                style: _selectedLogoBytes != null ? BorderStyle.solid : BorderStyle.solid,
+              ),
+              boxShadow: _selectedLogoBytes != null
+                  ? [BoxShadow(color: _primaryBlue.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))]
+                  : null,
             ),
-          ],
+            clipBehavior: Clip.antiAlias,
+            child: _selectedLogoBytes != null
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.memory(_selectedLogoBytes!, fit: BoxFit.cover),
+                      Positioned(
+                        top: 4, right: 4,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedLogoBytes = null),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(LucideIcons.x, size: 12, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(LucideIcons.imagePlus, size: 28, color: _primaryBlue.withOpacity(0.7)),
+                      const SizedBox(height: 6),
+                      Text("Subir logo",
+                          style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _textSecondary)),
+                    ],
+                  ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _selectedLogoBytes != null ? "Toca para cambiar" : "Opcional · PNG o JPG",
+          style: GoogleFonts.inter(fontSize: 10, color: _textSecondary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionLabel(String label, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: _textSecondary),
+        const SizedBox(width: 6),
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.inter(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: _textSecondary,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDivider() {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: _borderColor, thickness: 1, height: 1)),
+      ],
+    );
+  }
+
+  Widget _buildAddBranchButton() {
+    return Material(
+      color: _primaryBlue.withOpacity(0.07),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: _addBranchField,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.add_rounded, size: 15, color: _primaryBlue),
+              const SizedBox(width: 4),
+              Text(
+                "Agregar",
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryBlue),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // --- WIDGETS AUXILIARES DE DISEÑO ---
 
@@ -1000,15 +1241,23 @@ class _EditClientDialogState extends State<_EditClientDialog> {
   late TextEditingController _billingCtrl;
   late List<TextEditingController> _branchCtrls;
   bool _isSaving = false;
+  late TextEditingController _businessCtrl;
+  late TextEditingController _contactCtrl;
+  late TextEditingController _phoneCtrl;
+  late TextEditingController _emailCtrl;
+  Uint8List? _newLogoBytes;
+  bool _removeLogo = false;
 
   @override
   void initState() {
     super.initState();
-    // 1. Precargar datos existentes
     _nameCtrl = TextEditingController(text: widget.client.name);
     _billingCtrl = TextEditingController(text: widget.client.billingAddress);
-    
-    // Precargar sucursales (si no hay, ponemos una vacía)
+    _businessCtrl = TextEditingController(text: widget.client.businessName);
+    _contactCtrl = TextEditingController(text: widget.client.contactName);
+    _phoneCtrl = TextEditingController(text: widget.client.phone);
+    _emailCtrl = TextEditingController(text: widget.client.email);
+
     if (widget.client.branchAddresses.isEmpty) {
       _branchCtrls = [TextEditingController()];
     } else {
@@ -1022,6 +1271,10 @@ class _EditClientDialogState extends State<_EditClientDialog> {
   void dispose() {
     _nameCtrl.dispose();
     _billingCtrl.dispose();
+    _businessCtrl.dispose();
+    _contactCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     for (var c in _branchCtrls) c.dispose();
     super.dispose();
   }
@@ -1031,22 +1284,25 @@ class _EditClientDialogState extends State<_EditClientDialog> {
 
     setState(() => _isSaving = true);
     try {
-      // Recolectar sucursales limpias
       final branches = _branchCtrls
           .map((c) => c.text.trim())
           .where((t) => t.isNotEmpty)
           .toList();
 
-      // Crear objeto actualizado manteniendo el mismo ID
       final updatedClient = Client(
         id: widget.client.id,
         name: _nameCtrl.text.trim(),
+        businessName: _businessCtrl.text.trim(),
+        contactName: _contactCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        logoUrl: _removeLogo ? '' : widget.client.logoUrl,
         billingAddress: _billingCtrl.text.trim(),
         branchAddresses: branches,
       );
 
-      await widget.service.updateClient(updatedClient);
-      if (mounted) Navigator.pop(context, true); // Retornar true si fue exitoso
+      await widget.service.updateClient(updatedClient, newLogoBytes: _newLogoBytes);
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -1085,19 +1341,30 @@ class _EditClientDialogState extends State<_EditClientDialog> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: _primaryBlue,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [BoxShadow(color: _primaryBlue.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
-                    ),
-                    child: Center(
-                      child: Text(
-                        _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0].toUpperCase() : 'C',
-                        style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                  GestureDetector(
+                    onTap: _pickLogo,
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withOpacity(0.2)),
                       ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _newLogoBytes != null
+                          ? Image.memory(_newLogoBytes!, fit: BoxFit.cover)
+                          : (widget.client.logoUrl.isNotEmpty && !_removeLogo)
+                              ? Image.network(widget.client.logoUrl, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Text(
+                                      _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0].toUpperCase() : 'C',
+                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                                    ),
+                                  ))
+                              : Center(
+                                  child: Icon(LucideIcons.imagePlus, color: Colors.white70, size: 22),
+                                ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1136,6 +1403,43 @@ class _EditClientDialogState extends State<_EditClientDialog> {
                     _field(_billingCtrl, Icons.map, _inputFill),
                     const SizedBox(height: 24),
 
+                    const SizedBox(height: 20),
+                    Text("RAZÓN SOCIAL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    _field(_businessCtrl, Icons.description_outlined, _inputFill),
+
+                    const SizedBox(height: 20),
+                    Text("CONTACTO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                    const SizedBox(height: 8),
+                    _field(_contactCtrl, Icons.person_outline, _inputFill),
+
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("TELÉFONO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                              const SizedBox(height: 8),
+                              _field(_phoneCtrl, Icons.phone_outlined, _inputFill),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("CORREO", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w800, color: const Color(0xFF94A3B8), letterSpacing: 0.8)),
+                              const SizedBox(height: 8),
+                              _field(_emailCtrl, Icons.mail_outline, _inputFill),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
                     // Sucursales header
                     Row(
                       children: [
@@ -1235,6 +1539,25 @@ class _EditClientDialogState extends State<_EditClientDialog> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickLogo() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        setState(() {
+          _newLogoBytes = bytes;
+          _removeLogo = false;
+        });
+      }
+    } catch (_) {}
   }
 
   Widget _field(TextEditingController ctrl, IconData icon, Color fill, {bool isDense = false}) {

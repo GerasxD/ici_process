@@ -28,6 +28,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'Ver Base de Datos': 'Visibilidad de Módulos (Lectura)',
     'Editar Base de Datos': 'Gestión de Módulos (Escritura)',
     'Archivos Adjuntos': 'Gestión de Archivos por Sección',
+    'Archivos': 'Almacén de Archivos'
   };
 
   // Mapa de permisos técnicos a Español
@@ -51,21 +52,26 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> with SingleTickerPr
     'view_workers': 'Ver Personal / Trabajadores',    
     'edit_workers': 'Editar/Crear Trabajadores',  
     'view_financials': 'Ver Resumen Financiero (Costos/Precios)',
-
+    'view_company_profile': 'Ver Perfil de la Empresa',
+    'edit_company_profile': 'Editar Perfil de la Empresa',
     'view_files_info': 'Ver Archivos: Información Principal',
     'upload_files_info': 'Subir/Eliminar Archivos: Info Principal',
     'view_files_financial': 'Ver Archivos: Cotización / Financiero',
     'upload_files_financial': 'Subir/Eliminar Archivos: Cotización',
     'view_files_oc': 'Ver Archivos: Orden de Compra',
     'upload_files_oc': 'Subir/Eliminar Archivos: Orden de Compra',
+    'view_file_vault': 'Ver Sección de Archivos',
+    'create_folders': 'Crear Carpetas',
+    'manage_all_files': 'Acceso Total a Archivos (Super)',
   };
 
   // Estructura original de permisos
   final Map<String, List<String>> _permissionGroups = {
-    'General': ['view_dashboard', 'manage_users', 'view_budget', 'move_stage', 'create_process', 'discard_process'],
+    'General': ['view_dashboard', 'manage_users', 'view_budget', 'move_stage', 'create_process', 'discard_process','view_company_profile','edit_company_profile',],
     'Ver Base de Datos': ['view_clients', 'view_providers', 'view_materials', 'view_tools', 'view_vehicles','view_workers','view_financials',],
     'Editar Base de Datos': ['edit_clients', 'edit_providers', 'edit_materials', 'edit_tools', 'edit_vehicles','edit_workers',],
     'Archivos Adjuntos': ['view_files_info','upload_files_info','view_files_financial','upload_files_financial','view_files_oc','upload_files_oc',],
+    'Archivos': ['view_file_vault', 'create_folders', 'manage_all_files'],
   };
 
   @override

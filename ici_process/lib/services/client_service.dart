@@ -1,11 +1,11 @@
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:ici_process/models/client_model.dart';
 
 class ClientService {
-  // Instancia principal de Firestore (necesaria para Batch y otras colecciones)
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  
-  // Referencia rápida a la colección 'clientes'
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   late final CollectionReference _clientsRef;
 
   ClientService() {
@@ -21,101 +21,167 @@ class ClientService {
     });
   }
 
-  // --- 2. AGREGAR CLIENTE ---
-  Future<void> addClient(
-    String name, 
-    String billingAddress, 
-    List<String> branchAddresses
-  ) async {
+  // --- HELPER: SUBIR LOGO ---
+  Future<String> _uploadLogo(Uint8List logoBytes, String clientId) async {
     try {
-      print("⏳ Intentando guardar cliente '$name' en Firestore...");
-      
-      await _clientsRef.add({
+      final ref = _storage.ref().child('client_logos/$clientId.jpg');
+      final uploadTask = await ref.putData(
+        logoBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      return await uploadTask.ref.getDownloadURL();
+    } catch (e) {
+      print("❌ Error al subir logo: $e");
+      return '';
+    }
+  }
+
+  // --- HELPER: ELIMINAR LOGO ---
+  Future<void> _deleteLogo(String clientId) async {
+    try {
+      await _storage.ref().child('client_logos/$clientId.jpg').delete();
+    } catch (e) {
+      // Si no existe, ignoramos
+      print("ℹ Logo no existía o no se pudo eliminar: $e");
+    }
+  }
+
+  // --- 2. AGREGAR CLIENTE ---
+  Future<void> addClient({
+    required String name,
+    required String businessName,
+    required String contactName,
+    required String phone,
+    required String email,
+    required String billingAddress,
+    required List<String> branchAddresses,
+    Uint8List? logoBytes,
+  }) async {
+    try {
+      print("⏳ Guardando cliente '$name'...");
+
+      // 1. Crear el documento primero (sin logo)
+      final docRef = await _clientsRef.add({
         'name': name,
+        'businessName': businessName,
+        'contactName': contactName,
+        'phone': phone,
+        'email': email,
+        'logoUrl': '',
         'billingAddress': billingAddress,
         'branchAddresses': branchAddresses,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      
-      print("✅ ¡Cliente y sucursales guardados con éxito!");
+
+      // 2. Si hay logo, subirlo y actualizar el doc
+      if (logoBytes != null) {
+        final url = await _uploadLogo(logoBytes, docRef.id);
+        if (url.isNotEmpty) {
+          await docRef.update({'logoUrl': url});
+        }
+      }
+
+      print("✅ Cliente guardado con éxito!");
     } catch (e) {
-      print("❌ Error al guardar en la nube: $e");
+      print("❌ Error al guardar: $e");
       rethrow;
     }
   }
 
-  // --- 3. ACTUALIZAR CLIENTE (CON CASCADA A PROYECTOS) ---
-  // Esta función actualiza el cliente y, si cambia el nombre o dirección,
-  // actualiza automáticamente todos los proyectos asociados.
-  Future<void> updateClient(Client updatedClient) async {
-    try {
-      print("⏳ Iniciando actualización en cascada para: ${updatedClient.name}...");
+  // Agregar en ClientService, después de getClients()
+  Future<Client?> getClientByName(String name) async {
+    if (name.trim().isEmpty) return null;
+    
+    final nameTrimmed = name.trim();
 
-      // A. Referencia al documento del cliente
+    // 1. Buscar por nombre comercial exacto
+    var query = await _clientsRef
+        .where('name', isEqualTo: nameTrimmed)
+        .limit(1)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      return Client.fromMap(
+        query.docs.first.data() as Map<String, dynamic>,
+        query.docs.first.id,
+      );
+    }
+
+    // 2. Fallback: buscar por razón social
+    query = await _clientsRef
+        .where('businessName', isEqualTo: nameTrimmed)
+        .limit(1)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      return Client.fromMap(
+        query.docs.first.data() as Map<String, dynamic>,
+        query.docs.first.id,
+      );
+    }
+
+    return null;
+  }
+
+  // --- 3. ACTUALIZAR CLIENTE (CON CASCADA) ---
+  Future<void> updateClient(Client updatedClient, {Uint8List? newLogoBytes}) async {
+    try {
+      print("⏳ Actualizando: ${updatedClient.name}...");
+
       final DocumentReference clientDocRef = _clientsRef.doc(updatedClient.id);
 
-      // B. Obtenemos los datos VIEJOS antes de sobrescribir
       final DocumentSnapshot oldSnapshot = await clientDocRef.get();
-      if (!oldSnapshot.exists) throw Exception("El cliente no existe en la BD");
+      if (!oldSnapshot.exists) throw Exception("Cliente no existe");
 
       final Map<String, dynamic> oldData = oldSnapshot.data() as Map<String, dynamic>;
       final String oldName = oldData['name'] ?? '';
       final String oldBilling = oldData['billingAddress'] ?? '';
 
-      // C. Iniciamos un LOTE (Batch) para hacer todas las escrituras juntas
+      // Si hay nuevo logo, subirlo
+      String logoUrl = updatedClient.logoUrl;
+      if (newLogoBytes != null) {
+        logoUrl = await _uploadLogo(newLogoBytes, updatedClient.id);
+      }
+
       WriteBatch batch = _db.batch();
 
-      // D. Agregamos la actualización del Cliente al lote
       batch.update(clientDocRef, {
         'name': updatedClient.name,
+        'businessName': updatedClient.businessName,
+        'contactName': updatedClient.contactName,
+        'phone': updatedClient.phone,
+        'email': updatedClient.email,
+        'logoUrl': logoUrl,
         'billingAddress': updatedClient.billingAddress,
         'branchAddresses': updatedClient.branchAddresses,
       });
 
-      // E. Verificamos si hubo cambios críticos (Nombre o Dirección)
+      // Cascada a proyectos
       bool nameChanged = oldName != updatedClient.name;
       bool addressChanged = oldBilling != updatedClient.billingAddress;
 
       if (nameChanged || addressChanged) {
-        print("⚠ Detectado cambio crítico. Buscando proyectos de '$oldName'...");
+        print("⚠ Cambio crítico detectado. Sincronizando proyectos...");
 
-        // F. Buscamos TODOS los proyectos que tengan el nombre VIEJO
-        // Asegúrate de que tu colección de proyectos se llame 'projects' en Firestore
         final QuerySnapshot projectsQuery = await _db
             .collection('projects')
-            .where('client', isEqualTo: oldName) 
+            .where('client', isEqualTo: oldName)
             .get();
 
-        print("found ${projectsQuery.docs.length} proyectos para actualizar.");
-
-        // G. Recorremos esos proyectos y los añadimos al lote
         for (var doc in projectsQuery.docs) {
           Map<String, dynamic> projectUpdates = {};
-          
-          // Si cambió el nombre, actualizamos el campo 'client' del proyecto
-          if (nameChanged) {
-            projectUpdates['client'] = updatedClient.name;
-          }
-          
-          // Si cambió la dirección, actualizamos el campo 'billingAddress' del proyecto
-          // (Asumiendo que guardas la dirección en el proyecto también)
-          if (addressChanged) {
-             projectUpdates['billingAddress'] = updatedClient.billingAddress;
-          }
-
+          if (nameChanged) projectUpdates['client'] = updatedClient.name;
+          if (addressChanged) projectUpdates['billingAddress'] = updatedClient.billingAddress;
           if (projectUpdates.isNotEmpty) {
             batch.update(doc.reference, projectUpdates);
           }
         }
       }
 
-      // H. Ejecutamos todo el lote (Commit)
       await batch.commit();
-      
-      print("✅ Actualización completa: Cliente y Proyectos sincronizados.");
-
+      print("✅ Actualización completa.");
     } catch (e) {
-      print("❌ Error crítico al actualizar cliente: $e");
+      print("❌ Error al actualizar: $e");
       rethrow;
     }
   }
@@ -123,10 +189,11 @@ class ClientService {
   // --- 4. ELIMINAR CLIENTE ---
   Future<void> deleteClient(String id) async {
     try {
+      await _deleteLogo(id); // Eliminar logo de Storage
       await _clientsRef.doc(id).delete();
       print("✅ Cliente eliminado: $id");
     } catch (e) {
-      print("❌ Error al eliminar cliente: $e");
+      print("❌ Error al eliminar: $e");
       rethrow;
     }
   }
