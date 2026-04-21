@@ -378,7 +378,7 @@ class _ProcessModalState extends State<ProcessModal> {
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              "${user.role.name.toUpperCase()} · ${user.email}",
+                                              "${user.role.toUpperCase()} · ${user.email}",
                                               style: const TextStyle(
                                                 fontSize: 11,
                                                 color: Color(0xFF94A3B8),
@@ -5081,7 +5081,7 @@ class _ProcessModalState extends State<ProcessModal> {
     if (!_isPrivate) return allUsers;
 
     return allUsers.where((u) {
-      final role = u.role.name.toLowerCase();
+      final role = u.role.toLowerCase();
       // Solo SuperAdmin tiene acceso automático
       if (role == 'superadmin') return true;
       if (_selectedVisibleUserIds.contains(u.id)) return true;

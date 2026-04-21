@@ -1,21 +1,16 @@
 import '../../models/user_model.dart';
 import '../../services/admin_service.dart';
-import '../constants/app_constants.dart'; // Donde tengas tu enum UserRole
+import '../constants/app_constants.dart';
 
 class PermissionManager {
-  // Instancia única (Singleton) para acceder desde cualquier lado
   static final PermissionManager _instance = PermissionManager._internal();
   factory PermissionManager() => _instance;
   PermissionManager._internal();
 
-  // Aquí guardaremos una copia local de los permisos
   Map<String, List<String>> _rolePermissions = {};
-  
-  // Servicio administrativo
+
   final AdminService _adminService = AdminService();
 
-  // 1. INICIALIZAR: Llama a esto en tu main.dart o Login
-  // Se queda escuchando cambios en tiempo real desde Firebase
   void init() {
     _adminService.getRolePermissions().listen((perms) {
       _rolePermissions = perms;
@@ -23,16 +18,12 @@ class PermissionManager {
     });
   }
 
-  // 2. VERIFICAR: La función mágica que usarás en tus pantallas
   bool can(UserModel user, String permissionCode) {
     // A. El SuperAdmin SIEMPRE puede hacer todo (God Mode)
-    if (user.role == UserRole.superAdmin) return true;
+    if (user.role == SystemRoles.superAdmin) return true;
 
-    // B. Obtener el string del rol del usuario (ej: "technician")
-    String roleKey = user.role.toString().split('.').last;
-
-    // C. Buscar si ese rol tiene el permiso en la lista
-    List<String> allowedPerms = _rolePermissions[roleKey] ?? [];
+    // B. Buscar si el rol tiene el permiso en la lista
+    final List<String> allowedPerms = _rolePermissions[user.role] ?? [];
 
     return allowedPerms.contains(permissionCode);
   }

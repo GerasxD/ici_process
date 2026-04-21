@@ -640,7 +640,7 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         // Si el proceso es privado, filtrar solo a usuarios autorizados
         if (!widget.process.isPrivate) return users;
         return users.where((u) {
-          final role = u.role.name.toLowerCase();
+          final role = u.role.toLowerCase();
           // Solo SuperAdmin tiene acceso automático
           if (role == 'superadmin') return true;
           if (widget.process.visibleToUserIds.contains(u.id)) return true;
@@ -649,7 +649,7 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         }).toList();
       }),
       builder: (data) {
-        final techs = data.where((u) => u.role == UserRole.technician).toList();
+        final techs = data.where((u) => u.role == SystemRoles.technician).toList();
 
         // ── Stream anidado: eventos del calendario para detectar conflictos ──
         return StreamBuilder<List<CalendarEvent>>(

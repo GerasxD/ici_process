@@ -59,7 +59,7 @@ class _MentionTextFieldState extends State<MentionTextField> {
         // Si hay lista de permitidos, filtrar. Si no, dejar todos.
         if (widget.allowedUserIds != null) {
           _allUsers = all.where((u) {
-            final role = u.role.name.toLowerCase();
+            final role = u.role.toLowerCase();
             if (role == 'admin' || role == 'superadmin') return true;
             return widget.allowedUserIds!.contains(u.id);
           }).toList();
