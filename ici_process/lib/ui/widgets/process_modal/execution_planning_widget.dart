@@ -300,8 +300,10 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           .toList();
 
       // 5) Cargar datos de empresa y cliente para el header del PDF
+      //    process.client puede venir como "Cliente - Sucursal"
+      final clientNameOnly = widget.process.client.split(' - ').first.trim();
       final companyFuture = CompanySettingsService().getSettings();
-      final clientFuture = ClientService().getClientByName(widget.process.client);
+      final clientFuture = ClientService().getClientByName(clientNameOnly);
       final company = await companyFuture;
       final client = await clientFuture;
 

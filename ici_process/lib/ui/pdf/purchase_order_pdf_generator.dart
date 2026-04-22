@@ -1,3 +1,4 @@
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ici_process/core/utils/web_utils.dart';
 import 'package:ici_process/models/client_model.dart';
@@ -101,9 +102,11 @@ class PurchaseOrderPdfGenerator {
     required CompanySettingsModel company,
     Client? client,
   }) async {
+    final theme = await _buildTheme();
     final pdf = pw.Document(
       title: 'Orden de Compra $folio',
       author: company.name.isNotEmpty ? company.name : 'ICI Process',
+      theme: theme,
     );
 
     final double contentW = _pageW - _margin * 2;
@@ -390,12 +393,37 @@ class PurchaseOrderPdfGenerator {
   }
 
   // ── Helper: cargar imagen desde URL con fallback seguro ─────
+  //  1º intento: Firebase Storage SDK (evita CORS en web)
+  //  2º intento: networkImage normal
   static Future<pw.ImageProvider?> _tryLoadImage(String? url) async {
     if (url == null || url.isEmpty) return null;
+
+    if (url.contains('firebasestorage.googleapis.com') || url.startsWith('gs://')) {
+      try {
+        final ref = FirebaseStorage.instance.refFromURL(url);
+        final bytes = await ref.getData(10 * 1024 * 1024);
+        if (bytes != null) return pw.MemoryImage(bytes);
+      } catch (_) {
+        // cae al fallback
+      }
+    }
+
     try {
       return await networkImage(url);
-    } catch (e) {
+    } catch (_) {
       return null;
+    }
+  }
+
+  // ── Helper: theme con Roboto (soporta unicode: "—", "·", etc.) ──
+  static Future<pw.ThemeData> _buildTheme() async {
+    try {
+      final base = await PdfGoogleFonts.robotoRegular();
+      final bold = await PdfGoogleFonts.robotoBold();
+      final italic = await PdfGoogleFonts.robotoItalic();
+      return pw.ThemeData.withFont(base: base, bold: bold, italic: italic);
+    } catch (_) {
+      return pw.ThemeData();
     }
   }
 
