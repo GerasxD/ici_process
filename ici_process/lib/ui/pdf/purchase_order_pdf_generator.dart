@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:ici_process/core/utils/web_utils.dart';
+import 'package:ici_process/models/client_model.dart';
+import 'package:ici_process/models/company_settings_model.dart';
 import 'package:ici_process/models/purchase_order_model.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -40,13 +42,17 @@ class PurchaseOrderPdfGenerator {
     required String clientName,
     required String folio,
     required String generatedBy,
+    required CompanySettingsModel company,
+    Client? client,
   }) async {
-    final pdf = _buildPdf(
+    final pdf = await _buildPdf(
       order: order,
       projectTitle: projectTitle,
       clientName: clientName,
       folio: folio,
       generatedBy: generatedBy,
+      company: company,
+      client: client,
     );
 
     final bytes = await pdf.save();
@@ -68,13 +74,17 @@ class PurchaseOrderPdfGenerator {
     required String clientName,
     required String folio,
     required String generatedBy,
+    required CompanySettingsModel company,
+    Client? client,
   }) async {
-    final pdf = _buildPdf(
+    final pdf = await _buildPdf(
       order: order,
       projectTitle: projectTitle,
       clientName: clientName,
       folio: folio,
       generatedBy: generatedBy,
+      company: company,
+      client: client,
     );
     return pdf.save();
   }
@@ -82,19 +92,24 @@ class PurchaseOrderPdfGenerator {
   // ═══════════════════════════════════════════════════════════════
   //  CONSTRUCCIÓN DEL PDF
   // ═══════════════════════════════════════════════════════════════
-  static pw.Document _buildPdf({
+  static Future<pw.Document> _buildPdf({
     required PurchaseOrder order,
     required String projectTitle,
     required String clientName,
     required String folio,
     required String generatedBy,
-  }) {
+    required CompanySettingsModel company,
+    Client? client,
+  }) async {
     final pdf = pw.Document(
       title: 'Orden de Compra $folio',
-      author: 'ICI Process',
+      author: company.name.isNotEmpty ? company.name : 'ICI Process',
     );
 
     final double contentW = _pageW - _margin * 2;
+
+    final companyLogo = await _tryLoadImage(company.logoUrl);
+    final clientLogo = await _tryLoadImage(client?.logoUrl);
 
     pdf.addPage(
       pw.MultiPage(
@@ -105,9 +120,11 @@ class PurchaseOrderPdfGenerator {
           folio,
           order.date,
           generatedBy,
-          order.providerName,
-          projectTitle,
+          company,
+          client,
           clientName,
+          companyLogo,
+          clientLogo,
         ),
         footer: (ctx) => _buildFooter(contentW, ctx),
         build: (pw.Context ctx) => [
@@ -157,19 +174,21 @@ class PurchaseOrderPdfGenerator {
 
   // ═══════════════════════════════════════════════════════════════
   //  HEADER — 3 columnas (empresa | título + metadata | cliente)
-  //  Mismo diseño visual que el Reporte de Servicio
+  //  Logos laterales + datos del Company Profile y del Cliente
   // ═══════════════════════════════════════════════════════════════
   static pw.Widget _buildHeader(
     double w,
     String folio,
     DateTime date,
     String generatedBy,
-    String providerName,
-    String projectTitle,
-    String clientName,
+    CompanySettingsModel company,
+    Client? client,
+    String fallbackClientName,
+    pw.ImageProvider? companyLogo,
+    pw.ImageProvider? clientLogo,
   ) {
-    const headerH = 46.0;
-    final centerW = w * 0.42;
+    const headerH = 56.0;
+    final centerW = w * 0.38;
     final sideW = (w - centerW) / 2;
 
     return pw.Container(
@@ -179,34 +198,13 @@ class PurchaseOrderPdfGenerator {
       ),
       child: pw.Row(
         children: [
-          // ── Col 1: Datos de la empresa ──────────────────
+          // ── Col 1: Logo + datos de la empresa ──────────
           pw.Container(
             width: sideW,
-            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             decoration: const pw.BoxDecoration(
               border: pw.Border(right: pw.BorderSide(color: _grey400, width: 0.5)),
             ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.Text('ICI PROCESS',
-                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: _black),
-                    maxLines: 1),
-                pw.SizedBox(height: 1),
-                pw.Text('Ingeniería, Control e Instrumentación',
-                    style: const pw.TextStyle(fontSize: 4.5, color: _grey700),
-                    maxLines: 1),
-                pw.SizedBox(height: 2),
-                pw.Text('Aguascalientes, Ags., México',
-                    style: const pw.TextStyle(fontSize: 4, color: _grey700),
-                    maxLines: 1),
-                pw.SizedBox(height: 1),
-                pw.Text('(449) 000-0000  info@iciprocess.com',
-                    style: const pw.TextStyle(fontSize: 4, color: _grey600),
-                    maxLines: 1),
-              ],
-            ),
+            child: _buildCompanyBlock(sideW, company, companyLogo),
           ),
 
           // ── Col 2: Título + Subtítulo + Caja Metadata ──
@@ -221,7 +219,7 @@ class PurchaseOrderPdfGenerator {
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
                 pw.Text('ORDEN DE COMPRA',
-                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _black),
+                    style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _black),
                     textAlign: pw.TextAlign.center,
                     maxLines: 1),
                 pw.SizedBox(height: 2),
@@ -229,7 +227,7 @@ class PurchaseOrderPdfGenerator {
                     style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: _grey700, letterSpacing: 0.3),
                     textAlign: pw.TextAlign.center,
                     maxLines: 1),
-                pw.SizedBox(height: 3),
+                pw.SizedBox(height: 4),
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: pw.BoxDecoration(
@@ -252,39 +250,153 @@ class PurchaseOrderPdfGenerator {
             ),
           ),
 
-          // ── Col 3: Proveedor + Proyecto ────────────────
+          // ── Col 3: Datos Cliente + Logo ────────────────
           pw.Container(
             width: sideW,
-            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+            child: _buildClientBlock(sideW, client, fallbackClientName, clientLogo),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bloque empresa (Col 1): logo izq + datos der ────────────
+  static pw.Widget _buildCompanyBlock(
+    double w,
+    CompanySettingsModel company,
+    pw.ImageProvider? logo,
+  ) {
+    const logoW = 42.0;
+    const logoH = 42.0;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          if (logo != null)
+            pw.Container(
+              width: logoW,
+              height: logoH,
+              margin: const pw.EdgeInsets.only(right: 4),
+              child: pw.Image(logo, fit: pw.BoxFit.contain),
+            ),
+          pw.Expanded(
             child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                pw.Text(providerName,
-                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: _black),
-                    textAlign: pw.TextAlign.right,
-                    maxLines: 1),
-                pw.SizedBox(height: 1),
-                pw.Text('PROVEEDOR',
-                    style: pw.TextStyle(fontSize: 4.5, fontWeight: pw.FontWeight.bold, color: _grey700, letterSpacing: 0.3),
-                    textAlign: pw.TextAlign.right,
-                    maxLines: 1),
-                pw.SizedBox(height: 3),
-                pw.Text(projectTitle,
-                    style: const pw.TextStyle(fontSize: 4, color: _grey700),
-                    textAlign: pw.TextAlign.right,
-                    maxLines: 1),
-                pw.SizedBox(height: 1),
-                pw.Text('Cliente: $clientName',
+                pw.Text(
+                  company.name.isNotEmpty ? company.name : 'ICI Process',
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black),
+                  maxLines: 1,
+                ),
+                if (company.legalName.isNotEmpty) ...[
+                  pw.SizedBox(height: 1),
+                  pw.Text(company.legalName,
+                      style: const pw.TextStyle(fontSize: 4.5, color: _grey700),
+                      maxLines: 1),
+                ],
+                if (company.address.isNotEmpty) ...[
+                  pw.SizedBox(height: 1),
+                  pw.Text(company.address,
+                      style: const pw.TextStyle(fontSize: 4, color: _grey700),
+                      maxLines: 2),
+                ],
+                if (company.phone.isNotEmpty || company.email.isNotEmpty) ...[
+                  pw.SizedBox(height: 1),
+                  pw.Text(
+                    [
+                      if (company.phone.isNotEmpty) 'Tel: ${company.phone}',
+                      if (company.email.isNotEmpty) company.email,
+                    ].join('  ·  '),
                     style: const pw.TextStyle(fontSize: 4, color: _grey600),
-                    textAlign: pw.TextAlign.right,
-                    maxLines: 1),
+                    maxLines: 1,
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  // ── Bloque cliente (Col 3): datos izq + logo der ────────────
+  static pw.Widget _buildClientBlock(
+    double w,
+    Client? client,
+    String fallbackName,
+    pw.ImageProvider? logo,
+  ) {
+    const logoW = 42.0;
+    const logoH = 42.0;
+    final displayName = client?.name.isNotEmpty == true ? client!.name : fallbackName;
+
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  displayName,
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: _black),
+                  textAlign: pw.TextAlign.right,
+                  maxLines: 1,
+                ),
+                if (client != null && client.businessName.isNotEmpty) ...[
+                  pw.SizedBox(height: 1),
+                  pw.Text(client.businessName,
+                      style: const pw.TextStyle(fontSize: 4.5, color: _grey700),
+                      textAlign: pw.TextAlign.right,
+                      maxLines: 1),
+                ],
+                if (client != null && client.billingAddress.isNotEmpty) ...[
+                  pw.SizedBox(height: 1),
+                  pw.Text(client.billingAddress,
+                      style: const pw.TextStyle(fontSize: 4, color: _grey700),
+                      textAlign: pw.TextAlign.right,
+                      maxLines: 2),
+                ],
+                if (client != null && (client.phone.isNotEmpty || client.email.isNotEmpty)) ...[
+                  pw.SizedBox(height: 1),
+                  pw.Text(
+                    [
+                      if (client.phone.isNotEmpty) 'Tel: ${client.phone}',
+                      if (client.email.isNotEmpty) client.email,
+                    ].join('  ·  '),
+                    style: const pw.TextStyle(fontSize: 4, color: _grey600),
+                    textAlign: pw.TextAlign.right,
+                    maxLines: 1,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (logo != null)
+            pw.Container(
+              width: logoW,
+              height: logoH,
+              margin: const pw.EdgeInsets.only(left: 4),
+              child: pw.Image(logo, fit: pw.BoxFit.contain),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Helper: cargar imagen desde URL con fallback seguro ─────
+  static Future<pw.ImageProvider?> _tryLoadImage(String? url) async {
+    if (url == null || url.isEmpty) return null;
+    try {
+      return await networkImage(url);
+    } catch (e) {
+      return null;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

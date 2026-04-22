@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import '../../../models/process_model.dart';
 import '../../../services/tool_service.dart';
+import '../../../services/company_settings_service.dart';
+import '../../../services/client_service.dart';
 import '../../pdf/work_order_pdf_generator.dart';
 
 class ExecutionStatusSection extends StatefulWidget {
@@ -235,6 +237,11 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
         });
       }
 
+      final companyFuture = CompanySettingsService().getSettings();
+      final clientFuture = ClientService().getClientByName(widget.process.client);
+      final company = await companyFuture;
+      final client = await clientFuture;
+
       await WorkOrderPdfGenerator.generateAndPrint(
         projectTitle: widget.process.title,
         clientName: widget.process.client,
@@ -245,6 +252,8 @@ class _ExecutionStatusSectionState extends State<ExecutionStatusSection> {
         technicians: technicians,
         notes: widget.logisticsData?['notes'] ?? '',
         folio: 'OT-${widget.process.id.substring(widget.process.id.length > 6 ? widget.process.id.length - 6 : 0)}',
+        company: company,
+        client: client,
       );
     } catch (e) {
       if (mounted) {

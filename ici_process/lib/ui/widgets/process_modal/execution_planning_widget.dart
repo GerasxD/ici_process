@@ -14,6 +14,8 @@ import '../../../services/event_service.dart';
 import '../../../services/user_service.dart';
 import '../../../services/tool_service.dart';
 import '../../../services/vehicle_service.dart';
+import '../../../services/company_settings_service.dart';
+import '../../../services/client_service.dart';
 
 class ExecutionPlanningWidget extends StatefulWidget {
   final ProcessModel process;
@@ -297,7 +299,13 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
           .where((name) => name.isNotEmpty)
           .toList();
 
-      // 5) Generar y abrir PDF
+      // 5) Cargar datos de empresa y cliente para el header del PDF
+      final companyFuture = CompanySettingsService().getSettings();
+      final clientFuture = ClientService().getClientByName(widget.process.client);
+      final company = await companyFuture;
+      final client = await clientFuture;
+
+      // 6) Generar y abrir PDF
       await ToolsCheckoutPdfGenerator.generateAndPrint(
         projectId: widget.process.id,
         projectTitle: widget.process.title,
@@ -307,6 +315,8 @@ class _ExecutionPlanningWidgetState extends State<ExecutionPlanningWidget> {
         tools: toolsForPdf,
         startDate: _startDate,
         endDate: _endDate,
+        company: company,
+        client: client,
       );
 
       _showSnackBar("PDF generado correctamente");
