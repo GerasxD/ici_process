@@ -2239,8 +2239,11 @@
     Future<void> _downloadPdf(PurchaseOrder order) async {
       setState(() => _isGeneratingPdf = true);
       try {
+        // process.client puede venir como "Cliente - Sucursal", tomamos solo el nombre
+        final clientNameOnly = widget.process.client.split(' - ').first.trim();
+
         final companyFuture = CompanySettingsService().getSettings();
-        final clientFuture = ClientService().getClientByName(widget.process.client);
+        final clientFuture = ClientService().getClientByName(clientNameOnly);
         final company = await companyFuture;
         final client = await clientFuture;
 
