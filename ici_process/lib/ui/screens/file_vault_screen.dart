@@ -620,9 +620,9 @@ class _FileVaultScreenState extends State<FileVaultScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        mainAxisExtent: 140,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        mainAxisExtent: 76,
                       ),
                       itemCount: visibleFolders.length,
                       itemBuilder: (_, i) => _buildFolderCard(visibleFolders[i]),
@@ -691,132 +691,154 @@ class _FileVaultScreenState extends State<FileVaultScreen> {
 
     return InkWell(
       onTap: () => _openFolder(folder),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: _cardBg,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _borderColor),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2)),
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
+            // Ícono de carpeta
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(_iconFromName(folder.iconName), color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+
+            // Nombre + meta
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    folder.name,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  child: Icon(_iconFromName(folder.iconName),
-                      color: color, size: 20),
-                ),
-                const Spacer(),
-                if (canEdit)
-                  PopupMenuButton<String>(
-                    icon: Icon(LucideIcons.moreVertical,
-                        size: 16, color: _textSecondary),
-                    splashRadius: 16,
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'edit',
-                        child: Row(children: [
-                          const Icon(LucideIcons.edit3, size: 14),
-                          const SizedBox(width: 10),
-                          Text("Editar",
-                              style: GoogleFonts.inter(fontSize: 13)),
-                        ]),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Icon(LucideIcons.file, size: 10, color: _textSecondary),
+                      const SizedBox(width: 3),
+                      Text(
+                        "${folder.fileCount}",
+                        style: GoogleFonts.inter(fontSize: 11, color: _textSecondary),
                       ),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Row(children: [
-                          const Icon(LucideIcons.trash2,
-                              size: 14, color: Color(0xFFDC2626)),
-                          const SizedBox(width: 10),
-                          Text("Eliminar",
-                              style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: const Color(0xFFDC2626))),
-                        ]),
+                      const SizedBox(width: 8),
+                      Icon(LucideIcons.folder, size: 10, color: _textSecondary),
+                      const SizedBox(width: 3),
+                      Text(
+                        "${folder.subfolderCount}",
+                        style: GoogleFonts.inter(fontSize: 11, color: _textSecondary),
                       ),
                     ],
-                    onSelected: (v) {
-                      if (v == 'edit') _handleEditFolder(folder);
-                      if (v == 'delete') _handleDeleteFolder(folder);
-                    },
                   ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Text(folder.name,
-                style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: _textPrimary),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(LucideIcons.file, size: 11, color: _textSecondary),
-                const SizedBox(width: 4),
-                Text("${folder.fileCount}",
-                    style: GoogleFonts.inter(
-                        fontSize: 11, color: _textSecondary)),
-                const SizedBox(width: 10),
-                Icon(LucideIcons.folder, size: 11, color: _textSecondary),
-                const SizedBox(width: 4),
-                Text("${folder.subfolderCount}",
-                    style: GoogleFonts.inter(
-                        fontSize: 11, color: _textSecondary)),
-                const Spacer(),
-                if (folder.viewRoles.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(LucideIcons.lock, size: 9, color: color),
-                      const SizedBox(width: 3),
-                      Text("${folder.viewRoles.length} rol(es)",
-                          style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: color)),
-                    ]),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(LucideIcons.globe,
-                          size: 9, color: Color(0xFF059669)),
-                      const SizedBox(width: 3),
-                      Text("Pública",
-                          style: GoogleFonts.inter(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF059669))),
-                    ]),
+
+            // Badge de acceso
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: folder.viewRoles.isNotEmpty
+                    ? color.withOpacity(0.08)
+                    : const Color(0xFF059669).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    folder.viewRoles.isNotEmpty
+                        ? LucideIcons.lock
+                        : LucideIcons.globe,
+                    size: 9,
+                    color: folder.viewRoles.isNotEmpty
+                        ? color
+                        : const Color(0xFF059669),
                   ),
-              ],
+                  const SizedBox(width: 3),
+                  Text(
+                    folder.viewRoles.isNotEmpty
+                        ? "${folder.viewRoles.length} rol"
+                        : "Pública",
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: folder.viewRoles.isNotEmpty
+                          ? color
+                          : const Color(0xFF059669),
+                    ),
+                  ),
+                ],
+              ),
             ),
+
+            // Menú de opciones
+            if (canEdit) ...[
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: PopupMenuButton<String>(
+                  icon: Icon(LucideIcons.moreVertical,
+                      size: 14, color: _textSecondary),
+                  splashRadius: 14,
+                  padding: EdgeInsets.zero,
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(children: [
+                        const Icon(LucideIcons.edit3, size: 14),
+                        const SizedBox(width: 10),
+                        Text("Editar", style: GoogleFonts.inter(fontSize: 13)),
+                      ]),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(children: [
+                        const Icon(LucideIcons.trash2,
+                            size: 14, color: Color(0xFFDC2626)),
+                        const SizedBox(width: 10),
+                        Text("Eliminar",
+                            style: GoogleFonts.inter(
+                                fontSize: 13, color: const Color(0xFFDC2626))),
+                      ]),
+                    ),
+                  ],
+                  onSelected: (v) {
+                    if (v == 'edit') _handleEditFolder(folder);
+                    if (v == 'delete') _handleDeleteFolder(folder);
+                  },
+                ),
+              ),
+            ],
+
+            // Flecha indicadora
+            const SizedBox(width: 4),
+            Icon(LucideIcons.chevronRight, size: 14, color: _textSecondary.withOpacity(0.4)),
           ],
         ),
       ),

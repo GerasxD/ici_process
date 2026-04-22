@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ici_process/core/utils/web_utils.dart';
@@ -417,6 +419,17 @@ class WorkOrderPdfGenerator {
   static Future<pw.ImageProvider?> _tryLoadImage(String? url) async {
     if (url == null || url.isEmpty) return null;
 
+    // ── 1º: Base64 (logo guardado desde galería) ──────────────
+    if (!url.startsWith('http') && !url.startsWith('gs://')) {
+      try {
+        final bytes = base64Decode(url);
+        return pw.MemoryImage(bytes);
+      } catch (_) {
+        // no era base64 válido, sigue
+      }
+    }
+
+    // ── 2º: Firebase Storage SDK (evita CORS en web) ──────────
     if (url.contains('firebasestorage.googleapis.com') || url.startsWith('gs://')) {
       try {
         final ref = FirebaseStorage.instance.refFromURL(url);
@@ -427,13 +440,14 @@ class WorkOrderPdfGenerator {
       }
     }
 
+    // ── 3º: URL de red normal ──────────────────────────────────
     try {
       return await networkImage(url);
     } catch (_) {
       return null;
     }
   }
-
+  
   // ── Helper: theme con Roboto (soporta unicode: "—", "·", etc.) ──
   static Future<pw.ThemeData> _buildTheme() async {
     try {

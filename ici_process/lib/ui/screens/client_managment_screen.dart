@@ -923,7 +923,6 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
   }
 
 // ── Helpers de apoyo ──────────────────────────────────────────
-
 Widget _buildLogoPicker() {
     return Column(
       children: [
@@ -1301,7 +1300,11 @@ class _EditClientDialogState extends State<_EditClientDialog> {
         branchAddresses: branches,
       );
 
-      await widget.service.updateClient(updatedClient, newLogoBytes: _newLogoBytes);
+      await widget.service.updateClient(
+        updatedClient,
+        newLogoBytes: _newLogoBytes,
+        removeLogo: _removeLogo,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) setState(() => _isSaving = false);
@@ -1341,31 +1344,69 @@ class _EditClientDialogState extends State<_EditClientDialog> {
               ),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: _pickLogo,
-                    child: Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.2)),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: _newLogoBytes != null
-                          ? Image.memory(_newLogoBytes!, fit: BoxFit.cover)
-                          : (widget.client.logoUrl.isNotEmpty && !_removeLogo)
-                              ? Image.network(widget.client.logoUrl, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Center(
-                                    child: Text(
-                                      _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0].toUpperCase() : 'C',
-                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onTap: _pickLogo,
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: _newLogoBytes != null
+                              ? Image.memory(_newLogoBytes!, fit: BoxFit.cover)
+                              : (widget.client.logoUrl.isNotEmpty && !_removeLogo)
+                                  ? Image.network(
+                                      widget.client.logoUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Text(
+                                          _nameCtrl.text.isNotEmpty
+                                              ? _nameCtrl.text[0].toUpperCase()
+                                              : 'C',
+                                          style: GoogleFonts.inter(
+                                              color: Colors.white,
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w800),
+                                        ),
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Icon(LucideIcons.imagePlus,
+                                          color: Colors.white70, size: 22),
                                     ),
-                                  ))
-                              : Center(
-                                  child: Icon(LucideIcons.imagePlus, color: Colors.white70, size: 22),
-                                ),
-                    ),
+                        ),
+                      ),
+                      // Botón eliminar logo (solo aparece si HAY logo activo)
+                      if ((_newLogoBytes != null ||
+                              (widget.client.logoUrl.isNotEmpty && !_removeLogo)))
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _newLogoBytes = null;
+                              _removeLogo = true;
+                            }),
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: const Icon(LucideIcons.x,
+                                  size: 11, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(width: 16),
                   Expanded(

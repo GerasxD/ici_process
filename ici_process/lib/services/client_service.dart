@@ -124,7 +124,11 @@ class ClientService {
   }
 
   // --- 3. ACTUALIZAR CLIENTE (CON CASCADA) ---
-  Future<void> updateClient(Client updatedClient, {Uint8List? newLogoBytes}) async {
+  Future<void> updateClient(
+      Client updatedClient, {
+      Uint8List? newLogoBytes,
+      bool removeLogo = false,
+    }) async {
     try {
       print("⏳ Actualizando: ${updatedClient.name}...");
 
@@ -139,7 +143,10 @@ class ClientService {
 
       // Si hay nuevo logo, subirlo
       String logoUrl = updatedClient.logoUrl;
-      if (newLogoBytes != null) {
+      if (removeLogo) {
+        await _deleteLogo(updatedClient.id); // borra de Storage
+        logoUrl = '';
+      } else if (newLogoBytes != null) {
         logoUrl = await _uploadLogo(newLogoBytes, updatedClient.id);
       }
 
