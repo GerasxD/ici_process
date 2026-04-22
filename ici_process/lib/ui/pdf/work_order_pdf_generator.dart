@@ -118,7 +118,14 @@ class WorkOrderPdfGenerator {
       pw.MultiPage(
         pageFormat: PdfPageFormat.letter,
         margin: pw.EdgeInsets.all(_margin),
-        header: (_) => _buildHeader(contentW, folio, startDate),
+        header: (_) => _buildHeader(
+          contentW,
+          folio,
+          startDate,
+          projectTitle,
+          clientName,
+          priority,
+        ),
         footer: (ctx) => _buildFooter(contentW, ctx),
         build: (pw.Context ctx) => [
           pw.SizedBox(height: 6),
@@ -167,11 +174,19 @@ class WorkOrderPdfGenerator {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  HEADER — 3 columnas (empresa | título | folio)
+  //  HEADER — 3 columnas (empresa | título + metadata | cliente)
+  //  Mismo diseño visual que el Reporte de Servicio
   // ═══════════════════════════════════════════════════════════════
-  static pw.Widget _buildHeader(double w, String folio, DateTime? startDate) {
-    const headerH = 42.0;
-    final centerW = w * 0.36;
+  static pw.Widget _buildHeader(
+    double w,
+    String folio,
+    DateTime? startDate,
+    String projectTitle,
+    String clientName,
+    String priority,
+  ) {
+    const headerH = 46.0;
+    final centerW = w * 0.42;
     final sideW   = (w - centerW) / 2;
 
     return pw.Container(
@@ -181,10 +196,10 @@ class WorkOrderPdfGenerator {
       ),
       child: pw.Row(
         children: [
-          // ── Col 1: Empresa ──────────────────────────────
+          // ── Col 1: Datos de la empresa ──────────────────
           pw.Container(
             width: sideW,
-            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             decoration: const pw.BoxDecoration(
               border: pw.Border(right: pw.BorderSide(color: _grey400, width: 0.5)),
             ),
@@ -193,17 +208,25 @@ class WorkOrderPdfGenerator {
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
                 pw.Text('ICI PROCESS',
-                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _black)),
+                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: _black),
+                    maxLines: 1),
+                pw.SizedBox(height: 1),
                 pw.Text('Ingeniería, Control e Instrumentación',
-                    style: const pw.TextStyle(fontSize: 5, color: _grey700)),
+                    style: const pw.TextStyle(fontSize: 4.5, color: _grey700),
+                    maxLines: 1),
                 pw.SizedBox(height: 2),
-                pw.Text('Tel: (449) 000-0000  |  info@iciprocess.com',
-                    style: const pw.TextStyle(fontSize: 4, color: _grey600)),
+                pw.Text('Aguascalientes, Ags., México',
+                    style: const pw.TextStyle(fontSize: 4, color: _grey700),
+                    maxLines: 1),
+                pw.SizedBox(height: 1),
+                pw.Text('(449) 000-0000  info@iciprocess.com',
+                    style: const pw.TextStyle(fontSize: 4, color: _grey600),
+                    maxLines: 1),
               ],
             ),
           ),
 
-          // ── Col 2: Título + Fecha ──────────────────────
+          // ── Col 2: Título + Subtítulo + Caja Metadata ──
           pw.Container(
             width: centerW,
             padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -212,48 +235,62 @@ class WorkOrderPdfGenerator {
             ),
             child: pw.Column(
               mainAxisAlignment: pw.MainAxisAlignment.center,
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // 👇 AQUÍ SE IMPRIME AUTOMÁTICAMENTE EL ID (Ej: OT-PR-06) 👇
-                pw.Text('ORDEN DE TRABAJO $folio',
-                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: _black),
+                pw.Text('ORDEN DE TRABAJO',
+                    style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _black),
                     textAlign: pw.TextAlign.center,
-                    maxLines: 1), 
+                    maxLines: 1),
+                pw.SizedBox(height: 2),
+                pw.Text('PLANIFICACIÓN DE SERVICIO EN CAMPO',
+                    style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: _grey700, letterSpacing: 0.3),
+                    textAlign: pw.TextAlign.center,
+                    maxLines: 1),
                 pw.SizedBox(height: 3),
                 pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: pw.BoxDecoration(
                     color: _grey200,
                     border: pw.Border.all(color: _grey400, width: 0.5),
                   ),
                   child: pw.Text(
-                    'FECHA: ${_dateFmt.format(startDate ?? DateTime.now())}',
-                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: _black),
+                    'INICIO: ${_dateFmt.format(startDate ?? DateTime.now()).toUpperCase()}  |  FOLIO: ${folio.toUpperCase()}',
+                    style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: _black),
                     textAlign: pw.TextAlign.center,
+                    maxLines: 1,
                   ),
                 ),
+                pw.SizedBox(height: 3),
+                pw.Text('Prioridad: ${priority.toUpperCase()}',
+                    style: const pw.TextStyle(fontSize: 4.5, color: _grey600),
+                    textAlign: pw.TextAlign.center,
+                    maxLines: 1),
               ],
             ),
           ),
 
-          // ── Col 3: Folio ───────────────────────────────
+          // ── Col 3: Cliente + Proyecto ──────────────────
           pw.Container(
             width: sideW,
-            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
-                pw.Text('FOLIO',
-                    style: pw.TextStyle(fontSize: 5, color: _grey600, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 2),
-                pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: const pw.BoxDecoration(color: _grey800),
-                  child: pw.Text(
-                    '# $folio',
-                    style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: _white),
-                  ),
-                ),
+                pw.Text(clientName,
+                    style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: _black),
+                    textAlign: pw.TextAlign.right,
+                    maxLines: 1),
+                pw.SizedBox(height: 1),
+                pw.Text('CLIENTE',
+                    style: pw.TextStyle(fontSize: 4.5, fontWeight: pw.FontWeight.bold, color: _grey700, letterSpacing: 0.3),
+                    textAlign: pw.TextAlign.right,
+                    maxLines: 1),
+                pw.SizedBox(height: 3),
+                pw.Text(projectTitle,
+                    style: const pw.TextStyle(fontSize: 4, color: _grey700),
+                    textAlign: pw.TextAlign.right,
+                    maxLines: 2),
               ],
             ),
           ),
