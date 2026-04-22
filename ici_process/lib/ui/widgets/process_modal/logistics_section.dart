@@ -11,6 +11,8 @@
   import '../../../models/process_model.dart';
   import '../../../services/material_service.dart';
   import '../../../services/provider_service.dart';
+  import '../../../services/company_settings_service.dart';
+  import '../../../services/client_service.dart';
   import '../../../models/provider_model.dart';
 
   // ============================================================
@@ -2237,12 +2239,19 @@
     Future<void> _downloadPdf(PurchaseOrder order) async {
       setState(() => _isGeneratingPdf = true);
       try {
+        final companyFuture = CompanySettingsService().getSettings();
+        final clientFuture = ClientService().getClientByName(widget.process.client);
+        final company = await companyFuture;
+        final client = await clientFuture;
+
         await PurchaseOrderPdfGenerator.generateAndPrint(
           order: order,
           projectTitle: widget.process.title,
           clientName: widget.process.client,
           folio: order.id,
           generatedBy: widget.currentUserName,
+          company: company,
+          client: client,
         );
       } catch (e) {
         _showSnack("Error al generar PDF: $e", isError: true);
