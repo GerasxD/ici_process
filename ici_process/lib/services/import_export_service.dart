@@ -373,13 +373,12 @@ class ImportExportService {
     final sheet = excel['Hoja1'];
 
     // ── Header con estilo ──
+    // Se eliminaron 'Marca' y 'Modelo'. Ahora son 11 columnas en total.
     final headers = [
       'Codigo de Articulo',
       'Estatus',
       'Etiqueta',
       'Proveedores',
-      'Marca',
-      'Modelo',
       'Descripcion',
       'Articulo / Modelo',
       'Unidad',
@@ -403,6 +402,12 @@ class ImportExportService {
       cell.cellStyle = headerStyle;
     }
 
+    // ── Estilo para las celdas de datos (Evita que el texto se corte) ──
+    final dataStyle = CellStyle(
+      textWrapping: TextWrapping.WrapText, // Ajusta el texto hacia abajo si es muy largo
+      verticalAlign: VerticalAlign.Center,
+    );
+
     // ── Filas de datos ──
     int rowIdx = 1;
     int counter = 1;
@@ -412,22 +417,20 @@ class ImportExportService {
 
     for (final m in materials) {
       if (m.prices.isEmpty) {
-        // Material sin proveedores: 1 fila con proveedor vacío
+        // Material sin proveedores
         _writeRow(sheet, rowIdx, [
           'SD-$counter',
           'Activo',
           'SDI',
-          '',
-          '',
-          '',
-          m.name,
-          m.name,
+          '', // Proveedor vacío
+          m.name, // Descripción (Ya no hay espacios vacíos antes de esto)
+          m.name, // Artículo / Modelo
           m.unit,
           0.0,
           m.stock,
           m.reservedStock,
           m.availableStock,
-        ]);
+        ], style: dataStyle);
         rowIdx++;
       } else {
         // Una fila por cada proveedor
@@ -437,34 +440,33 @@ class ImportExportService {
             'Activo',
             'SDI',
             p.providerName,
-            '',
-            '',
-            m.name,
-            m.name,
+            m.name, // Descripción
+            m.name, // Artículo / Modelo
             m.unit,
             p.price,
             m.stock,
             m.reservedStock,
             m.availableStock,
-          ]);
+          ], style: dataStyle);
           rowIdx++;
         }
       }
       counter++;
     }
 
-    // Anchos de columna aproximados
+    // ── Anchos de columna reajustados ──
+    // Se actualizaron los índices (0 al 10) y se amplió el tamaño de las descripciones
     sheet.setColumnWidth(0, 18); // Codigo
     sheet.setColumnWidth(1, 10); // Estatus
     sheet.setColumnWidth(2, 10); // Etiqueta
-    sheet.setColumnWidth(3, 20); // Proveedores
-    sheet.setColumnWidth(6, 40); // Descripcion
-    sheet.setColumnWidth(7, 40); // Articulo / Modelo
-    sheet.setColumnWidth(8, 10); // Unidad
-    sheet.setColumnWidth(9, 12); // Costo
-    sheet.setColumnWidth(10, 10);
-    sheet.setColumnWidth(11, 14);
-    sheet.setColumnWidth(12, 14);
+    sheet.setColumnWidth(3, 25); // Proveedores (Un poco más ancho)
+    sheet.setColumnWidth(4, 55); // Descripcion (Mucho más ancho para que se lea bien)
+    sheet.setColumnWidth(5, 55); // Articulo / Modelo (Mucho más ancho)
+    sheet.setColumnWidth(6, 10); // Unidad
+    sheet.setColumnWidth(7, 12); // Costo
+    sheet.setColumnWidth(8, 12); // Stock
+    sheet.setColumnWidth(9, 16); // Stock Apartado
+    sheet.setColumnWidth(10, 18); // Stock Disponible
 
     // ── Guardar y abrir (multiplataforma con FileSaver) ──
     final bytes = excel.save();
@@ -473,10 +475,6 @@ class ImportExportService {
     final timestamp = DateTime.now().toIso8601String().split('T').first;
     final fileName = 'MATERIALES_$timestamp';
 
-    // FileSaver funciona en TODAS las plataformas:
-    // - Web: descarga vía navegador
-    // - Android/iOS: abre diálogo de guardado
-    // - Windows/Mac/Linux: abre "Guardar como"
     final savedPath = await FileSaver.instance.saveFile(
       name: fileName,
       bytes: Uint8List.fromList(bytes),
@@ -488,18 +486,25 @@ class ImportExportService {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  //  HELPERS PRIVADOS
+  //  HELPER PRIVADO ACTUALIZADO
   // ─────────────────────────────────────────────────────────────────────
 
-  void _writeRow(Sheet sheet, int rowIdx, List<dynamic> values) {
+  /// Escribe una fila en el Excel y le aplica un estilo opcional a todas sus celdas
+  void _writeRow(Sheet sheet, int rowIdx, List<dynamic> values, {CellStyle? style}) {
     for (int i = 0; i < values.length; i++) {
       final cell = sheet.cell(
           CellIndex.indexByColumnRow(columnIndex: i, rowIndex: rowIdx));
       final v = values[i];
+      
       if (v is num) {
         cell.value = DoubleCellValue(v.toDouble());
       } else {
         cell.value = TextCellValue(v?.toString() ?? '');
+      }
+
+      // Si pasamos un estilo (como el de ajustar texto), se lo aplicamos a la celda
+      if (style != null) {
+        cell.cellStyle = style;
       }
     }
   }

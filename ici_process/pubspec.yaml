@@ -41,7 +41,7 @@ dependencies:
   file_saver: ^0.2.14
   image_picker: ^1.0.7
   mime: ^1.0.5 
-
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

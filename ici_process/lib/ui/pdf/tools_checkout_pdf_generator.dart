@@ -680,9 +680,10 @@ class ToolsCheckoutPdfGenerator {
                 ),
                 pw.SizedBox(width: 8),
                 pw.Expanded(
-                  child: pw.Text(
-                    responsibleName.isNotEmpty ? responsibleName : '—',
-                    style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _black),
+                  child: pw.Container(
+                    margin: const pw.EdgeInsets.only(top: 10, right: 20),
+                    height: 0.8,
+                    color: _grey400,
                   ),
                 ),
               ],
@@ -887,7 +888,7 @@ class ToolsCheckoutPdfGenerator {
                   sigW,
                   'Recibió',
                   'Responsable del proyecto',
-                  subname: responsibleName.isNotEmpty ? responsibleName : null,
+                  subname: null,
                 ),
               ],
             ),

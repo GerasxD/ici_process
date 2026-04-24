@@ -367,7 +367,9 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                   children: [
                     Text(item.name, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16, color: _textPrimary)),
                     const SizedBox(height: 6),
-                    Row(
+                    Wrap(
+                      spacing: 8.0, // Espacio horizontal entre las etiquetas
+                      runSpacing: 8.0, // Espacio vertical si bajan a la siguiente línea
                       children: [
                         // Badge unidad
                         Container(
@@ -382,7 +384,6 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
                         // Badge precio
                         if (item.prices.isNotEmpty)
                           Container(
@@ -409,7 +410,6 @@ class _ServiceCatalogScreenState extends State<ServiceCatalogScreen> {
                             ),
                             child: Text("Sin cotizar", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
                           ),
-                        const SizedBox(width: 8),
                         // Badge proveedores
                         if (item.prices.isNotEmpty)
                           Container(

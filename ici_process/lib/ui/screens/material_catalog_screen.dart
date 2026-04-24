@@ -401,62 +401,113 @@ class _MaterialCatalogScreenState extends State<MaterialCatalogScreen> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: _accentColor.withOpacity(0.15), blurRadius: 16, offset: const Offset(0, 6))],
-            border: Border.all(color: _borderColor),
-          ),
-          child: Icon(LucideIcons.packageSearch, color: _accentColor, size: 30),
-        ),
-        const SizedBox(width: 20),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Umbral: si hay menos de 900px disponibles, usamos layout compacto
+        final bool isCompact = constraints.maxWidth < 900;
+        final bool isVeryCompact = constraints.maxWidth < 600;
+
+        // Bloque del título (icono + textos)
+        final titleBlock = Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: _accentColor.withOpacity(0.15),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+                border: Border.all(color: _borderColor),
+              ),
+              child: Icon(LucideIcons.packageSearch, color: _accentColor, size: 30),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Catálogo de Materiales",
+                    style: GoogleFonts.inter(
+                      fontSize: isVeryCompact ? 20 : 26,
+                      fontWeight: FontWeight.w800,
+                      color: _textPrimary,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Gestiona precios, inventario y proveedores.",
+                    style: GoogleFonts.inter(fontSize: 15, color: _textSecondary),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        // Bloque de acciones (botones + toggle)
+        final actionsBlock = Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (canEdit && _currentView == 'catalogo') _buildNewMaterialButton(),
+            if (canEdit)
+              ImportExportButtons(
+                onImportComplete: () {
+                  setState(() {});
+                },
+              ),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderColor),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildToggleButton('catalogo', 'Catálogo', LucideIcons.package),
+                  _buildToggleButton('asignaciones', 'Asignaciones', LucideIcons.gitBranch),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        if (isCompact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text("Catálogo de Materiales", style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5)),
-              const SizedBox(height: 4),
-              Text("Gestiona precios, inventario y proveedores.", style: GoogleFonts.inter(fontSize: 15, color: _textSecondary)),
+              titleBlock,
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: actionsBlock,
+              ),
             ],
-          ),
-        ),
+          );
+        }
 
-        // ★ NUEVO: BOTÓN "NUEVO MATERIAL" ──────────────────────
-        if (canEdit && _currentView == 'catalogo') ...[
-          _buildNewMaterialButton(),
-          const SizedBox(width: 12),
-        ],
-
-        // ── BOTONES IMPORTAR / EXPORTAR ──
-        if (canEdit) ...[
-          ImportExportButtons(
-            onImportComplete: () {
-              setState(() {});
-            },
-          ),
-          const SizedBox(width: 12),
-        ],
-
-        // ── TOGGLE ──
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _borderColor),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildToggleButton('catalogo', 'Catálogo', LucideIcons.package),
-              _buildToggleButton('asignaciones', 'Asignaciones', LucideIcons.gitBranch),
-            ],
-          ),
-        ),
-      ],
+        return Row(
+          children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: 16),
+            Flexible(child: actionsBlock),
+          ],
+        );
+      },
     );
   }
 

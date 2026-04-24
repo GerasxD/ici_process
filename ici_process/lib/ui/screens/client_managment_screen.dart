@@ -1,12 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:ici_process/core/utils/permission_manager.dart';
 import 'package:ici_process/models/client_model.dart';
 import 'package:ici_process/models/user_model.dart';
 import 'package:ici_process/services/client_service.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class ClientManagementScreen extends StatefulWidget {
@@ -86,16 +86,17 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
 
   Future<void> _pickLogo() async {
     try {
-      final picker = ImagePicker();
-      final XFile? file = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true, // ⭐ Importante para web: carga los bytes directamente
       );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        setState(() => _selectedLogoBytes = bytes);
+
+      if (result != null && result.files.isNotEmpty) {
+        final bytes = result.files.first.bytes;
+        if (bytes != null) {
+          setState(() => _selectedLogoBytes = bytes);
+        }
       }
     } catch (e) {
       _showSnack("No se pudo cargar la imagen", isSuccess: false);
@@ -432,7 +433,9 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
           title: Text(client.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: _textPrimary, fontSize: 15)),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Row(
+            child: Wrap(
+              spacing: 8.0, 
+              runSpacing: 6.0, 
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -446,7 +449,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                       const Icon(LucideIcons.mapPin, size: 10, color: Color(0xFF94A3B8)),
                       const SizedBox(width: 4),
                       ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 200),
+                        constraints: const BoxConstraints(maxWidth: 180), 
                         child: Text(
                           client.billingAddress,
                           maxLines: 1,
@@ -457,8 +460,7 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                     ],
                   ),
                 ),
-                if (client.branchAddresses.isNotEmpty) ...[
-                  const SizedBox(width: 8),
+                if (client.branchAddresses.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
@@ -478,7 +480,6 @@ class _ClientManagementScreenState extends State<ClientManagementScreen> {
                       ],
                     ),
                   ),
-                ],
               ],
             ),
           ),
@@ -1584,19 +1585,20 @@ class _EditClientDialogState extends State<_EditClientDialog> {
 
   Future<void> _pickLogo() async {
     try {
-      final picker = ImagePicker();
-      final XFile? file = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
       );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        setState(() {
-          _newLogoBytes = bytes;
-          _removeLogo = false;
-        });
+
+      if (result != null && result.files.isNotEmpty) {
+        final bytes = result.files.first.bytes;
+        if (bytes != null) {
+          setState(() {
+            _newLogoBytes = bytes;
+            _removeLogo = false;
+          });
+        }
       }
     } catch (_) {}
   }

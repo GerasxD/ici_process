@@ -178,24 +178,27 @@ class _ProviderManagementScreenState extends State<ProviderManagementScreen> {
           child: Icon(LucideIcons.boxes, color: _accentColor, size: 32),
         ),
         const SizedBox(width: 20),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Proveedores y Suministros",
-              style: GoogleFonts.inter(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: _textPrimary,
-                letterSpacing: -0.5,
+        // CAMBIO AQUÍ: Agregamos Expanded para evitar el overflow
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Proveedores y Suministros",
+                style: GoogleFonts.inter(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _textPrimary,
+                  letterSpacing: -0.5,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Gestiona tu catálogo de proveedores y contactos externos.",
-              style: GoogleFonts.inter(fontSize: 15, color: _textSecondary),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                "Gestiona tu catálogo de proveedores y contactos externos.",
+                style: GoogleFonts.inter(fontSize: 15, color: _textSecondary),
+              ),
+            ],
+          ),
         ),
       ],
     );
